@@ -134,3 +134,25 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env.*
+
+# Build output
+dist/
+build/
+sumbong/frontend/build/
+sumbong/backend/build/
+
+# IDE and editor folders
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Miscellaneous
+*.tgz 
