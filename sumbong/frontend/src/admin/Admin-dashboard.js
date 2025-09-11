@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 // If you have sweetalert2 installed, uncomment the next line and use Swal.fire instead of window.alert
 import Swal from 'sweetalert2';
 import axios from 'axios';
@@ -15,6 +15,9 @@ import Select from 'react-select';
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [complaints, setComplaints] = useState([]);
+    // Refs to track previous counts for notifications
+    const prevUsersCount = useRef(0);
+    const prevComplaintsCount = useRef(0);
   const [activeTab, setActiveTab] = useState('users');
   const [viewComplaint, setViewComplaint] = useState(null);
   const [feedbackText, setFeedbackText] = useState('');
@@ -117,8 +120,16 @@ const AdminDashboard = () => {
       position: 'top-end',
       toast: true,
     });
-    fetchUsers();
-    fetchComplaints();
+    // Initial fetch and set previous counts
+    const initFetch = async () => {
+      const usersRes = await axios.get('http://localhost:5000/api/admin/users');
+      setUsers(usersRes.data.users);
+      prevUsersCount.current = usersRes.data.users.length;
+      const complaintsRes = await axios.get('http://localhost:5000/api/complaints');
+      setComplaints(complaintsRes.data.complaints);
+      prevComplaintsCount.current = complaintsRes.data.complaints.length;
+    };
+    initFetch();
     // Auto-refresh lists every 10 seconds to reflect user profile/photo updates
     const intervalId = setInterval(() => {
       fetchUsers();
@@ -136,7 +147,20 @@ const AdminDashboard = () => {
   const fetchUsers = async () => {
     try {
       const res = await axios.get('http://localhost:5000/api/admin/users');
+      // Check for new user
+      if (prevUsersCount.current && res.data.users.length > prevUsersCount.current) {
+        Swal.fire({
+          icon: 'info',
+          title: 'New user registered!',
+          showConfirmButton: false,
+          timer: 1500,
+          timerProgressBar: true,
+          position: 'top-end',
+          toast: true,
+        });
+      }
       setUsers(res.data.users);
+      prevUsersCount.current = res.data.users.length;
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Failed to fetch users' });
     }
@@ -145,7 +169,20 @@ const AdminDashboard = () => {
   const fetchComplaints = async () => {
     try {
       const res = await axios.get('http://localhost:5000/api/complaints');
+      // Check for new complaint
+      if (prevComplaintsCount.current && res.data.complaints.length > prevComplaintsCount.current) {
+        Swal.fire({
+          icon: 'info',
+          title: 'New complaint received!',
+          showConfirmButton: false,
+          timer: 1500,
+          timerProgressBar: true,
+          position: 'top-end',
+          toast: true,
+        });
+      }
       setComplaints(res.data.complaints);
+      prevComplaintsCount.current = res.data.complaints.length;
     } catch (err) {
       setComplaints([]);
       Swal.fire({ icon: 'error', title: 'Failed to fetch complaints' });
