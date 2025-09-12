@@ -157,3 +157,4 @@ sumbong/backend/build/
 # Miscellaneous
 *.tgz 
 *.jpg
+/sumbong/backend/uploads
