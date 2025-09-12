@@ -37,6 +37,64 @@ const AdminDashboard = () => {
   const [showVerificationHistory, setShowVerificationHistory] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [selectedUserCredentials, setSelectedUserCredentials] = useState(null);
+  // Credential image modal state and renderer
+  const [credentialImageModal, setCredentialImageModal] = useState({ open: false, index: 0 });
+
+  function renderCredentialImageModal() {
+  if (!selectedUserCredentials || !credentialImageModal.open) return null;
+  const credentials = selectedUserCredentials.credentials || selectedUserCredentials;
+  const idx = credentialImageModal.index;
+  const cred = credentials[idx];
+  if (!cred) return null;
+  const rawUrl = typeof cred === 'string' ? cred : cred.url;
+  if (!rawUrl) return null;
+  const url = rawUrl.startsWith('http') ? rawUrl : `http://localhost:5000/${rawUrl}`;
+  const ext = url.split('.').pop().toLowerCase();
+
+    const handlePrev = (e) => {
+      e.stopPropagation();
+      setCredentialImageModal({ open: true, index: idx === 0 ? credentials.length - 1 : idx - 1 });
+    };
+    const handleNext = (e) => {
+      e.stopPropagation();
+      setCredentialImageModal({ open: true, index: idx === credentials.length - 1 ? 0 : idx + 1 });
+    };
+    const handleClose = (e) => {
+      e.stopPropagation();
+      setCredentialImageModal({ open: false, index: 0 });
+    };
+
+    return (
+      <div className="evidence-messenger-overlay" onClick={handleClose}>
+        {credentials.length > 1 && (
+          <>
+            <button className="evidence-messenger-arrow left" onClick={handlePrev} title="Previous">&#10094;</button>
+            <button className="evidence-messenger-arrow right" onClick={handleNext} title="Next">&#10095;</button>
+          </>
+        )}
+        <div className="evidence-messenger-modal" onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
+          <button className="evidence-messenger-close-modal" onClick={handleClose} title="Close">×</button>
+          <div className="evidence-messenger-media">
+            {['jpg','jpeg','png','gif','bmp','webp'].includes(ext) ? (
+              <img src={url} alt={`Credential ${idx + 1}`} className="evidence-messenger-img" />
+            ) : ext === 'pdf' ? (
+              <embed src={url} type="application/pdf" className="evidence-messenger-img" />
+            ) : (
+              <div className="file-preview" style={{ fontSize: 48, padding: 40, color: '#fff' }}>{ext.toUpperCase()}</div>
+            )}
+          </div>
+          <div className="evidence-messenger-footer">
+            <span className="evidence-messenger-filename">{url.split('/').pop()}</span>
+            {credentials.length > 1 && (
+              <span className="evidence-messenger-counter">{idx + 1} of {credentials.length}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // In your credential modal, update the image onClick:
+  // <img src={url} ... onClick={() => setCredentialImageModal({ open: true, index: idx })} ... />
   const [credentialsModalOpen, setCredentialsModalOpen] = useState(false);
   const [currentCredentialIndex, setCurrentCredentialIndex] = useState(0);
   // Evidence modal state for complaint evidence viewer
@@ -961,24 +1019,27 @@ const AdminDashboard = () => {
               </div>
 
               <div className="credential-display">
-                <img 
-                  src={`http://localhost:5000/${selectedUserCredentials.credentials[currentCredentialIndex]}`}
-                  alt={`Credential ${currentCredentialIndex + 1}`}
-                  style={{ 
-                    maxWidth: '100%', 
-                    maxHeight: '500px', 
-                    objectFit: 'contain',
-                    border: '1px solid #ddd',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                    cursor: 'pointer'
-                  }}
-                  onClick={() => {
-                    const imageUrl = `http://localhost:5000/${selectedUserCredentials.credentials[currentCredentialIndex]}`;
-                    window.open(imageUrl, '_blank');
-                  }}
-                  title="Click to view full screen"
-                />
+                {selectedUserCredentials.credentials && selectedUserCredentials.credentials.length > 0 && (
+                  <img
+                    src={`http://localhost:5000/${selectedUserCredentials.credentials[currentCredentialIndex]}`}
+                    alt={`Credential ${currentCredentialIndex + 1}`}
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '500px',
+                      objectFit: 'contain',
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                      cursor: 'pointer'
+                    }}
+                    onClick={e => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setCredentialImageModal({ open: true, index: currentCredentialIndex });
+                    }}
+                    title="Click to view full screen"
+                  />
+                )}
               </div>
 
               <div className="credential-actions">
@@ -1001,6 +1062,7 @@ const AdminDashboard = () => {
                 </button>
               </div>
             </div>
+            {renderCredentialImageModal()}
           </div>
         </div>
       )}
@@ -1106,9 +1168,9 @@ const AdminDashboard = () => {
                   style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
                 />
               </div>
-              <div className="credential-actions">
+              <div className="credential-issues-actions">
                 <button 
-                  className="action-btn disapprove-btn"
+                  className="action-btn reject-credentials-btn"
                   onClick={() => handleRejectCredentials(currentUserId)}
                   disabled={verificationLoading || !issueDetails.trim()}
                 >

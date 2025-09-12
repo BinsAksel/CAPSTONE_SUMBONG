@@ -21,6 +21,52 @@ const Dashboard = () => {
   const complaintFileInputRef = useRef();
   const eventSourceRef = useRef(null);
 
+  // Track login state and missed notifications
+  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem('user'));
+  const [justLoggedIn, setJustLoggedIn] = useState(false);
+  const [missedNotifications, setMissedNotifications] = useState([]);
+  // Listen for login/logout events and fetch missed notifications
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const userNow = localStorage.getItem('user');
+      setIsLoggedIn(!!userNow);
+      if (userNow && !isLoggedIn) {
+        setJustLoggedIn(true);
+        fetchMissedNotifications();
+      } else if (!userNow && isLoggedIn) {
+        setJustLoggedIn(false);
+        setMissedNotifications([]);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [isLoggedIn]);
+
+  // On mount, if logged in, fetch missed notifications
+  useEffect(() => {
+    if (isLoggedIn && justLoggedIn) {
+      fetchMissedNotifications();
+    }
+  }, [isLoggedIn, justLoggedIn]);
+
+  // Fetch missed notifications (simulate API or use localStorage)
+  const fetchMissedNotifications = async () => {
+    // Simulate: get from localStorage (or replace with API call)
+    const missed = [];
+    const stored = localStorage.getItem(`notifications_${user._id}`);
+    if (stored) {
+      try {
+        const all = JSON.parse(stored);
+        // Only show those after last logout
+        const lastLogin = parseInt(localStorage.getItem(`lastLogin_${user._id}`) || '0', 10);
+        all.forEach(n => {
+          if (n.timestamp > lastLogin) missed.push(n);
+        });
+      } catch {}
+    }
+    setMissedNotifications(missed);
+  };
+
   // Get user info from localStorage
   const storedUser = JSON.parse(localStorage.getItem('user')) || {
     _id: '',
@@ -504,14 +550,14 @@ const Dashboard = () => {
 
 
 
+  // Only show notification if logged in and not on login page
   const handleStatusUpdate = (data) => {
-    // Gather existing complaint details for richer notification content
+    // Prevent notification if not logged in or user is not set
+    if (!isLoggedIn || !user || !user._id) return;
     const found = complaints.find(c => c._id === data.complaintId) || {};
     const subject = found.subject || found.type || 'Complaint';
     const complaintType = found.type;
     const location = found.location;
-
-    // Update the complaint in the local state with recently updated flag
     setComplaints(prevComplaints => 
       prevComplaints.map(complaint => 
         complaint._id === data.complaintId 
@@ -519,8 +565,6 @@ const Dashboard = () => {
           : complaint
       )
     );
-
-    // Show notification
     Swal.fire({
       title: 'Status Update!',
       text: data.message,
@@ -531,26 +575,11 @@ const Dashboard = () => {
       timer: 5000,
       timerProgressBar: true
     });
-
-    // Update view complaint if it's currently open
     if (viewComplaint && viewComplaint._id === data.complaintId) {
       setViewComplaint(prev => ({ ...prev, status: data.newStatus }));
     }
-
-    // Save notification to localStorage for offline users with specifics
-    saveNotificationToStorage({
-      ...data,
-      subject,
-      complaintType,
-      location
-    });
-
-    // Scroll to the updated complaint
-    setTimeout(() => {
-      scrollToUpdatedComplaint(data.complaintId);
-    }, 1000);
-
-    // Remove the recently updated flag after 15 seconds (longer for better visibility)
+    saveNotificationToStorage({ ...data, subject, complaintType, location });
+    setTimeout(() => { scrollToUpdatedComplaint(data.complaintId); }, 1000);
     setTimeout(() => {
       setComplaints(prevComplaints => 
         prevComplaints.map(complaint => 
@@ -563,7 +592,7 @@ const Dashboard = () => {
   };
 
   const handleFeedbackUpdate = (data) => {
-    // Update the complaint in the local state
+    if (!isLoggedIn || !user || !user._id) return;
     setComplaints(prevComplaints => 
       prevComplaints.map(complaint => 
         complaint._id === data.complaintId 
@@ -571,8 +600,6 @@ const Dashboard = () => {
           : complaint
       )
     );
-
-    // Show notification
     Swal.fire({
       title: 'New Feedback!',
       text: data.message,
@@ -583,20 +610,81 @@ const Dashboard = () => {
       timer: 5000,
       timerProgressBar: true
     });
-
-    // Update view complaint if it's currently open
     if (viewComplaint && viewComplaint._id === data.complaintId) {
       setViewComplaint(prev => ({ ...prev, feedback: data.feedback }));
     }
-
-    // Save notification to localStorage for offline users
     saveNotificationToStorage(data);
-
-    // Scroll to the updated complaint
-    setTimeout(() => {
-      scrollToUpdatedComplaint(data.complaintId);
-    }, 1000);
+    setTimeout(() => { scrollToUpdatedComplaint(data.complaintId); }, 1000);
   };
+  // Render missed notifications (after login), under welcome
+  function renderMissedNotifications() {
+    if (!justLoggedIn || missedNotifications.length === 0) return null;
+    // Show SweetAlert for each missed notification after welcome
+    setTimeout(() => {
+      missedNotifications.forEach((notif, idx) => {
+        setTimeout(() => {
+          Swal.fire({
+            title: notif.type === 'feedback_update' ? 'New Feedback!' : 'Status Update!',
+            text: notif.message,
+            icon: notif.type === 'feedback_update' ? 'info' : 'info',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 5000,
+            timerProgressBar: true
+          });
+        }, idx * 1200);
+      });
+      // After showing, clear missed notifications so they don't repeat
+      setMissedNotifications([]);
+      setJustLoggedIn(false);
+    }, 1200); // Delay to allow welcome alert to show first
+    // Also render below welcome for visual context
+    return (
+      <div className="missed-notifications-container" style={{ marginTop: 16 }}>
+        {missedNotifications.map((notif, idx) => (
+          <div key={notif._id || idx} className="missed-notification-alert" style={{ marginBottom: 8 }}>
+            <div style={{ background: '#fef3c7', border: '1.5px solid #fbbf24', borderRadius: 8, padding: 12, color: '#92400e', fontWeight: 500 }}>
+              <div style={{ fontSize: 14, marginBottom: 2 }}>{notif.message}</div>
+              <div style={{ fontSize: 12, color: '#b45309' }}>Time: {new Date(notif.timestamp).toLocaleString()}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Show SweetAlert for missed notifications after login using useEffect
+  useEffect(() => {
+    if (justLoggedIn && missedNotifications.length > 0) {
+      // Show SweetAlert for each missed notification after welcome
+      let alertTimeouts = [];
+      const timer = setTimeout(() => {
+        missedNotifications.forEach((notif, idx) => {
+          const t = setTimeout(() => {
+            Swal.fire({
+              title: notif.type === 'feedback_update' ? 'New Feedback!' : 'Status Update!',
+              text: notif.message,
+              icon: notif.type === 'feedback_update' ? 'info' : 'info',
+              toast: true,
+              position: 'top-end',
+              showConfirmButton: false,
+              timer: 5000,
+              timerProgressBar: true
+            });
+          }, idx * 1200);
+          alertTimeouts.push(t);
+        });
+        // After showing, clear missed notifications so they don't repeat
+        setMissedNotifications([]);
+        setJustLoggedIn(false);
+      }, 1200); // Delay to allow welcome alert to show first
+      return () => {
+        clearTimeout(timer);
+        alertTimeouts.forEach(clearTimeout);
+      };
+    }
+  }, [justLoggedIn, missedNotifications]);
 
   const handleCredentialVerification = (data) => {
     if (data.status === 'approved') {
@@ -782,12 +870,22 @@ const Dashboard = () => {
         localStorage.setItem(`complaints_${user._id}`, JSON.stringify(complaints));
         console.log('Stored complaints before logout:', complaints);
       }
-      
       // Store logout time
       const logoutTime = Date.now();
       localStorage.setItem(`lastLogin_${user._id}`, logoutTime.toString());
       console.log('Stored logout time:', new Date(logoutTime).toLocaleString());
-      
+      // Close real-time connection if open
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      // Remove notification state
+      setMissedNotifications([]);
+      setNotificationsList([]);
+      setNotificationCount(0);
+      setRealtimeConnected(false);
+      setIsLoggedIn(false);
+      setJustLoggedIn(false);
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       navigate('/login');
@@ -1225,8 +1323,9 @@ const Dashboard = () => {
       </header>
       {/* Main Content */}
       <div className="dashboard-main">
-        <h3>Welcome back, {user.firstName}!</h3>
-        <p>Here you can view updates, submit complaints, and track the status of your reports. Feel free to explore the features available on your dashboard.</p>
+  <h3>Welcome back, {user.firstName}!</h3>
+  <p>Here you can view updates, submit complaints, and track the status of your reports. Feel free to explore the features available on your dashboard.</p>
+  {renderMissedNotifications()}
 
         {/* Summary Cards */}
         <div className="summary-grid">
@@ -1717,7 +1816,7 @@ const Dashboard = () => {
                   <div className="profile-contact-info">
                     <div className="contact-item">
                       <span className="contact-label">Email:</span>
-                      <span className="contact-value">{user.email}</span>
+                                           <span className="contact-value">{user.email}</span>
                     </div>
                     {user.phoneNumber && (
                       <div className="contact-item">
