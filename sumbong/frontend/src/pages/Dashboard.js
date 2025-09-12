@@ -66,47 +66,48 @@ const Dashboard = () => {
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const notificationContentRef = useRef(null);
 
+  // Evidence modal state for complaint evidence viewer (user side)
+  const [evidenceModal, setEvidenceModal] = useState({ open: false, index: 0 });
+
   // Derived complaint counts for summary cards
   const totalComplaints = complaints.length;
   const pendingCount = complaints.filter(c => (c.status || '').toLowerCase() === 'pending').length;
   const inProgressCount = complaints.filter(c => (c.status || '').toLowerCase() === 'in progress').length;
   const solvedCount = complaints.filter(c => (c.status || '').toLowerCase() === 'solved').length;
 
-// Real-time updates setup
-useEffect(() => {
-  if (user._id) {
-    setupRealTimeUpdates();
-    checkForStoredNotifications();
-    setupOfflineDetection();
-    checkForMissedUpdates();
-    setupPeriodicChecks();
-    updateNotificationCount();
+  // Real-time updates setup
+  useEffect(() => {
+    if (user._id) {
+      setupRealTimeUpdates();
+      checkForStoredNotifications();
+      setupOfflineDetection();
+      checkForMissedUpdates();
+      setupPeriodicChecks();
+      updateNotificationCount();
 
-    const justLoggedIn = localStorage.getItem('justLoggedIn');
-    if (justLoggedIn) {
-      const storedUser = JSON.parse(localStorage.getItem('user') || "{}");
-      const displayName =
-        storedUser.name ||
-        `${storedUser.firstName || ''} ${storedUser.lastName || ''}`.trim() ||
-        storedUser.email ||
-        'User';
+      const justLoggedIn = localStorage.getItem('justLoggedIn');
+      if (justLoggedIn) {
+        const storedUser = JSON.parse(localStorage.getItem('user') || "{}");
+        const displayName =
+          storedUser.name ||
+          `${storedUser.firstName || ''} ${storedUser.lastName || ''}`.trim() ||
+          storedUser.email ||
+          'User';
 
-      Swal.fire({
-        icon: 'success',
-        title: `Welcome back, ${displayName}!`,
-        showConfirmButton: false,
-        timer: 1000,
-        timerProgressBar: true,
-        position: 'top-end',
-        toast: true,
-      });
+        Swal.fire({
+          icon: 'success',
+          title: `Welcome back, ${displayName}!`,
+          showConfirmButton: false,
+          timer: 1000,
+          timerProgressBar: true,
+          position: 'top-end',
+          toast: true,
+        });
 
-      localStorage.removeItem('justLoggedIn');
+        localStorage.removeItem('justLoggedIn');
+      }
     }
-  }
-}, [user._id]); // ✅ THIS needs to be inside useEffect
-
-
+  }, [user._id]); // ✅ THIS needs to be inside useEffect
 
   // Update notification count from localStorage
   const updateNotificationCount = () => {
@@ -1143,6 +1144,60 @@ useEffect(() => {
     }
   };
 
+  // Render the fullscreen evidence modal for complaints (user side)
+  function renderEvidenceModal() {
+    if (!viewComplaint || !viewComplaint.evidence || !evidenceModal.open) return null;
+    const evidenceList = viewComplaint.evidence;
+    const idx = evidenceModal.index;
+    const file = evidenceList[idx];
+    const url = `http://localhost:5000/${file}`;
+    const ext = file.split('.').pop().toLowerCase();
+
+    const handlePrev = (e) => {
+      e.stopPropagation();
+      setEvidenceModal({ open: true, index: idx === 0 ? evidenceList.length - 1 : idx - 1 });
+    };
+    const handleNext = (e) => {
+      e.stopPropagation();
+      setEvidenceModal({ open: true, index: idx === evidenceList.length - 1 ? 0 : idx + 1 });
+    };
+    const handleClose = (e) => {
+      e.stopPropagation();
+      setEvidenceModal({ open: false, index: 0 });
+    };
+
+    return (
+      <div className="evidence-messenger-overlay" onClick={handleClose}>
+        {evidenceList.length > 1 && (
+          <>
+            <button className="evidence-messenger-arrow left" onClick={handlePrev} title="Previous">&#10094;</button>
+            <button className="evidence-messenger-arrow right" onClick={handleNext} title="Next">&#10095;</button>
+          </>
+        )}
+        <div className="evidence-messenger-modal" onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
+          <button className="evidence-messenger-close-modal" onClick={handleClose} title="Close">×</button>
+          <div className="evidence-messenger-media">
+            {['jpg','jpeg','png','gif','bmp','webp','jfif'].includes(ext) ? (
+              <img src={url} alt={`Evidence ${idx + 1}`} className="evidence-messenger-img" />
+            ) : ['mp4','avi','mov','wmv','flv','webm','ogg'].includes(ext) ? (
+              <video src={url} controls className="evidence-messenger-img" style={{ background: '#000' }} />
+            ) : ext === 'pdf' ? (
+              <embed src={url} type="application/pdf" className="evidence-messenger-img" />
+            ) : (
+              <div className="file-preview" style={{ fontSize: 48, padding: 40, color: '#fff' }}>{ext.toUpperCase()}</div>
+            )}
+          </div>
+          <div className="evidence-messenger-footer">
+            <span className="evidence-messenger-filename">{file.split('/').pop()}</span>
+            {evidenceList.length > 1 && (
+              <span className="evidence-messenger-counter">{idx + 1} of {evidenceList.length}</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-container">
       {/* Header */}
@@ -1490,13 +1545,18 @@ useEffect(() => {
                     {viewComplaint.evidence.map((file, idx) => {
                       const url = `http://localhost:5000/${file}`;
                       const ext = file.split('.').pop().toLowerCase();
+                      // Stop propagation so background modal does not close
+                      const handleEvidenceClick = (e) => {
+                        e.stopPropagation();
+                        setEvidenceModal({ open: true, index: idx });
+                      };
                       if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "jfif"].includes(ext)) {
                         return (
                           <div key={idx} className="evidence-item">
                             <img
                               src={url}
                               alt={`evidence-${idx}`}
-                              onClick={() => window.open(url, '_blank')}
+                              onClick={handleEvidenceClick}
                               title="Click to view full size"
                             />
                             <small className="evidence-filename">{file.split('/').pop()}</small>
@@ -1507,7 +1567,7 @@ useEffect(() => {
                           <div key={idx} className="evidence-item">
                             <video
                               controls
-                              onClick={() => window.open(url, '_blank')}
+                              onClick={handleEvidenceClick}
                               title="Click to view full size"
                             >
                               <source src={url} type={`video/${ext}`} />
@@ -1522,7 +1582,7 @@ useEffect(() => {
                             <embed
                               src={url}
                               type="application/pdf"
-                              onClick={() => window.open(url, '_blank')}
+                              onClick={handleEvidenceClick}
                               title="Click to view full size"
                             />
                             <small className="evidence-filename">{file.split('/').pop()}</small>
@@ -1531,7 +1591,7 @@ useEffect(() => {
                       } else {
                         return (
                           <div key={idx} className="evidence-item">
-                            <div className="file-placeholder">
+                            <div className="file-placeholder" onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }}>
                               {ext.toUpperCase()}
                             </div>
                             <small className="evidence-filename">{file.split('/').pop()}</small>
@@ -1543,6 +1603,7 @@ useEffect(() => {
                 ) : (
                   <div className="no-evidence">No Evidence Uploaded</div>
                 )}
+                {renderEvidenceModal()}
               </div>
             </div>
             {viewComplaint.feedback && (

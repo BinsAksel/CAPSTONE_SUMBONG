@@ -65,8 +65,6 @@ const AdminDashboard = () => {
 
     return (
       <div className="evidence-messenger-overlay" onClick={handleClose}>
-        {/* X button absolutely positioned in overlay, outside modal */}
-        <button className="evidence-messenger-close" onClick={handleClose} title="Close">×</button>
         {/* Arrows absolutely positioned in overlay, outside modal */}
         {evidenceList.length > 1 && (
           <>
@@ -74,7 +72,9 @@ const AdminDashboard = () => {
             <button className="evidence-messenger-arrow right" onClick={handleNext} title="Next">&#10095;</button>
           </>
         )}
-        <div className="evidence-messenger-modal" onClick={e => e.stopPropagation()}>
+        <div className="evidence-messenger-modal" onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
+          {/* X button absolutely positioned in modal, top right */}
+          <button className="evidence-messenger-close-modal" onClick={handleClose} title="Close">×</button>
           <div className="evidence-messenger-media">
             {['jpg','jpeg','png','gif','bmp','webp'].includes(ext) ? (
               <img src={url} alt={`Evidence ${idx + 1}`} className="evidence-messenger-img" />
