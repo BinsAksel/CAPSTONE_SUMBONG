@@ -1,3 +1,59 @@
+/* Credential Issues Modal: always-red reject button, no hover effect */
+.credential-issues-actions .reject-credentials-btn {
+  background: #ef4444 !important;
+  color: #fff !important;
+  border: none;
+  box-shadow: none;
+  font-weight: 600;
+  transition: none;
+}
+/* Credential Issues Modal: action buttons side by side, equal size */
+.credential-issues-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+  justify-content: center;
+  align-items: stretch;
+  margin-top: 24px;
+}
+.credential-issues-actions button {
+  flex: 1 1 0;
+  min-width: 160px;
+  max-width: 240px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.08rem;
+  font-weight: 600;
+  border-radius: 8px;
+  box-sizing: border-box;
+  margin: 0;
+}
+/* Credential modal: action buttons side by side */
+.credential-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+  justify-content: center;
+  align-items: stretch;
+  margin-top: 24px;
+}
+.credential-actions .approve-btn,
+.credential-actions .disapprove-btn {
+  flex: 1 1 0;
+  min-width: 160px;
+  max-width: 240px;
+  margin: 0;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.08rem;
+  font-weight: 600;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
 /* Messenger-style Evidence Modal */
 .evidence-messenger-overlay {
   position: fixed;
@@ -817,15 +873,41 @@
   }
 }
 
-/* Table cell improvements for credentials column */
-.admin-table td:nth-child(5) {
-  min-width: 150px;
-  max-width: 200px;
+
+/* Credentials for Verification section - compact width */
+.credentials-verification-section {
+  max-width: 340px;
+  margin: 0 auto 24px auto;
+  background: #f7fafd;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(34,43,69,0.06);
+  padding: 18px 18px 10px 18px;
 }
 
-.admin-table td:nth-child(6) {
-  min-width: 200px;
-  max-width: 300px;
+.credentials-verification-section h3,
+.credentials-verification-section .section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #2563eb;
+}
+
+.credentials-verification-section .no-credentials {
+  font-size: 1rem;
+  color: #64748b;
+  margin-bottom: 10px;
+}
+
+.credentials-verification-section .view-credentials-btn {
+  width: 75%;
+  max-width: none;
+  min-width: 0;
+  margin: 10px auto 0 auto;
+  display: block;
+  padding: 7px 18px;
+  font-size: 1rem;
+  border-radius: 6px;
+  font-weight: 500;
 }
 
 /* Button styles */
