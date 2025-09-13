@@ -48,7 +48,7 @@ const AdminDashboard = () => {
   if (!cred) return null;
   const rawUrl = typeof cred === 'string' ? cred : cred.url;
   if (!rawUrl) return null;
-  const url = rawUrl.startsWith('http') ? rawUrl : `http://localhost:5000/${rawUrl}`;
+  const url = rawUrl.startsWith('http') ? rawUrl : `https://capstone-sumbong.onrender.com/${rawUrl}`;
   const ext = url.split('.').pop().toLowerCase();
 
     const handlePrev = (e) => {
@@ -105,7 +105,7 @@ const AdminDashboard = () => {
     const evidenceList = viewComplaint.evidence;
     const idx = evidenceModal.index;
     const file = evidenceList[idx];
-    const url = `http://localhost:5000/${file}`;
+    const url = `https://capstone-sumbong.onrender.com/${file}`;
     const ext = file.split('.').pop().toLowerCase();
 
     const handlePrev = (e) => {
@@ -180,10 +180,10 @@ const AdminDashboard = () => {
     });
     // Initial fetch and set previous counts
     const initFetch = async () => {
-      const usersRes = await axios.get('http://localhost:5000/api/admin/users');
+      const usersRes = await axios.get('https://capstone-sumbong.onrender.com/api/admin/users');
       setUsers(usersRes.data.users);
       prevUsersCount.current = usersRes.data.users.length;
-      const complaintsRes = await axios.get('http://localhost:5000/api/complaints');
+      const complaintsRes = await axios.get('https://capstone-sumbong.onrender.com/api/complaints');
       setComplaints(complaintsRes.data.complaints);
       prevComplaintsCount.current = complaintsRes.data.complaints.length;
     };
@@ -204,7 +204,7 @@ const AdminDashboard = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/admin/users');
+      const res = await axios.get('https://capstone-sumbong.onrender.com/api/admin/users');
       // Check for new user
       if (prevUsersCount.current && res.data.users.length > prevUsersCount.current) {
         Swal.fire({
@@ -226,7 +226,7 @@ const AdminDashboard = () => {
 
   const fetchComplaints = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/complaints');
+      const res = await axios.get('https://capstone-sumbong.onrender.com/api/complaints');
       // Check for new complaint
       if (prevComplaintsCount.current && res.data.complaints.length > prevComplaintsCount.current) {
         Swal.fire({
@@ -249,7 +249,7 @@ const AdminDashboard = () => {
 
   const verifyUser = async (userId) => {
     try {
-      await axios.patch(`http://localhost:5000/api/admin/verify/${userId}`);
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/verify/${userId}`);
       fetchUsers();
       Swal.fire({ icon: 'success', title: 'User verified!' });
     } catch (err) {
@@ -259,7 +259,7 @@ const AdminDashboard = () => {
 
   const disapproveUser = async (userId) => {
     try {
-      await axios.patch(`http://localhost:5000/api/admin/disapprove/${userId}`);
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/disapprove/${userId}`);
       fetchUsers();
       Swal.fire({ icon: 'success', title: 'User disapproved!' });
     } catch (err) {
@@ -277,7 +277,7 @@ const AdminDashboard = () => {
     });
     if (!result.isConfirmed) return;
     try {
-      await axios.delete(`http://localhost:5000/api/admin/delete/${userId}`);
+      await axios.delete(`https://capstone-sumbong.onrender.com/api/admin/delete/${userId}`);
       fetchUsers();
       Swal.fire({ icon: 'success', title: 'User deleted!' });
     } catch (err) {
@@ -302,7 +302,7 @@ const AdminDashboard = () => {
 
   const handleStatusChange = async (complaintId, status) => {
     try {
-      await axios.patch(`http://localhost:5000/api/complaints/${complaintId}/status`, { status });
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/complaints/${complaintId}/status`, { status });
       fetchComplaints();
       Swal.fire({ icon: 'success', title: 'Status updated!' });
     } catch (err) {
@@ -313,7 +313,7 @@ const AdminDashboard = () => {
   const handleSendFeedback = async () => {
     setFeedbackLoading(true);
     try {
-      await axios.patch(`http://localhost:5000/api/complaints/${viewComplaint._id}/status`, { 
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/complaints/${viewComplaint._id}/status`, { 
         status: viewComplaint.status,
         feedback: feedbackText 
       });
@@ -373,7 +373,7 @@ const AdminDashboard = () => {
     
     setVerificationLoading(true);
     try {
-      await axios.patch(`http://localhost:5000/api/admin/approve-credentials/${userId}`, {
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/approve-credentials/${userId}`, {
         adminNotes: adminNotes || 'Credentials verified successfully'
       });
       fetchUsers();
@@ -401,7 +401,7 @@ const AdminDashboard = () => {
     
     setVerificationLoading(true);
     try {
-      await axios.patch(`http://localhost:5000/api/admin/reject-credentials/${userId}`, {
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/reject-credentials/${userId}`, {
         issueDetails: issueDetails.trim(),
         adminNotes: adminNotes.trim() || 'Credentials rejected due to issues found',
         requiredActions: requiredActions.trim() || 'Please upload corrected credentials'
@@ -443,7 +443,7 @@ const AdminDashboard = () => {
 
   const fetchVerificationHistory = async () => {
     try {
-      const res = await axios.get('http://localhost:5000/api/admin/verification-history');
+      const res = await axios.get('https://capstone-sumbong.onrender.com/api/admin/verification-history');
       setVerificationHistory(res.data.verificationHistory);
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Failed to fetch verification history' });
@@ -465,7 +465,7 @@ const AdminDashboard = () => {
     
     setVerificationLoading(true);
     try {
-      await axios.patch(`http://localhost:5000/api/admin/request-resubmission/${userId}`, {
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/request-resubmission/${userId}`, {
         reason: issueDetails.trim(),
         deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
       });
@@ -910,7 +910,7 @@ const AdminDashboard = () => {
         {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
           <div className="evidence-grid">
             {viewComplaint.evidence.map((file, idx) => {
-              const url = `http://localhost:5000/${file}`;
+              const url = `https://capstone-sumbong.onrender.com/${file}`;
               const ext = file.split('.').pop().toLowerCase();
               const handleEvidenceClick = () => {
                 setEvidenceModal({ open: true, index: idx });
@@ -1021,7 +1021,7 @@ const AdminDashboard = () => {
               <div className="credential-display">
                 {selectedUserCredentials.credentials && selectedUserCredentials.credentials.length > 0 && (
                   <img
-                    src={`http://localhost:5000/${selectedUserCredentials.credentials[currentCredentialIndex]}`}
+                    src={`https://capstone-sumbong.onrender.com/${selectedUserCredentials.credentials[currentCredentialIndex]}`}
                     alt={`Credential ${currentCredentialIndex + 1}`}
                     style={{
                       maxWidth: '100%',
@@ -1088,7 +1088,7 @@ const AdminDashboard = () => {
               </div>
               <div className="credential-display">
                 <img 
-                  src={`http://localhost:5000/${selectedCredential.url}`}
+                  src={`https://capstone-sumbong.onrender.com/${selectedCredential.url}`}
                   alt="Verification Credential"
                   style={{ 
                     maxWidth: '100%', 

@@ -182,7 +182,7 @@ const Dashboard = () => {
     window.periodicCheckInterval = setInterval(async () => {
       if (user._id) {
         try {
-          const res = await axios.get(`http://localhost:5000/api/complaints/user/${user._id}`);
+          const res = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${user._id}`);
           const latestComplaints = res.data.complaints;
           
           // Compare with current state to find updates
@@ -271,7 +271,7 @@ const Dashboard = () => {
           console.log('Checking for updates that happened while logged out...');
           
           // Fetch latest complaints to check for status changes
-          const res = await axios.get(`http://localhost:5000/api/complaints/user/${user._id}`);
+          const res = await axios.get(`https://capstone-sumbong.onrender.comong.onrender.com/api/complaints/user/${user._id}`);
           const latestComplaints = res.data.complaints;
           console.log('Latest complaints from server:', latestComplaints);
           
@@ -376,7 +376,7 @@ const Dashboard = () => {
       eventSourceRef.current.close();
     }
 
-    const eventSource = new EventSource(`http://localhost:5000/api/realtime/${user._id}`);
+    const eventSource = new EventSource(`https://capstone-sumbong.onrender.com/api/realtime/${user._id}`);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
@@ -792,7 +792,7 @@ const Dashboard = () => {
       if (parsedUser._id) {
         (async () => {
           try {
-            const res = await axios.get(`http://localhost:5000/api/complaints/user/${parsedUser._id}`);
+            const res = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${parsedUser._id}`);
             const latest = res.data.complaints || [];
             // Seed snapshot on first load only
             const seededKey = `complaints_snapshot_seeded_${parsedUser._id}`;
@@ -834,7 +834,7 @@ const Dashboard = () => {
   const fetchComplaints = async (userId) => {
     if (!userId) return;
     try {
-      const res = await axios.get(`http://localhost:5000/api/complaints/user/${userId}`);
+      const res = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${userId}`);
       setComplaints(res.data.complaints);
     } catch (err) {
       setComplaints([]);
@@ -931,7 +931,7 @@ const Dashboard = () => {
   const refreshUserData = async () => {
     try {
       if (user._id) {
-        const response = await axios.get(`http://localhost:5000/api/user/${user._id}`);
+        const response = await axios.get(`https://capstone-sumbong.onrender.com/api/user/${user._id}`);
         const updatedUser = response.data.user;
         setUser(updatedUser);
         localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -987,7 +987,7 @@ const Dashboard = () => {
   const refreshComplaintsData = async () => {
     try {
       if (user._id) {
-        const response = await axios.get(`http://localhost:5000/api/complaints/user/${user._id}`);
+        const response = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${user._id}`);
         const latest = response.data.complaints || [];
         detectAndNotifyComplaintChanges(latest);
         setComplaints(latest);
@@ -1049,7 +1049,7 @@ const Dashboard = () => {
         formData.append('profilePic', editData.file);
       }
       const token = localStorage.getItem('token');
-      const res = await axios.patch(`http://localhost:5000/api/user/${user._id}`, formData, {
+      const res = await axios.patch(`https://capstone-sumbong.onrender.com/api/user/${user._id}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${token}`
@@ -1095,7 +1095,7 @@ const Dashboard = () => {
       if (complaint.evidence && complaint.evidence.length > 0) {
         complaint.evidence.forEach(file => formData.append('evidence', file));
       }
-      const res = await axios.post('http://localhost:5000/api/complaints', formData, {
+      const res = await axios.post('https://capstone-sumbong.onrender.com/api/complaints', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       // Save a notification for the submission so count updates immediately
@@ -1164,7 +1164,7 @@ const Dashboard = () => {
       if (editComplaintData.evidence && editComplaintData.evidence.length > 0) {
         editComplaintData.evidence.forEach(file => formData.append('evidence', file));
       }
-      await axios.patch(`http://localhost:5000/api/complaints/${editComplaint._id}`, formData, {
+      await axios.patch(`https://capstone-sumbong.onrender.com/api/complaints/${editComplaint._id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       Swal.fire('Updated!', 'Your complaint has been updated.', 'success');
@@ -1190,7 +1190,7 @@ const Dashboard = () => {
     if (!result.isConfirmed) return;
     setLoading(true);
     try {
-      await axios.delete(`http://localhost:5000/api/complaints/${complaintId}`);
+      await axios.delete(`https://capstone-sumbong.onrender.com/api/complaints/${complaintId}`);
       Swal.fire('Deleted!', 'Your complaint has been deleted.', 'success');
       fetchComplaints(user._id);
     } catch (err) {
@@ -1199,9 +1199,9 @@ const Dashboard = () => {
     setLoading(false);
   };
 
-  const profilePic = user.profilePicture ? `http://localhost:5000/${user.profilePicture}` : defaultAvatar;
+  const profilePic = user.profilePicture ? `https://capstone-sumbong.onrender.com/${user.profilePicture}` : defaultAvatar;
   const editPreviewSrc = editData.profilePic
-    ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : `http://localhost:5000/${editData.profilePic}`)
+    ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : `https://capstone-sumbong.onrender.com/${editData.profilePic}`)
     : defaultAvatar;
 
   const handleViewComplaintFromNotification = async (complaintId) => {
@@ -1248,7 +1248,7 @@ const Dashboard = () => {
     const evidenceList = viewComplaint.evidence;
     const idx = evidenceModal.index;
     const file = evidenceList[idx];
-    const url = `http://localhost:5000/${file}`;
+    const url = `https://capstone-sumbong.onrender.com/${file}`;
     const ext = file.split('.').pop().toLowerCase();
 
     const handlePrev = (e) => {
@@ -1317,7 +1317,7 @@ const Dashboard = () => {
               </button>
           <button className="profile-btn" onClick={() => setShowProfile(true)}>
             {user.profilePicture ? (
-              <img src={`http://localhost:5000/${user.profilePicture}`} alt="Profile" />
+              <img src={`https://capstone-sumbong.onrender.com/${user.profilePicture}`} alt="Profile" />
             ) : (
               <img src={defaultAvatar} alt="Profile" />
             )}
@@ -1676,7 +1676,7 @@ const Dashboard = () => {
                 {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
                   <div className="evidence-grid">
                     {viewComplaint.evidence.map((file, idx) => {
-                      const url = `http://localhost:5000/${file}`;
+                      const url = `https://capstone-sumbong.onrender.com/${file}`;
                       const ext = file.split('.').pop().toLowerCase();
                       // Stop propagation so background modal does not close
                       const handleEvidenceClick = (e) => {
@@ -1839,7 +1839,7 @@ const Dashboard = () => {
               <div className="profile-basic-info">
                 <div className="profile-picture-section">
                   {user.profilePicture ? (
-                    <img src={`http://localhost:5000/${user.profilePicture}`} alt="Profile" className="profile-picture-large" />
+                    <img src={`https://capstone-sumbong.onrender.com/${user.profilePicture}`} alt="Profile" className="profile-picture-large" />
                   ) : (
                     <img src={defaultAvatar} alt="Profile" className="profile-picture-large" />
                   )}
