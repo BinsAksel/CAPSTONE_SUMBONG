@@ -3,19 +3,10 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
-
-// Cloudinary configuration
-const cloudinary = require('cloudinary').v2;
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET
-});
 const { signup, login, handleUpload } = require('./controllers/authController');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const User = require('./models/User');
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const multer = require('multer');
 const Complaint = require('./models/Complaint');
 
@@ -61,16 +52,29 @@ if (!fs.existsSync(uploadsDir)) {
 // Serve uploaded files
 app.use('/uploads', express.static(uploadsDir));
 
-
-// Cloudinary storage for image uploads
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: 'sumbong_uploads', // or any folder name you want in Cloudinary
-    allowed_formats: ['jpg', 'jpeg', 'png', 'gif'],
+// Configure multer for single image upload
+const profileStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, 'uploads'));
   },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
 });
-const upload = multer({ storage: storage });
+const profileUpload = multer({ storage: profileStorage });
+
+// Configure multer for complaint upload
+const complaintStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, path.join(__dirname, 'uploads'));
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const complaintUpload = multer({ storage: complaintStorage });
 
 // Test route to verify database connection
 app.get('/api/test', async (req, res) => {
@@ -204,14 +208,14 @@ app.delete('/api/admin/delete/:id', async (req, res) => {
 });
 
 // Update user profile (name, address, phone number, and profile picture)
-app.patch('/api/user/:id', upload.single('profilePic'), async (req, res) => {
+app.patch('/api/user/:id', profileUpload.single('profilePic'), async (req, res) => {
   try {
     const { firstName, lastName, address, phoneNumber } = req.body;
     let update = { firstName, lastName };
     if (address !== undefined) update.address = address;
     if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
     if (req.file) {
-      update.profilePicture = req.file.path; // Cloudinary URL
+      update.profilePicture = `uploads/${req.file.filename}`;
     }
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
     res.json({ user });
@@ -236,14 +240,13 @@ app.get('/api/user/:id', async (req, res) => {
 });
 
 // Submit a new complaint
-app.post('/api/complaints', upload.array('evidence', 5), async (req, res) => {
+app.post('/api/complaints', complaintUpload.array('evidence', 5), async (req, res) => {
   try {
-    // Cloudinary returns URLs in req.files
-    const evidenceFiles = req.files ? req.files.map(file => file.path) : [];
+    const evidenceFiles = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
     const complaint = await Complaint.create({
       ...req.body,
       user: req.body.userId,
-      evidence: evidenceFiles, // Now Cloudinary URLs
+      evidence: evidenceFiles,
       status: 'pending'
     });
     res.json({ complaint });
