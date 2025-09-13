@@ -204,14 +204,14 @@ app.delete('/api/admin/delete/:id', async (req, res) => {
 });
 
 // Update user profile (name, address, phone number, and profile picture)
-app.patch('/api/user/:id', profileUpload.single('profilePic'), async (req, res) => {
+app.patch('/api/user/:id', upload.single('profilePic'), async (req, res) => {
   try {
     const { firstName, lastName, address, phoneNumber } = req.body;
     let update = { firstName, lastName };
     if (address !== undefined) update.address = address;
     if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
     if (req.file) {
-      update.profilePicture = `uploads/${req.file.filename}`;
+      update.profilePicture = req.file.path; // Cloudinary URL
     }
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
     res.json({ user });
