@@ -1296,6 +1296,9 @@ const Dashboard = () => {
     );
   }
 
+  // Complaint history view toggle
+  const [showHistory, setShowHistory] = useState(false);
+
   return (
     <div className="dashboard-container">
       {/* Header */}
@@ -1341,7 +1344,7 @@ const Dashboard = () => {
           <div className="summary-card pending">
             <div className="summary-title">
               <svg className="icon" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0 0v-4m0 0l-2 2m2-2l2 2" clipRule="evenodd"/>
               </svg>
               Pending
             </div>
@@ -1370,38 +1373,65 @@ const Dashboard = () => {
 
 
         <div className="dashboard-content-section">
-          <button
-            onClick={() => setShowComplaint(true)}
-            className="dashboard-add-complaint-btn"
-          >
-            <span style={{ fontSize: '18px', fontWeight: 'bold' }}>+</span>
-            Add Complaint
-          </button>
           {/* Complaints List */}
-          {complaints.length > 0 && (
-            <div className="dashboard-complaints-table">
-              <h4>Your Complaints</h4>
-              <table>
-                <thead>
+          <div className="dashboard-complaints-table">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <h4 style={{ margin: 0 }}>{showHistory ? 'Your Complaints History' : 'Your Complaints'}</h4>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button
+                  onClick={() => setShowComplaint(true)}
+                  className="dashboard-add-complaint-btn"
+                  style={{ minWidth: 120, padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  <span style={{ fontSize: '18px', fontWeight: 'bold' }}>+</span>
+                  Add Complaint
+                </button>
+                <button
+                  className="dashboard-add-complaint-btn"
+                  style={{ minWidth: 120, padding: '8px 20px', display: 'flex', alignItems: 'center', gap: 8, background: showHistory ? '#2563eb' : '#fff', color: showHistory ? '#fff' : '#2563eb', border: '2px solid #2563eb', fontWeight: 600, boxShadow: '0 2px 8px #2563eb22' }}
+                  title="View Complaint History"
+                  onClick={() => setShowHistory(h => !h)}
+                >
+                  <svg width="20" height="20" fill="none" viewBox="0 0 24 24"><path d="M12 20c4.418 0 8-3.582 8-8s-3.582-8-8-8-8 3.582-8 8 3.582 8 8 8zm0 0v-4m0 0l-2 2m2-2l2 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  {showHistory ? 'Back to Complaints' : 'History'}
+                </button>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Location</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(!showHistory
+                  ? complaints.filter(c => (c.status || '').toLowerCase() !== 'solved')
+                  : complaints.filter(c => (c.status || '').toLowerCase() === 'solved')
+                ).length === 0 ? (
                   <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Location</th>
-                    <th>Status</th>
-                    <th>Action</th>
+                    <td colSpan="5" style={{ textAlign: 'center', padding: '32px 0', color: '#888', fontSize: 18, fontWeight: 500 }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
+                        <svg width="32" height="32" fill="none" viewBox="0 0 24 24" style={{ color: '#60a5fa' }}><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zm0-6v2m0-2a4 4 0 100-8 4 4 0 000 8z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        No complaints yet
+                      </span>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {complaints.map(c => (
+                ) : (
+                  (showHistory
+                    ? complaints.filter(c => (c.status || '').toLowerCase() === 'solved')
+                    : complaints.filter(c => (c.status || '').toLowerCase() !== 'solved')
+                  ).map(c => (
                     <tr key={c._id} data-complaint-id={c._id}>
                       <td>{c.date}</td>
                       <td>{c.type}</td>
                       <td>{c.location}</td>
                       <td>
                         <div className="status-container">
-                          <span className={`status-badge status-${c.status?.toLowerCase().replace(' ', '-')}`}>
-                            {c.status}
-                          </span>
+                          <span className={`status-badge status-${c.status?.toLowerCase().replace(' ', '-')}`}>{c.status}</span>
                           {c.recentlyUpdated && (
                             <div className="update-swap">
                               <span className="swap-text">Just Updated!</span>
@@ -1412,16 +1442,18 @@ const Dashboard = () => {
                       <td>
                         <div className="dashboard-action-buttons">
                           <button onClick={() => setViewComplaint(c)} className="action-btn view-btn">View</button>
-                          <button onClick={() => { setEditComplaint(c); setEditComplaintData({ ...c, evidence: [] }); }} className="edit-btn">Edit</button>
+                          {!showHistory && (
+                            <button onClick={() => { setEditComplaint(c); setEditComplaintData({ ...c, evidence: [] }); }} className="edit-btn">Edit</button>
+                          )}
                           <button onClick={() => handleDeleteComplaint(c._id)} className="delete-btn">Delete</button>
                         </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
       {/* Edit Profile Modal */}
@@ -1629,7 +1661,9 @@ const Dashboard = () => {
               
               <div className="complaint-description">
                 <label>Description</label>
-                <div className="description-text">{viewComplaint.description}</div>
+                <div className="description-text" style={{ maxHeight: 120, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8, background: '#f9fafb' }}>
+                  {viewComplaint.description}
+                </div>
               </div>
               
               <div className="complaint-resolution">
@@ -1783,7 +1817,7 @@ const Dashboard = () => {
               </div>
               <div className="complaint-input-container">
                 <label className="complaint-label">Requested resolution or action:</label>
-                <input type="text" name="resolution" value={editComplaintData.resolution} onChange={handleEditComplaintChange} placeholder="What do you want the authorities to do?" required />
+                               <input type="text" name="resolution" value={editComplaintData.resolution} onChange={handleEditComplaintChange} placeholder="What do you want the authorities to do?" required />
               </div>
               <button type="submit" disabled={loading} className="complaint-btn">Save Changes</button>
               <button type="button" onClick={() => { setEditComplaint(null); setEditComplaintData(null); }} className="complaint-btn">Cancel</button>

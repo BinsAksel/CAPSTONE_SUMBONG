@@ -897,7 +897,7 @@ const AdminDashboard = () => {
 
       <div className="complaint-section">
         <label>Description</label>
-        <div className="complaint-value">{viewComplaint.description}</div>
+        <div className="complaint-value" style={{ maxHeight: 120, overflowY: 'auto', overflowX: 'hidden', whiteSpace: 'pre-wrap', wordBreak: 'break-word', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8, background: '#f9fafb' }}>{viewComplaint.description}</div>
       </div>
 
       <div className="complaint-section">
