@@ -13,6 +13,24 @@ const User = require('./models/User');
 const multer = require('multer');
 const Complaint = require('./models/Complaint');
 
+let dbConnected = false;
+
+// Connect to MongoDB and track connection state
+connectDB();
+
+mongoose.connection.on('connected', () => {
+  dbConnected = true;
+  console.log('MongoDB connected');
+});
+mongoose.connection.on('disconnected', () => {
+  dbConnected = false;
+  console.log('MongoDB disconnected');
+});
+mongoose.connection.on('error', (err) => {
+  dbConnected = false;
+  console.error('MongoDB connection error:', err);
+});
+
 // Initialize express app before any app.use/app.get/app.post
 const app = express();
 
@@ -87,7 +105,22 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
 const connectedClients = new Map(); // userId -> response object
 
 // Middleware
-app.use(cors());
+const allowedOrigins = [
+  'https://sumbong.netlify.app',
+  'http://localhost:3000'
+];
+app.use(cors({
+  origin: function(origin, callback) {
+    // allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
