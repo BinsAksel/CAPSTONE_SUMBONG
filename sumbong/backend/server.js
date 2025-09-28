@@ -7,6 +7,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
 const { signup, login, handleUpload, googleSignup } = require('./controllers/authController');
+const { generateToken } = require('./controllers/authController');
 const mongoose = require('mongoose');
 const fs = require('fs');
 const User = require('./models/User');
@@ -132,8 +133,9 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
       }).toString();
       return res.redirect(`https://sumbong.netlify.app/complete-profile?${params}`);
     }
-    // Existing users always go to dashboard
-    res.redirect('https://sumbong.netlify.app/dashboard');
+    // Existing users: generate JWT and redirect with token
+    const token = generateToken(user._id);
+    return res.redirect(`https://sumbong.netlify.app/dashboard?token=${token}`);
   } catch (err) {
     console.error('Error in Google OAuth callback:', err);
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message });

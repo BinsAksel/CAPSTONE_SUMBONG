@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import './CompleteProfile.css';
 
 const CompleteProfile = () => {
@@ -66,11 +67,24 @@ const CompleteProfile = () => {
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
       if (response.data.user) {
-        setSuccess('Profile completed! You may now use the app.');
-        setTimeout(() => navigate('/dashboard'), 2000);
+        Swal.fire({
+          icon: 'success',
+          title: 'Profile Completed!',
+          text: 'Registration done. Please wait for the admin to verify your account before logging in.',
+          confirmButtonColor: '#3b5998',
+          customClass: { popup: 'swal2-rounded' }
+        }).then(() => {
+          navigate('/login');
+        });
       }
     } catch (err) {
-      setError('Failed to complete profile. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Submission Failed',
+        text: 'Failed to complete profile. Please try again.',
+        confirmButtonColor: '#c62828',
+        customClass: { popup: 'swal2-rounded' }
+      });
     } finally {
       setLoading(false);
     }
