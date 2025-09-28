@@ -304,5 +304,6 @@ module.exports = {
   signup,
   login,
   handleUpload,
-  googleSignup
+  googleSignup,
+  generateToken
 };
