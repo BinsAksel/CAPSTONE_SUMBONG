@@ -13,6 +13,8 @@ const User = require('./models/User');
 const multer = require('multer');
 const Complaint = require('./models/Complaint');
 
+// Initialize express app before any app.use/app.get/app.post
+const app = express();
 
 // Passport config
 passport.use(new GoogleStrategy({
@@ -721,4 +723,4 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-}); 
+});
