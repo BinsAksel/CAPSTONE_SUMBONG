@@ -20,7 +20,7 @@ const app = express();
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: '/api/auth/google/callback',
+  callbackURL: 'https://capstone-sumbong.onrender.com/api/auth/google/callback',
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     // Find or create user
