@@ -70,7 +70,7 @@ const CompleteProfile = () => {
         Swal.fire({
           icon: 'success',
           title: 'Profile Completed!',
-          text: 'Registration done. Please wait for the admin to verify your account before logging in.',
+          text: 'You are now signed up! Please wait for the admin to verify your account before logging in.',
           confirmButtonColor: '#3b5998',
           customClass: { popup: 'swal2-rounded' }
         }).then(() => {
