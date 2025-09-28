@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
+import './CompleteProfile.css';
 
 const CompleteProfile = () => {
   const location = useLocation();
@@ -78,13 +79,24 @@ const CompleteProfile = () => {
   return (
     <div className="complete-profile-container">
       <h2>Complete Your Profile</h2>
+      {formData.profilePicture && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+          <img
+            src={formData.profilePicture}
+            alt="Profile Preview"
+            style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', border: '2px solid #3b5998', background: '#fff' }}
+          />
+        </div>
+      )}
       {success && <div className="success-message">{success}</div>}
       {error && <div className="error-message">{error}</div>}
       <form onSubmit={handleSubmit} className="complete-profile-form">
         <div className="form-group">
+          <label htmlFor="firstName">First Name</label>
           <input
             type="text"
             name="firstName"
+            id="firstName"
             value={formData.firstName}
             onChange={handleChange}
             placeholder="First Name"
@@ -92,9 +104,11 @@ const CompleteProfile = () => {
           />
         </div>
         <div className="form-group">
+          <label htmlFor="lastName">Last Name</label>
           <input
             type="text"
             name="lastName"
+            id="lastName"
             value={formData.lastName}
             onChange={handleChange}
             placeholder="Last Name"
@@ -102,9 +116,11 @@ const CompleteProfile = () => {
           />
         </div>
         <div className="form-group">
+          <label htmlFor="phoneNumber">Phone Number</label>
           <input
             type="tel"
             name="phoneNumber"
+            id="phoneNumber"
             value={formData.phoneNumber}
             onChange={handleChange}
             placeholder="Phone Number"
@@ -112,9 +128,11 @@ const CompleteProfile = () => {
           />
         </div>
         <div className="form-group">
+          <label htmlFor="address">Address</label>
           <input
             type="text"
             name="address"
+            id="address"
             value={formData.address}
             onChange={handleChange}
             placeholder="Address"
