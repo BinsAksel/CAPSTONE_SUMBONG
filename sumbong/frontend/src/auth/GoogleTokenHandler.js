@@ -11,9 +11,20 @@ export default function GoogleTokenHandler() {
     const token = params.get('token');
     if (token) {
       localStorage.setItem('token', token);
-      // Optionally, fetch user info here and store in localStorage
-      // Remove token from URL
-      navigate('/dashboard', { replace: true });
+      // Fetch user info and store in localStorage
+      fetch('https://capstone-sumbong.onrender.com/api/user/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.user) {
+            localStorage.setItem('user', JSON.stringify(data.user));
+          }
+          navigate('/dashboard', { replace: true });
+        })
+        .catch(() => {
+          navigate('/dashboard', { replace: true });
+        });
     }
   }, [location, navigate]);
 

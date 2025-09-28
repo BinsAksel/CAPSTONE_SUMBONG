@@ -1,3 +1,50 @@
+// JWT authentication middleware
+const jwt = require('jsonwebtoken');
+function authenticateJWT(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.split(' ')[1];
+    jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).json({ message: 'Invalid token' });
+      }
+      req.user = decoded;
+      next();
+    });
+  } else {
+    res.status(401).json({ message: 'No token provided' });
+  }
+}
+
+// Get current user profile (for dashboard/profile info)
+app.get('/api/user/me', authenticateJWT, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        address: user.address,
+        credentials: user.credentials,
+        profilePicture: user.profilePicture,
+        approved: user.approved,
+        verificationStatus: user.verificationStatus,
+        verificationDate: user.verificationDate,
+        adminNotes: user.adminNotes,
+        issueDetails: user.issueDetails,
+        requiredActions: user.requiredActions,
+        rejectionCount: user.rejectionCount,
+        resubmissionRequested: user.resubmissionRequested
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch user profile', error: err.message });
+  }
+});
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
