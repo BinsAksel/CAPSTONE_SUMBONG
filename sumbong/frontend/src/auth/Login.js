@@ -1,11 +1,12 @@
 
-
 import React, { useState } from 'react';
+import GoogleButton from '../components/GoogleButton';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import loginImage from '../assets/login.png';
 import Swal from 'sweetalert2';
 import './Login.css';
+
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -14,6 +15,11 @@ const Login = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+
+  // Google login handler
+  const handleGoogleLogin = () => {
+    window.location.href = 'https://capstone-sumbong.onrender.com/api/auth/google';
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -26,20 +32,20 @@ const Login = () => {
     e.preventDefault();
     try {
       const response = await axios.post('https://capstone-sumbong.onrender.com/api/auth/login', formData);
-  
+
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
-  
+
         // Save a flag to indicate a fresh login
         localStorage.setItem('justLoggedIn', 'true');
-  
+
         // Redirect
         window.location.href = '/dashboard';
       }
     } catch (error) {
       console.error('Error during login:', error);
-  
+
       Swal.fire({
         icon: 'error',
         title: 'Login Failed',
@@ -61,6 +67,7 @@ const Login = () => {
         <div className="login-form-container">
           <div className="login-form-box">
             <h2>Sign in</h2>
+            <GoogleButton text="Continue with Google" onClick={handleGoogleLogin} />
             <form onSubmit={handleSubmit} className="login-form">
               <div className="form-group">
                 <label htmlFor="email">Email or phone number</label>

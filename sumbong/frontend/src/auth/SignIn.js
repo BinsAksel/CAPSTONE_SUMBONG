@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import GoogleButton from '../components/GoogleButton';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import loginImage from '../assets/login.png';
@@ -6,6 +7,10 @@ import './SignIn.css';
 
 const SignIn = () => {
   const navigate = useNavigate();
+  // Google sign up handler
+  const handleGoogleSignUp = () => {
+    window.location.href = 'https://capstone-sumbong.onrender.com/api/auth/google';
+  };
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -89,6 +94,7 @@ const SignIn = () => {
         <div className="signin-form-container">
           <div className="signin-form-box">
             <h2>Create Account</h2>
+            <GoogleButton text="Sign up with Google" onClick={handleGoogleSignUp} />
             {success && <div className="success-message">{typeof success === 'string' ? success : 'Success!'}</div>}
             {error && <div className="error-message">{typeof error === 'string' ? error : 'An error occurred'}</div>}
             <form onSubmit={handleSubmit} className="signin-form">

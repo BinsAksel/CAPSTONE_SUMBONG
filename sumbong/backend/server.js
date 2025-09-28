@@ -1,4 +1,70 @@
 const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+// Passport config
+passport.use(new GoogleStrategy({
+  clientID: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  callbackURL: '/api/auth/google/callback',
+}, async (accessToken, refreshToken, profile, done) => {
+  try {
+    // Find or create user
+    let user = await User.findOne({ email: profile.emails[0].value });
+    if (!user) {
+      user = await User.create({
+        firstName: profile.name.givenName || '',
+        lastName: profile.name.familyName || '',
+        email: profile.emails[0].value,
+        phoneNumber: '',
+        address: '',
+        password: Math.random().toString(36).slice(-8), // random password
+        credentials: [],
+        profilePicture: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
+        approved: false // Require admin approval
+      });
+    }
+    return done(null, user);
+  } catch (err) {
+    return done(err, null);
+  }
+}));
+
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (err) {
+    done(err, null);
+  }
+});
+// Session middleware (required for Passport)
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'secret',
+  resave: false,
+  saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+// Google OAuth routes
+app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get('/api/auth/google/callback', passport.authenticate('google', {
+  failureRedirect: '/login',
+  session: true
+}), async (req, res) => {
+  // On success, check if user is missing credentials or info
+  const user = req.user;
+  if (!user.credentials || user.credentials.length === 0 || !user.phoneNumber || !user.address) {
+    // Redirect to complete-profile page on frontend with userId
+    return res.redirect(`https://your-frontend-url.com/complete-profile?userId=${user._id}`);
+  }
+  // If user is complete, redirect to dashboard or home
+  res.redirect('https://your-frontend-url.com/dashboard');
+});
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
