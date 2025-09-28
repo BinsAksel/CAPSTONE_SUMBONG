@@ -60,10 +60,10 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
   const user = req.user;
   if (!user.credentials || user.credentials.length === 0 || !user.phoneNumber || !user.address) {
     // Redirect to complete-profile page on frontend with userId
-    return res.redirect(`https://your-frontend-url.com/complete-profile?userId=${user._id}`);
+    return res.redirect(`https://sumbong.netlify.app/complete-profile?userId=${user._id}`);
   }
   // If user is complete, redirect to dashboard or home
-  res.redirect('https://your-frontend-url.com/dashboard');
+  res.redirect('https://sumbong.netlify.app/dashboard');
 });
 const cors = require('cors');
 const dotenv = require('dotenv');
