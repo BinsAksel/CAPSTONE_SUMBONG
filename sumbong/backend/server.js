@@ -186,7 +186,11 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
       }).toString();
       return res.redirect(`https://sumbong.netlify.app/complete-profile?${params}`);
     }
-    // Existing users: generate JWT and redirect with token
+    // Existing users: only allow login if approved
+    if (!user.approved) {
+      // Optionally, you can redirect to a custom pending page or show a message
+      return res.redirect('https://sumbong.netlify.app/login?pending=1');
+    }
     const token = generateToken(user._id);
     return res.redirect(`https://sumbong.netlify.app/dashboard?token=${token}`);
   } catch (err) {
