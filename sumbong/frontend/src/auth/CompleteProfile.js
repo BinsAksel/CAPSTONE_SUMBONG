@@ -7,10 +7,19 @@ const CompleteProfile = () => {
   const navigate = useNavigate();
   const query = new URLSearchParams(location.search);
   const userId = query.get('userId');
+  // Get Google info from query params if present
+  const initialFirstName = query.get('firstName') || '';
+  const initialLastName = query.get('lastName') || '';
+  const initialEmail = query.get('email') || '';
+  const initialProfilePicture = query.get('profilePicture') || '';
 
   const [formData, setFormData] = useState({
+    firstName: initialFirstName,
+    lastName: initialLastName,
     phoneNumber: '',
     address: '',
+    email: initialEmail,
+    profilePicture: initialProfilePicture
   });
   const [images, setImages] = useState([]);
   const [error, setError] = useState('');
@@ -37,8 +46,14 @@ const CompleteProfile = () => {
     setLoading(true);
     try {
       const formDataToSend = new FormData();
+      formDataToSend.append('firstName', formData.firstName);
+      formDataToSend.append('lastName', formData.lastName);
       formDataToSend.append('phoneNumber', formData.phoneNumber);
       formDataToSend.append('address', formData.address);
+      formDataToSend.append('email', formData.email);
+      if (formData.profilePicture) {
+        formDataToSend.append('profilePicture', formData.profilePicture);
+      }
       if (images && images.length > 0) {
         images.forEach(image => {
           formDataToSend.append('credentials', image);
@@ -66,6 +81,26 @@ const CompleteProfile = () => {
       {success && <div className="success-message">{success}</div>}
       {error && <div className="error-message">{error}</div>}
       <form onSubmit={handleSubmit} className="complete-profile-form">
+        <div className="form-group">
+          <input
+            type="text"
+            name="firstName"
+            value={formData.firstName}
+            onChange={handleChange}
+            placeholder="First Name"
+            required
+          />
+        </div>
+        <div className="form-group">
+          <input
+            type="text"
+            name="lastName"
+            value={formData.lastName}
+            onChange={handleChange}
+            placeholder="Last Name"
+            required
+          />
+        </div>
         <div className="form-group">
           <input
             type="tel"

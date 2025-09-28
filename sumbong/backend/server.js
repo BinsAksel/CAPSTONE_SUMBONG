@@ -72,9 +72,19 @@ passport.use(new GoogleStrategy({
 }));
 
 passport.serializeUser((user, done) => {
-  done(null, user.id);
+    // If this is a new Google user (not yet in DB), serialize the whole object
+    if (user && user.isNewGoogleUser) {
+      return done(null, { isNewGoogleUser: true, ...user });
+    }
+    // Otherwise, serialize by user id
+    done(null, user.id);
 });
 passport.deserializeUser(async (id, done) => {
+  // If this is a new Google user, just return the object
+  if (id && id.isNewGoogleUser) {
+    return done(null, id);
+  }
+  // Otherwise, look up the user in the DB
   try {
     const user = await User.findById(id);
     done(null, user);
