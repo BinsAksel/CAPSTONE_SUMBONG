@@ -48,6 +48,7 @@ passport.use(new GoogleStrategy({
     }
     // Find user by email
     let user = await User.findOne({ email: profile.emails[0].value });
+    console.log('User found in DB:', user);
     if (user) {
       return done(null, user);
     }
@@ -56,6 +57,7 @@ passport.use(new GoogleStrategy({
     const lastName = (profile.name && profile.name.familyName) ? profile.name.familyName : '';
     const email = profile.emails[0].value;
     const profilePicture = (profile.photos && profile.photos[0]) ? profile.photos[0].value : null;
+    console.log('Returning isNewGoogleUser for:', email);
     // If phoneNumber or address is missing, pass partial info to callback
     // We'll handle user creation after collecting missing info
     return done(null, {
