@@ -2,6 +2,18 @@ const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
+const connectDB = require('./config/db');
+const { signup, login, handleUpload } = require('./controllers/authController');
+const mongoose = require('mongoose');
+const fs = require('fs');
+const User = require('./models/User');
+const multer = require('multer');
+const Complaint = require('./models/Complaint');
+
+
 // Passport config
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
@@ -41,6 +53,7 @@ passport.deserializeUser(async (id, done) => {
     done(err, null);
   }
 });
+
 // Session middleware (required for Passport)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'secret',
@@ -49,6 +62,7 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
 // Google OAuth routes
 app.get('/api/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
@@ -65,36 +79,7 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
   // If user is complete, redirect to dashboard or home
   res.redirect('https://sumbong.netlify.app/dashboard');
 });
-const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
-const connectDB = require('./config/db');
-const { signup, login, handleUpload } = require('./controllers/authController');
-const mongoose = require('mongoose');
-const fs = require('fs');
-const User = require('./models/User');
-const multer = require('multer');
-const Complaint = require('./models/Complaint');
 
-// Load env vars
-dotenv.config();
-
-// Connect to database
-connectDB();
-
-// Add a fallback for testing without MongoDB
-let dbConnected = false;
-mongoose.connection.once('open', () => {
-  console.log('✅ MongoDB connected successfully');
-  dbConnected = true;
-});
-
-mongoose.connection.on('error', (err) => {
-  console.log('⚠️ MongoDB connection failed, running in test mode');
-  dbConnected = false;
-});
-
-const app = express();
 
 // Store connected clients for real-time updates
 const connectedClients = new Map(); // userId -> response object
