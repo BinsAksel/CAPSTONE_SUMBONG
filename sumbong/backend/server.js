@@ -111,24 +111,22 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
 }), async (req, res) => {
   try {
     const user = req.user;
+    console.log('OAuth callback user:', user);
     if (!user) {
       console.error('No user found in OAuth callback');
       return res.status(500).json({ success: false, message: 'No user found after Google OAuth' });
     }
-    // If this is a new Google user (not yet created in DB), redirect to complete-profile with info
+    // Only redirect to complete-profile for new Google users
     if (user.isNewGoogleUser) {
-      // Optionally, store info in session here if you want
-      // req.session.googleProfile = user;
-      // Pass info as query params (encodeURIComponent for safety)
       const params = new URLSearchParams({
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        email: user.email || '',
-        profilePicture: user.profilePicture || ''
+        firstName: user.firstName || (user.name && user.name.givenName) || '',
+        lastName: user.lastName || (user.name && user.name.familyName) || '',
+        email: user.email || (user.emails && user.emails[0] && user.emails[0].value) || '',
+        profilePicture: user.profilePicture || (user.photos && user.photos[0] && user.photos[0].value) || ''
       }).toString();
       return res.redirect(`https://sumbong.netlify.app/complete-profile?${params}`);
     }
-    // If user is complete, redirect to dashboard or home
+    // Existing users always go to dashboard
     res.redirect('https://sumbong.netlify.app/dashboard');
   } catch (err) {
     console.error('Error in Google OAuth callback:', err);
