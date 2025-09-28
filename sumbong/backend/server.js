@@ -41,23 +41,32 @@ passport.use(new GoogleStrategy({
   callbackURL: 'https://capstone-sumbong.onrender.com/api/auth/google/callback',
 }, async (accessToken, refreshToken, profile, done) => {
   try {
-    // Find or create user
-    let user = await User.findOne({ email: profile.emails[0].value });
-    if (!user) {
-      user = await User.create({
-        firstName: profile.name.givenName || '',
-        lastName: profile.name.familyName || '',
-        email: profile.emails[0].value,
-        phoneNumber: '',
-        address: '',
-        password: Math.random().toString(36).slice(-8), // random password
-        credentials: [],
-        profilePicture: profile.photos && profile.photos[0] ? profile.photos[0].value : null,
-        approved: false // Require admin approval
-      });
+    console.log('Google profile:', profile);
+    if (!profile.emails || !profile.emails.length) {
+      console.error('No email found in Google profile');
+      return done(new Error('No email found in Google profile'), null);
     }
-    return done(null, user);
+    // Find user by email
+    let user = await User.findOne({ email: profile.emails[0].value });
+    if (user) {
+      return done(null, user);
+    }
+    // If user does not exist, check for required info
+    const firstName = (profile.name && profile.name.givenName) ? profile.name.givenName : '';
+    const lastName = (profile.name && profile.name.familyName) ? profile.name.familyName : '';
+    const email = profile.emails[0].value;
+    const profilePicture = (profile.photos && profile.photos[0]) ? profile.photos[0].value : null;
+    // If phoneNumber or address is missing, pass partial info to callback
+    // We'll handle user creation after collecting missing info
+    return done(null, {
+      isNewGoogleUser: true,
+      firstName,
+      lastName,
+      email,
+      profilePicture
+    });
   } catch (err) {
+    console.error('Error in GoogleStrategy:', err);
     return done(err, null);
   }
 }));
@@ -90,14 +99,31 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
   failureRedirect: '/login',
   session: true
 }), async (req, res) => {
-  // On success, check if user is missing credentials or info
-  const user = req.user;
-  if (!user.credentials || user.credentials.length === 0 || !user.phoneNumber || !user.address) {
-    // Redirect to complete-profile page on frontend with userId
-    return res.redirect(`https://sumbong.netlify.app/complete-profile?userId=${user._id}`);
+  try {
+    const user = req.user;
+    if (!user) {
+      console.error('No user found in OAuth callback');
+      return res.status(500).json({ success: false, message: 'No user found after Google OAuth' });
+    }
+    // If this is a new Google user (not yet created in DB), redirect to complete-profile with info
+    if (user.isNewGoogleUser) {
+      // Optionally, store info in session here if you want
+      // req.session.googleProfile = user;
+      // Pass info as query params (encodeURIComponent for safety)
+      const params = new URLSearchParams({
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        email: user.email || '',
+        profilePicture: user.profilePicture || ''
+      }).toString();
+      return res.redirect(`https://sumbong.netlify.app/complete-profile?${params}`);
+    }
+    // If user is complete, redirect to dashboard or home
+    res.redirect('https://sumbong.netlify.app/dashboard');
+  } catch (err) {
+    console.error('Error in Google OAuth callback:', err);
+    res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
   }
-  // If user is complete, redirect to dashboard or home
-  res.redirect('https://sumbong.netlify.app/dashboard');
 });
 
 
