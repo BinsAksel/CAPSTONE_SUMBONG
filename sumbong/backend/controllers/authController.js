@@ -1,3 +1,90 @@
+// @desc    Register a new user via Google OAuth (no password required)
+// @route   POST /api/auth/google-signup
+// @access  Public
+const googleSignup = async (req, res) => {
+  try {
+    const { firstName, lastName, email, phoneNumber, address } = req.body;
+    // Validate required fields
+    if (!firstName || !lastName || !email || !phoneNumber || !address) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+    }
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid email address'
+      });
+    }
+    // Validate phone number format (basic validation)
+    const phoneRegex = /^\+?[\d\s-]{10,}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid phone number'
+      });
+    }
+    // Check if user already exists
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists'
+      });
+    }
+    // Get credential URLs
+    const credentialUrls = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
+    if (credentialUrls.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please upload credentials for verification'
+      });
+    }
+    // Generate a random password (not used for login, but required by schema)
+    const randomPassword = Math.random().toString(36).slice(-8);
+    // Create user
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      address,
+      password: randomPassword,
+      credentials: credentialUrls,
+      profilePicture: req.body.profilePicture || null,
+      approved: false
+    });
+    if (user) {
+      res.status(201).json({
+        success: true,
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+          address: user.address,
+          credentials: user.credentials,
+          profilePicture: user.profilePicture
+        }
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid user data'
+      });
+    }
+  } catch (error) {
+    console.error('Google Signup error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Registration failed. Please try again.'
+    });
+  }
+};
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');

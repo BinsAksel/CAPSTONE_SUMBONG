@@ -1,3 +1,4 @@
+import CompleteProfile from '../auth/CompleteProfile';
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import SignIn from '../auth/SignIn';
@@ -25,6 +26,10 @@ const PublicRoute = ({ children }) => {
 };
 
 const routes = [
+  {
+    path: '/complete-profile',
+    element: <CompleteProfile />
+  },
   {
     path: '/',
     element: <Navigate to="/login" replace />

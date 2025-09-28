@@ -59,8 +59,8 @@ const CompleteProfile = () => {
           formDataToSend.append('credentials', image);
         });
       }
-      const response = await axios.patch(
-        `https://capstone-sumbong.onrender.com/api/user/${userId}`,
+      const response = await axios.post(
+        'https://capstone-sumbong.onrender.com/api/auth/google-signup',
         formDataToSend,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
