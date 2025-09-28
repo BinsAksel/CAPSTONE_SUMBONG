@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import loginImage from '../assets/login.png';
 import './SignIn.css';
+import Swal from 'sweetalert2';
 
 const SignIn = () => {
   const navigate = useNavigate();

@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
+import Swal from 'sweetalert2';
+
 // This component should be rendered at the top of your app (e.g. in App.js)
 export default function GoogleTokenHandler() {
   const location = useLocation();
@@ -11,13 +13,14 @@ export default function GoogleTokenHandler() {
     const token = params.get('token');
     const pending = params.get('pending');
     if (pending === '1') {
-      window.Swal && Swal.fire({
+      Swal.fire({
         icon: 'info',
         title: 'Account Not Approved',
         text: 'Your account is not yet approved by the admin.',
         confirmButtonColor: '#1a365d'
+      }).then(() => {
+        navigate('/login', { replace: true });
       });
-      navigate('/login', { replace: true });
       return;
     }
     if (token) {
