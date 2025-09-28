@@ -1,5 +1,47 @@
 // JWT authentication middleware
+// Initialize express app before any app.use/app.get/app.post
+// JWT authentication middleware
+
+
+const express = require('express');
+const session = require('express-session');
+const passport = require('passport');
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
+const connectDB = require('./config/db');
+const { signup, login, handleUpload, googleSignup } = require('./controllers/authController');
+const { generateToken } = require('./controllers/authController');
+const mongoose = require('mongoose');
+const fs = require('fs');
+const User = require('./models/User');
+const multer = require('multer');
+const Complaint = require('./models/Complaint');
 const jwt = require('jsonwebtoken');
+
+let dbConnected = false;
+
+// Connect to MongoDB and track connection state
+connectDB();
+
+mongoose.connection.on('connected', () => {
+  dbConnected = true;
+  console.log('MongoDB connected');
+});
+mongoose.connection.on('disconnected', () => {
+  dbConnected = false;
+  console.log('MongoDB disconnected');
+});
+mongoose.connection.on('error', (err) => {
+  dbConnected = false;
+  console.error('MongoDB connection error:', err);
+});
+
+// Initialize express app before any app.use/app.get/app.post
+const app = express();
+
+
 function authenticateJWT(req, res, next) {
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
@@ -45,42 +87,6 @@ app.get('/api/user/me', authenticateJWT, async (req, res) => {
     res.status(500).json({ message: 'Failed to fetch user profile', error: err.message });
   }
 });
-const express = require('express');
-const session = require('express-session');
-const passport = require('passport');
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
-const connectDB = require('./config/db');
-const { signup, login, handleUpload, googleSignup } = require('./controllers/authController');
-const { generateToken } = require('./controllers/authController');
-const mongoose = require('mongoose');
-const fs = require('fs');
-const User = require('./models/User');
-const multer = require('multer');
-const Complaint = require('./models/Complaint');
-
-let dbConnected = false;
-
-// Connect to MongoDB and track connection state
-connectDB();
-
-mongoose.connection.on('connected', () => {
-  dbConnected = true;
-  console.log('MongoDB connected');
-});
-mongoose.connection.on('disconnected', () => {
-  dbConnected = false;
-  console.log('MongoDB disconnected');
-});
-mongoose.connection.on('error', (err) => {
-  dbConnected = false;
-  console.error('MongoDB connection error:', err);
-});
-
-// Initialize express app before any app.use/app.get/app.post
-const app = express();
 
 // Passport config
 passport.use(new GoogleStrategy({
@@ -305,6 +311,9 @@ app.get('/api/health', (req, res) => {
     note: dbConnected ? null : '⚠️ System is running in TEST MODE. Install MongoDB for full functionality.'
   });
 });
+
+
+
 
 // Routes
 app.post('/api/auth/signup', handleUpload, signup);
