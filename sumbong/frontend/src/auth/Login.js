@@ -46,12 +46,23 @@ const Login = () => {
     } catch (error) {
       console.error('Error during login:', error);
 
-      Swal.fire({
-        icon: 'error',
-        title: 'Login Failed',
-        text: error.response?.data?.message || 'Incorrect email or password.',
-        confirmButtonColor: '#1a365d'
-      });
+      // Check for not approved error from backend
+      const msg = error.response?.data?.message || '';
+      if (msg.toLowerCase().includes('not approved')) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Account Not Approved',
+          text: 'Your account is not yet approved by the admin.',
+          confirmButtonColor: '#1a365d'
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Login Failed',
+          text: msg || 'Incorrect email or password.',
+          confirmButtonColor: '#1a365d'
+        });
+      }
     }
   };
 

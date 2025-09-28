@@ -45,26 +45,29 @@ const SignIn = () => {
 
     try {
       const formDataToSend = new FormData();
-      
       // Append user data
       Object.keys(formData).forEach(key => {
         formDataToSend.append(key, formData[key]);
       });
-
       // Append credentials only if they exist
       if (images && images.length > 0) {
         images.forEach(image => {
           formDataToSend.append('credentials', image);
         });
       }
-      
       const response = await axios.post('https://capstone-sumbong.onrender.com/api/auth/signup', formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
-
       if (response.data.success) {
+        // SweetAlert for signup success
+        window.Swal && Swal.fire({
+          icon: 'success',
+          title: 'Signed Up!',
+          text: 'You are now signed up! Please wait for the admin to verify your account before logging in.',
+          confirmButtonColor: '#1a365d'
+        });
         setSuccess('You are now signed up! Please wait for the admin to verify your account before logging in.');
         setFormData({
           firstName: '',

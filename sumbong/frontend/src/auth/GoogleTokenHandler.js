@@ -9,6 +9,17 @@ export default function GoogleTokenHandler() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
+    const pending = params.get('pending');
+    if (pending === '1') {
+      window.Swal && Swal.fire({
+        icon: 'info',
+        title: 'Account Not Approved',
+        text: 'Your account is not yet approved by the admin.',
+        confirmButtonColor: '#1a365d'
+      });
+      navigate('/login', { replace: true });
+      return;
+    }
     if (token) {
       localStorage.setItem('token', token);
       // Fetch user info and store in localStorage
