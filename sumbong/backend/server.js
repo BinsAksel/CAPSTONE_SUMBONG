@@ -99,7 +99,11 @@ passport.deserializeUser(async (id, done) => {
 app.use(session({
   secret: process.env.SESSION_SECRET || 'secret',
   resave: false,
-  saveUninitialized: false
+  saveUninitialized: false,
+  cookie: {
+    sameSite: 'none',
+    secure: true
+  }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
