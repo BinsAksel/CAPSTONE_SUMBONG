@@ -162,6 +162,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Google signup endpoint for complete-profile form (must be after app is initialized and middleware is set up)
+app.post('/api/auth/google-signup', handleUpload, googleSignup);
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
