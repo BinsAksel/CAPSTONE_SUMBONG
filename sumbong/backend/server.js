@@ -7,8 +7,6 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
 const { signup, login, handleUpload, googleSignup } = require('./controllers/authController');
-// Google signup endpoint for complete-profile form
-app.post('/api/auth/google-signup', handleUpload, googleSignup);
 const mongoose = require('mongoose');
 const fs = require('fs');
 const User = require('./models/User');
