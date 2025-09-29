@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
+import { toAbsolute } from '../utils/url';
 
 const defaultAvatar = 'https://ui-avatars.com/api/?name=User&background=4a90e2&color=fff';
 
@@ -1268,7 +1269,7 @@ const Dashboard = () => {
   };
   const profilePic = user.profilePicture ? toAbsolute(user.profilePicture) : defaultAvatar;
   const editPreviewSrc = editData.profilePic
-    ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : `https://capstone-sumbong.onrender.com/${editData.profilePic}`)
+    ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : toAbsolute(editData.profilePic))
     : defaultAvatar;
 
   const handleViewComplaintFromNotification = async (complaintId) => {
@@ -1315,7 +1316,7 @@ const Dashboard = () => {
     const evidenceList = viewComplaint.evidence;
     const idx = evidenceModal.index;
     const file = evidenceList[idx];
-    const url = `https://capstone-sumbong.onrender.com/${file}`;
+  const url = toAbsolute(file);
     const ext = file.split('.').pop().toLowerCase();
 
     const handlePrev = (e) => {
@@ -1383,11 +1384,7 @@ const Dashboard = () => {
             )}
               </button>
           <button className="profile-btn" onClick={() => setShowProfile(true)}>
-            {user.profilePicture ? (
-              <img src={`https://capstone-sumbong.onrender.com/${user.profilePicture}`} alt="Profile" />
-            ) : (
-              <img src={defaultAvatar} alt="Profile" />
-            )}
+            <img src={profilePic} alt="Profile" />
             </button>
         </div>
       </header>
@@ -1751,7 +1748,7 @@ const Dashboard = () => {
                 {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
                   <div className="evidence-grid">
                     {viewComplaint.evidence.map((file, idx) => {
-                      const url = `https://capstone-sumbong.onrender.com/${file}`;
+                      const url = toAbsolute(file);
                       const ext = file.split('.').pop().toLowerCase();
                       // Stop propagation so background modal does not close
                       const handleEvidenceClick = (e) => {

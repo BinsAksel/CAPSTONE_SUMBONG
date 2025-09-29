@@ -5,9 +5,12 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import './Admin-dashboard.css';
 import Select from 'react-select';
+import { toAbsolute } from '../utils/url';
 
 
 // Evidence modal state and renderer for fullscreen evidence viewing
+
+// Uses shared toAbsolute utility for media paths
 
 
 
@@ -48,7 +51,7 @@ const AdminDashboard = () => {
   if (!cred) return null;
   const rawUrl = typeof cred === 'string' ? cred : cred.url;
   if (!rawUrl) return null;
-  const url = rawUrl.startsWith('http') ? rawUrl : `https://capstone-sumbong.onrender.com/${rawUrl}`;
+  const url = toAbsolute(rawUrl);
   const ext = url.split('.').pop().toLowerCase();
 
     const handlePrev = (e) => {
@@ -105,7 +108,7 @@ const AdminDashboard = () => {
     const evidenceList = viewComplaint.evidence;
     const idx = evidenceModal.index;
     const file = evidenceList[idx];
-    const url = `https://capstone-sumbong.onrender.com/${file}`;
+  const url = toAbsolute(file);
     const ext = file.split('.').pop().toLowerCase();
 
     const handlePrev = (e) => {
@@ -910,7 +913,7 @@ const AdminDashboard = () => {
         {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
           <div className="evidence-grid">
             {viewComplaint.evidence.map((file, idx) => {
-              const url = `https://capstone-sumbong.onrender.com/${file}`;
+              const url = toAbsolute(file);
               const ext = file.split('.').pop().toLowerCase();
               const handleEvidenceClick = () => {
                 setEvidenceModal({ open: true, index: idx });
@@ -1021,7 +1024,7 @@ const AdminDashboard = () => {
               <div className="credential-display">
                 {selectedUserCredentials.credentials && selectedUserCredentials.credentials.length > 0 && (
                   <img
-                    src={`https://capstone-sumbong.onrender.com/${selectedUserCredentials.credentials[currentCredentialIndex]}`}
+                    src={toAbsolute(selectedUserCredentials.credentials[currentCredentialIndex])}
                     alt={`Credential ${currentCredentialIndex + 1}`}
                     style={{
                       maxWidth: '100%',
@@ -1088,7 +1091,7 @@ const AdminDashboard = () => {
               </div>
               <div className="credential-display">
                 <img 
-                  src={`https://capstone-sumbong.onrender.com/${selectedCredential.url}`}
+                  src={toAbsolute(selectedCredential.url)}
                   alt="Verification Credential"
                   style={{ 
                     maxWidth: '100%', 
