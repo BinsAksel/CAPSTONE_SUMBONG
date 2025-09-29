@@ -12,6 +12,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 const connectDB = require('./config/db');
 const { signup, login, handleUpload, googleSignup } = require('./controllers/authController');
+const sendEmail = require('./utils/sendEmail');
 const { generateToken } = require('./controllers/authController');
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -382,13 +383,29 @@ app.get('/api/admin/users', async (req, res) => {
 
 // Verify a user
 app.patch('/api/admin/verify/:id', async (req, res) => {
-  await User.findByIdAndUpdate(req.params.id, { approved: true });
+  const user = await User.findByIdAndUpdate(req.params.id, { approved: true }, { new: true });
+  // Send approval email
+  if (user) {
+    await sendEmail({
+      to: user.email,
+      subject: 'Your account has been approved!',
+      html: `<p>Congratulations, ${user.firstName}! Your account is now approved. You can log in to the system.</p>`
+    });
+  }
   res.json({ success: true });
 });
 
 // Disapprove a user
 app.patch('/api/admin/disapprove/:id', async (req, res) => {
-  await User.findByIdAndUpdate(req.params.id, { approved: false });
+  const user = await User.findByIdAndUpdate(req.params.id, { approved: false }, { new: true });
+  // Send disapproval email
+  if (user) {
+    await sendEmail({
+      to: user.email,
+      subject: 'Your account was not approved',
+      html: `<p>Sorry, ${user.firstName}. Your account was not approved. Please check your credentials and try again.</p>`
+    });
+  }
   res.json({ success: true });
 });
 
@@ -470,7 +487,7 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
     
     const complaint = await Complaint.findByIdAndUpdate(req.params.id, update, { new: true });
     
-    // If status changed, send real-time update to the user
+    // If status changed, send real-time update and email
     if (oldComplaint && oldComplaint.status !== complaint.status) {
       sendRealTimeUpdate(complaint.user.toString(), {
         type: 'status_update',
@@ -479,9 +496,17 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
         newStatus: complaint.status,
         message: `Your complaint status has been updated from "${oldComplaint.status}" to "${complaint.status}"`
       });
+      // Send email notification for status change
+      const user = await User.findById(complaint.user);
+      if (user) {
+        await sendEmail({
+          to: user.email,
+          subject: `Update on your complaint: ${complaint._id}`,
+          html: `<p>Your complaint status has been updated from <b>${oldComplaint.status}</b> to <b>${complaint.status}</b>.</p>`
+        });
+      }
     }
-    
-    // If feedback was added/updated, send real-time update
+    // If feedback was added/updated, send real-time update and email
     if (req.body.feedback && req.body.feedback !== oldComplaint?.feedback) {
       sendRealTimeUpdate(complaint.user.toString(), {
         type: 'feedback_update',
@@ -489,6 +514,15 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
         feedback: req.body.feedback,
         message: 'Admin has added feedback to your complaint'
       });
+      // Send email notification for feedback
+      const user = await User.findById(complaint.user);
+      if (user) {
+        await sendEmail({
+          to: user.email,
+          subject: `Feedback on your complaint: ${complaint._id}`,
+          html: `<p>Admin has added feedback to your complaint:<br/>${req.body.feedback}</p>`
+        });
+      }
     }
     
     res.json({ complaint });
@@ -700,6 +734,16 @@ app.patch('/api/admin/reject-credentials/:userId', async (req, res) => {
       });
     }
     
+    // Send email to user with all details
+    await sendEmail({
+      to: user.email,
+      subject: 'Credential Issues Found - Action Required',
+      html: `<h3>Credential Issues Found</h3>
+        <p><b>Issue Details:</b> ${issueDetails}</p>
+        <p><b>Admin Notes:</b> ${adminNotes || 'None'}</p>
+        <p><b>Required Actions:</b> ${requiredActions || 'Please upload corrected credentials.'}</p>
+        <p>Please log in to your account to address these issues.</p>`
+    });
     res.json({ 
       success: true, 
       message: 'User credentials rejected with issue details',
@@ -788,6 +832,15 @@ app.patch('/api/admin/request-resubmission/:userId', async (req, res) => {
       });
     }
     
+    // Send email to user for resubmission request
+    await sendEmail({
+      to: user.email,
+      subject: 'Credential Resubmission Requested',
+      html: `<h3>Credential Resubmission Requested</h3>
+        <p><b>Reason:</b> ${reason || 'Please resubmit your credentials.'}</p>
+        <p><b>Deadline:</b> ${update.resubmissionDeadline ? new Date(update.resubmissionDeadline).toLocaleString() : 'N/A'}</p>
+        <p>Please log in to your account and upload the required documents before the deadline.</p>`
+    });
     res.json({ 
       success: true, 
       message: 'Resubmission requested successfully',
