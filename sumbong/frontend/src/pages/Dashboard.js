@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+// Use centralized axios client with interceptors
+import api from '../api/client';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
 
@@ -12,6 +13,26 @@ const complaintTypes = [
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  // Base API URL constant (single source of truth)
+  const API_BASE = 'https://capstone-sumbong.onrender.com';
+
+  // 1. Bootstrap token from URL (Google OAuth redirect) BEFORE any data fetching
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tokenParam = params.get('token');
+      if (tokenParam) {
+        localStorage.setItem('token', tokenParam);
+        localStorage.setItem('justLoggedIn', '1');
+        params.delete('token');
+        const newQuery = params.toString();
+        const newUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`;
+        window.history.replaceState({}, '', newUrl);
+      }
+    } catch (e) {
+      // Non-blocking: fail silently
+    }
+  }, []);
   const [showProfile, setShowProfile] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -67,8 +88,8 @@ const Dashboard = () => {
     setMissedNotifications(missed);
   };
 
-  // Get user info from localStorage
-  const storedUser = JSON.parse(localStorage.getItem('user')) || {
+  // Always fetch user info from backend on mount for correct MongoDB _id
+  const [user, setUser] = useState({
     _id: '',
     firstName: 'User',
     lastName: '',
@@ -77,8 +98,7 @@ const Dashboard = () => {
     address: '',
     credentials: [],
     profilePicture: null,
-  };
-  const [user, setUser] = useState(storedUser);
+  });
   const [editData, setEditData] = useState({
     firstName: user.firstName,
     lastName: user.lastName,
@@ -90,8 +110,8 @@ const Dashboard = () => {
 
   // Complaint form state
   const [complaint, setComplaint] = useState({
-    fullName: user.firstName + ' ' + user.lastName,
-    contact: user.email,
+    fullName: '',
+    contact: '',
     date: '',
     time: '',
     location: '',
@@ -101,6 +121,15 @@ const Dashboard = () => {
     type: '',
     resolution: '',
   });
+
+  // When user info is loaded/updated, update complaint form with real name/email
+  useEffect(() => {
+    setComplaint(c => ({
+      ...c,
+      fullName: user.firstName + ' ' + user.lastName,
+      contact: user.email
+    }));
+  }, [user.firstName, user.lastName, user.email]);
 
   // Complaints list state
   const [complaints, setComplaints] = useState([]);
@@ -182,7 +211,7 @@ const Dashboard = () => {
     window.periodicCheckInterval = setInterval(async () => {
       if (user._id) {
         try {
-          const res = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${user._id}`);
+          const res = await api.get(`/api/complaints/user/${user._id}`);
           const latestComplaints = res.data.complaints;
           
           // Compare with current state to find updates
@@ -271,7 +300,7 @@ const Dashboard = () => {
           console.log('Checking for updates that happened while logged out...');
           
           // Fetch latest complaints to check for status changes
-          const res = await axios.get(`https://capstone-sumbong.onrender.comong.onrender.com/api/complaints/user/${user._id}`);
+          const res = await api.get(`/api/complaints/user/${user._id}`);
           const latestComplaints = res.data.complaints;
           console.log('Latest complaints from server:', latestComplaints);
           
@@ -780,34 +809,34 @@ const Dashboard = () => {
     });
   };
 
-  // Fetch latest user data from backend on mount
+  // On mount, fetch user info from backend using JWT, update state/localStorage, then fetch complaints
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-      console.log('Current user data:', parsedUser);
-      // Initialize notifications and complaints immediately
-      checkForStoredNotifications();
-      if (parsedUser._id) {
-        (async () => {
-          try {
-            const res = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${parsedUser._id}`);
-            const latest = res.data.complaints || [];
-            // Seed snapshot on first load only
-            const seededKey = `complaints_snapshot_seeded_${parsedUser._id}`;
-            if (!localStorage.getItem(seededKey)) {
-              localStorage.setItem(`complaints_snapshot_${parsedUser._id}`, JSON.stringify(latest.map(c => ({ _id: c._id, status: c.status, feedback: c.feedback }))));
-              localStorage.setItem(seededKey, '1');
-            }
-            setComplaints(latest);
-            updateNotificationCount();
-          } catch (e) {
-            setComplaints([]);
-          }
-        })();
+    const fetchUserAndComplaints = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const res = await api.get('/api/user/me');
+        if (res.data && res.data.user && res.data.user._id) {
+          setUser(res.data.user);
+          localStorage.setItem('user', JSON.stringify(res.data.user));
+          fetchComplaints(res.data.user._id, token);
+        }
+      } catch (err) {
+        setUser({
+          _id: '',
+          firstName: 'User',
+          lastName: '',
+          email: 'user@email.com',
+          phoneNumber: '',
+          address: '',
+          credentials: [],
+          profilePicture: null,
+        });
+        setComplaints([]);
       }
-    }
+    };
+    fetchUserAndComplaints();
+    // eslint-disable-next-line
   }, []);
 
   // Refresh user data every 30 seconds to get admin updates
@@ -830,20 +859,24 @@ const Dashboard = () => {
     }
   }, [user.verificationStatus, user.adminNotes, user.issueDetails, user.requiredActions, user.resubmissionRequested, complaints]);
 
-  // Fetch user's complaints after mount and after submitting
-  const fetchComplaints = async (userId) => {
-    if (!userId) return;
+  // Fetch complaints for a given userId (MongoDB _id) and token
+  const fetchComplaints = async (uid, tokenOverride) => {
+    // Use provided id or fall back to current user state
+    const userId = uid || user._id;
+    if (!userId) return; // do NOT clear existing complaints prematurely
     try {
-      const res = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${userId}`);
-      setComplaints(res.data.complaints);
+      const token = tokenOverride || localStorage.getItem('token');
+      const res = await api.get(`/api/complaints/user/${userId}`);
+      setComplaints(res.data.complaints || []);
     } catch (err) {
-      setComplaints([]);
+      // Keep previous complaints on transient fetch error
+      console.error('fetchComplaints error:', err?.message || err);
     }
   };
 
   useEffect(() => {
     if (user._id) {
-      fetchComplaints();
+      fetchComplaints(user._id);
     }
   }, [user._id]);
 
@@ -930,13 +963,14 @@ const Dashboard = () => {
 
   const refreshUserData = async () => {
     try {
-      if (user._id) {
-        const response = await axios.get(`https://capstone-sumbong.onrender.com/api/user/${user._id}`);
-        const updatedUser = response.data.user;
-        setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        setNotificationCount(calculateNotificationCount());
-      }
+      const token = localStorage.getItem('token');
+      if (!token) return;
+  const response = await api.get('/api/user/me');
+      const updatedUser = response.data.user;
+      if (!updatedUser || !updatedUser._id) return;
+      setUser(updatedUser);
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setNotificationCount(calculateNotificationCount());
     } catch (error) {
       console.error('Failed to refresh user data:', error);
     }
@@ -986,15 +1020,13 @@ const Dashboard = () => {
 
   const refreshComplaintsData = async () => {
     try {
-      if (user._id) {
-        const response = await axios.get(`https://capstone-sumbong.onrender.com/api/complaints/user/${user._id}`);
-        const latest = response.data.complaints || [];
-        detectAndNotifyComplaintChanges(latest);
-        setComplaints(latest);
-        console.log('Complaints refreshed:', latest);
-        // Badge count comes from storage
-        updateNotificationCount();
-      }
+      if (!user._id) return;
+  const response = await api.get(`/api/complaints/user/${user._id}`);
+      const latest = response.data.complaints || [];
+      detectAndNotifyComplaintChanges(latest);
+      setComplaints(latest);
+      console.log('Complaints refreshed:', latest);
+      updateNotificationCount();
     } catch (error) {
       console.error('Failed to refresh complaints data:', error);
     }
@@ -1049,16 +1081,34 @@ const Dashboard = () => {
         formData.append('profilePic', editData.file);
       }
       const token = localStorage.getItem('token');
-      const res = await axios.patch(`https://capstone-sumbong.onrender.com/api/user/${user._id}`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`
-        }
+      const res = await api.patch('/api/user', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setUser(res.data.user);
-      localStorage.setItem('user', JSON.stringify(res.data.user));
-      setShowEdit(false);
-      Swal.fire('Saved!', 'Your profile has been updated.', 'success');
+      if (res.data && res.data.user) {
+        // Cache-bust profile picture if updated
+        const updatedUser = { ...res.data.user };
+        if (updatedUser.profilePicture) {
+          const bust = Date.now();
+          updatedUser.profilePicture = `${updatedUser.profilePicture}?v=${bust}`;
+        }
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setEditData({
+          firstName: updatedUser.firstName,
+          lastName: updatedUser.lastName,
+          phoneNumber: updatedUser.phoneNumber || '',
+          address: updatedUser.address || '',
+          profilePic: updatedUser.profilePicture || '',
+          file: null,
+        });
+        setShowEdit(false);
+        Swal.fire({ icon: 'success', title: 'Profile updated!' });
+        // Refetch complaints + user (fresh snapshot) after update
+        await Promise.all([
+          fetchComplaints(updatedUser._id),
+          refreshUserData()
+        ]);
+      }
     } catch (err) {
       Swal.fire('Error', 'Failed to update profile.', 'error');
     }
@@ -1096,11 +1146,8 @@ const Dashboard = () => {
         complaint.evidence.forEach(file => formData.append('evidence', file));
       }
       const token = localStorage.getItem('token');
-      const res = await axios.post('https://capstone-sumbong.onrender.com/api/complaints', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          Authorization: `Bearer ${token}`
-        }
+      const res = await api.post('/api/complaints', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       // Save a notification for the submission so count updates immediately
       try {
@@ -1168,7 +1215,7 @@ const Dashboard = () => {
       if (editComplaintData.evidence && editComplaintData.evidence.length > 0) {
         editComplaintData.evidence.forEach(file => formData.append('evidence', file));
       }
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/complaints/${editComplaint._id}`, formData, {
+      await api.patch(`/api/complaints/${editComplaint._id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       Swal.fire('Updated!', 'Your complaint has been updated.', 'success');
@@ -1194,7 +1241,7 @@ const Dashboard = () => {
     if (!result.isConfirmed) return;
     setLoading(true);
     try {
-      await axios.delete(`https://capstone-sumbong.onrender.com/api/complaints/${complaintId}`);
+  await api.delete(`/api/complaints/${complaintId}`);
       Swal.fire('Deleted!', 'Your complaint has been deleted.', 'success');
       fetchComplaints(user._id);
     } catch (err) {
@@ -1203,7 +1250,7 @@ const Dashboard = () => {
     setLoading(false);
   };
 
-  const profilePic = user.profilePicture ? `https://capstone-sumbong.onrender.com/${user.profilePicture}` : defaultAvatar;
+  const profilePic = user.profilePicture ? `${API_BASE}/${user.profilePicture}` : defaultAvatar;
   const editPreviewSrc = editData.profilePic
     ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : `https://capstone-sumbong.onrender.com/${editData.profilePic}`)
     : defaultAvatar;
@@ -1843,7 +1890,7 @@ const Dashboard = () => {
               <div className="profile-basic-info">
                 <div className="profile-picture-section">
                   {user.profilePicture ? (
-                    <img src={`https://capstone-sumbong.onrender.com/${user.profilePicture}`} alt="Profile" className="profile-picture-large" />
+                    <img src={`${API_BASE}/${user.profilePicture}`} alt="Profile" className="profile-picture-large" />
                   ) : (
                     <img src={defaultAvatar} alt="Profile" className="profile-picture-large" />
                   )}

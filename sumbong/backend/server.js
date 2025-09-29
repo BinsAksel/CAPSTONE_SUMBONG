@@ -36,7 +36,24 @@ const jwt = require('jsonwebtoken');
 const app = express();
 
 // --- CORS middleware at the very top ---
-
+// IMPORTANT: CORS must be registered BEFORE any routes so that all responses
+// (including /api/user/me) include the proper Access-Control-* headers.
+const allowedOrigins = [
+  'https://sumbong.netlify.app',
+  'http://localhost:3000'
+];
+app.use(cors({
+  origin: function(origin, callback) {
+    // allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true
+}));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -206,26 +223,6 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
 
 // Store connected clients for real-time updates
 const connectedClients = new Map(); // userId -> response object
-
-// Middleware
-const allowedOrigins = [
-  'https://sumbong.netlify.app',
-  'http://localhost:3000'
-];
-app.use(cors({
-  origin: function(origin, callback) {
-    // allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Google signup endpoint for complete-profile form (must be after app is initialized and middleware is set up)
 app.post('/api/auth/google-signup', handleUpload, googleSignup);
@@ -419,19 +416,72 @@ app.delete('/api/admin/delete/:id', async (req, res) => {
 });
 
 // Update user profile (name, address, phone number, and profile picture)
-app.patch('/api/user/:id', profileUpload.single('profilePic'), async (req, res) => {
+// Helper to normalize user object responses
+function buildUserResponse(userDoc) {
+  if (!userDoc) return null;
+  return {
+    _id: userDoc._id,
+    firstName: userDoc.firstName,
+    lastName: userDoc.lastName,
+    email: userDoc.email,
+    phoneNumber: userDoc.phoneNumber,
+    address: userDoc.address,
+    credentials: userDoc.credentials,
+    profilePicture: userDoc.profilePicture ? (userDoc.profilePicture.startsWith('uploads/') ? userDoc.profilePicture : `uploads/${userDoc.profilePicture}`) : null,
+    approved: userDoc.approved,
+    verificationStatus: userDoc.verificationStatus,
+    verificationDate: userDoc.verificationDate,
+    adminNotes: userDoc.adminNotes,
+    issueDetails: userDoc.issueDetails,
+    requiredActions: userDoc.requiredActions,
+    rejectionCount: userDoc.rejectionCount,
+    resubmissionRequested: userDoc.resubmissionRequested,
+    createdAt: userDoc.createdAt,
+    updatedAt: userDoc.updatedAt
+  };
+}
+
+// New secure profile update route using JWT (preferred by frontend)
+app.patch('/api/user', authenticateJWT, profileUpload.single('profilePic'), async (req, res) => {
   try {
     const { firstName, lastName, address, phoneNumber } = req.body;
-    let update = { firstName, lastName };
+    const update = {};
+    if (firstName !== undefined) update.firstName = firstName;
+    if (lastName !== undefined) update.lastName = lastName;
+    if (address !== undefined) update.address = address;
+    if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
+    if (req.file) {
+      update.profilePicture = `uploads/${req.file.filename}`;
+    }
+    const user = await User.findByIdAndUpdate(req.user.id, update, { new: true });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user: buildUserResponse(user) });
+  } catch (err) {
+    console.error('Update profile error (JWT route):', err);
+    res.status(500).json({ message: 'Failed to update profile', error: err.message });
+  }
+});
+
+// Legacy param-based route secured & restricted to self (can be extended for admin use)
+app.patch('/api/user/:id', authenticateJWT, profileUpload.single('profilePic'), async (req, res) => {
+  try {
+    if (req.user.id !== req.params.id) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+    const { firstName, lastName, address, phoneNumber } = req.body;
+    const update = {};
+    if (firstName !== undefined) update.firstName = firstName;
+    if (lastName !== undefined) update.lastName = lastName;
     if (address !== undefined) update.address = address;
     if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
     if (req.file) {
       update.profilePicture = `uploads/${req.file.filename}`;
     }
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
-    res.json({ user });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user: buildUserResponse(user) });
   } catch (err) {
-    console.error('Update profile error:', err);
+    console.error('Update profile error (legacy route):', err);
     res.status(500).json({ message: 'Failed to update profile', error: err.message });
   }
 });
@@ -454,18 +504,25 @@ app.get('/api/user/:id', async (req, res) => {
 app.post('/api/complaints', authenticateJWT, complaintUpload.array('evidence', 5), async (req, res) => {
   try {
     console.log('POST /api/complaints req.user:', req.user);
-    // Debug: print the user id from JWT
     console.log('Complaint user id:', req.user.id);
     const evidenceFiles = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
-    // Only allow fields that should be set by the user
     const allowedFields = ['fullName', 'contact', 'date', 'time', 'location', 'people', 'description', 'type', 'resolution', 'anonymous', 'confidential'];
     const complaintData = { user: req.user.id, evidence: evidenceFiles, status: 'pending' };
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) complaintData[field] = req.body[field];
     });
+    // Defensive fallback: ensure fullName & contact populated from user record if missing
+    if (!complaintData.fullName || !complaintData.contact) {
+      const u = await User.findById(req.user.id).select('firstName lastName email');
+      if (u) {
+        if (!complaintData.fullName) complaintData.fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+        if (!complaintData.contact) complaintData.contact = u.email;
+      }
+    }
     const complaint = await Complaint.create(complaintData);
     res.json({ complaint });
   } catch (err) {
+    console.error('Submit complaint error:', err);
     res.status(500).json({ message: 'Failed to submit complaint', error: err.message });
   }
 });
