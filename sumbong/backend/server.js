@@ -1,9 +1,3 @@
-// Update current user's profile
-// JWT authentication middleware
-// Initialize express app before any app.use/app.get/app.post
-// JWT authentication middleware
-
-
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
@@ -43,6 +37,11 @@ mongoose.connection.on('error', (err) => {
 // Initialize express app before any app.use/app.get/app.post
 const app = express();
 
+// --- CORS middleware at the very top ---
+
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 function authenticateJWT(req, res, next) {
   const authHeader = req.headers.authorization;
