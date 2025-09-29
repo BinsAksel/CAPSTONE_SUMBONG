@@ -1,11 +1,12 @@
 // Track MongoDB connection status
 let dbConnected = false;
+// Ensure environment variables loaded immediately (local dev). On Render, vars already in process.env.
+require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const cors = require('cors');
-const dotenv = require('dotenv');
 const path = require('path');
 
 // Load connectDB after dotenv and before using it
@@ -562,10 +563,21 @@ app.get('/api/complaints/user/:userId', async (req, res) => {
 // Edit a complaint
 app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (req, res) => {
   try {
-    const evidenceFiles = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
+    // Use secure Cloudinary URLs (file.path is secure_url in multer-storage-cloudinary)
+    const newEvidence = req.files ? req.files.map(f => f.path || f.secure_url || f.url).filter(Boolean) : [];
     const update = { ...req.body };
-    if (evidenceFiles.length > 0) {
-      update.evidence = evidenceFiles;
+    if (newEvidence.length > 0) {
+      // If we want to append instead of overwrite, fetch existing evidence first
+      try {
+        const existing = await Complaint.findById(req.params.id).select('evidence');
+        if (existing && Array.isArray(existing.evidence) && existing.evidence.length > 0) {
+          update.evidence = existing.evidence.concat(newEvidence);
+        } else {
+          update.evidence = newEvidence;
+        }
+      } catch {
+        update.evidence = newEvidence; // fallback overwrite
+      }
     }
     // Only update feedback if present
     if (typeof req.body.feedback !== 'undefined') {
