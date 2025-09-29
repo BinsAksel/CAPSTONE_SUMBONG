@@ -1,3 +1,4 @@
+// Update current user's profile
 // JWT authentication middleware
 // Initialize express app before any app.use/app.get/app.post
 // JWT authentication middleware
@@ -62,6 +63,7 @@ function authenticateJWT(req, res, next) {
 // Get current user profile (for dashboard/profile info)
 app.get('/api/user/me', authenticateJWT, async (req, res) => {
   try {
+    console.log('GET /api/user/me req.user:', req.user);
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({
@@ -86,6 +88,20 @@ app.get('/api/user/me', authenticateJWT, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch user profile', error: err.message });
+  }
+});
+
+app.patch('/api/user', authenticateJWT, async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      req.body,
+      { new: true }
+    );
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update profile', error: err.message });
   }
 });
 
@@ -448,12 +464,13 @@ app.get('/api/user/:id', async (req, res) => {
 });
 
 // Submit a new complaint
-app.post('/api/complaints', complaintUpload.array('evidence', 5), async (req, res) => {
+app.post('/api/complaints', authenticateJWT, complaintUpload.array('evidence', 5), async (req, res) => {
   try {
+    console.log('POST /api/complaints req.user:', req.user);
     const evidenceFiles = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
     const complaint = await Complaint.create({
       ...req.body,
-      user: req.body.userId,
+      user: req.user.id,
       evidence: evidenceFiles,
       status: 'pending'
     });
