@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import deleteIcon from '../assets/delete.png';
 import { useNavigate } from 'react-router-dom';
 // Use centralized axios client with interceptors
 import api from '../api/client';
@@ -6,7 +7,7 @@ import Swal from 'sweetalert2';
 import './Dashboard.css';
 import { toAbsolute, withCacheBust } from '../utils/url';
 
-const defaultAvatar = 'https://ui-avatars.com/api/?name=User&background=4a90e2&color=fff';
+// Removed static default avatar image; we will render an initial-letter fallback avatar dynamically
 
 const complaintTypes = [
   'Noise', 'Harassment', 'Garbage', 'Vandalism', 'Other'
@@ -1332,10 +1333,28 @@ const Dashboard = () => {
     setLoading(false);
   };
 
-  const profilePic = user.profilePicture ? toAbsolute(user.profilePicture) : defaultAvatar;
+  // Derive user initial for avatar fallback (first letter of first name, else email, else 'U')
+  const userInitial = (user.firstName || user.email || 'U').trim()[0]?.toUpperCase() || 'U';
+
+  // Simple deterministic background color based on user id/email for visual variety
+  function computeColorFromString(str) {
+    try {
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const hue = Math.abs(hash) % 360;
+      return `hsl(${hue}, 65%, 55%)`;
+    } catch {
+      return '#2563eb';
+    }
+  }
+  const avatarBg = computeColorFromString(user.firstName || user.email || user._id || 'User');
+
+  const profilePic = user.profilePicture ? toAbsolute(user.profilePicture) : null;
   const editPreviewSrc = editData.profilePic
     ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : toAbsolute(editData.profilePic))
-    : defaultAvatar;
+    : (user.profilePicture ? toAbsolute(user.profilePicture) : null);
 
   const handleViewComplaintFromNotification = async (complaintId) => {
     try {
@@ -1455,8 +1474,14 @@ const Dashboard = () => {
             )}
               </button>
           <button className="profile-btn" onClick={() => setShowProfile(true)}>
-            <img src={profilePic} alt="Profile" />
-            </button>
+            {profilePic ? (
+              <img src={profilePic} alt="Profile" />
+            ) : (
+              <div className="avatar-fallback" style={{ background: avatarBg }} aria-label="User avatar fallback" title="Profile">
+                {userInitial}
+              </div>
+            )}
+          </button>
         </div>
       </header>
       {/* Main Content */}
@@ -1605,35 +1630,51 @@ const Dashboard = () => {
             <h3>Edit Profile</h3>
             <form onSubmit={handleEditProfile}>
               <div className="profile-pic-container">
-                <img src={editPreviewSrc} alt="Profile Preview" className="profile-pic-large" />
-                <input
-                  type="file"
-                  name="profilePic"
-                  accept="image/*"
-                  ref={fileInputRef}
-                  className="hidden-input"
-                  onChange={handleEditChange}
-                />
-                <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="profile-action-btn"
-                    style={{ background: '#2563eb' }}
+                <div className="profile-photo-wrapper">
+                  <div
+                    className="profile-photo-clickable"
                     onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                    title="Click to change photo"
                   >
-                    Change Photo
-                  </button>
+                    {editPreviewSrc ? (
+                      <img src={editPreviewSrc} alt="Profile" className="profile-pic-large" />
+                    ) : (
+                      <div className="avatar-fallback-edit" style={{ background: avatarBg }}>
+                        {userInitial}
+                      </div>
+                    )}
+                    <div className="profile-photo-overlay">
+                      <span>Change Photo</span>
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    name="profilePic"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleEditChange}
+                    style={{ display: 'none' }}
+                  />
+                  {editData.file && (
+                    <div className="selected-file-name" title={editData.file.name}>{editData.file.name}</div>
+                  )}
                   {(user.profilePicture || editData.profilePic) && (
                     <button
                       type="button"
-                      className="profile-action-btn"
-                      style={{ background: '#dc2626' }}
+                      className="photo-remove-icon"
+                      aria-label="Remove profile photo"
+                      title={loading ? 'Removing...' : 'Remove Photo'}
                       onClick={handleRemoveProfilePicture}
                       disabled={loading}
                     >
-                      {loading ? 'Removing...' : 'Remove Photo'}
+                      {loading ? (
+                        <span className="spinner" />
+                      ) : (
+                        <img src={deleteIcon} alt="Delete" className="photo-remove-icon-img" />
+                      )}
                     </button>
                   )}
+                  <small className="photo-hint">Click the image to upload a new one (JPG/PNG). Max ~10MB.</small>
                 </div>
               </div>
               <div className="profile-input-container">
@@ -2017,7 +2058,9 @@ const Dashboard = () => {
                   {user.profilePicture ? (
                     <img src={toAbsolute(user.profilePicture)} alt="Profile" className="profile-picture-large" />
                   ) : (
-                    <img src={defaultAvatar} alt="Profile" className="profile-picture-large" />
+                    <div className="avatar-fallback-large" style={{ background: avatarBg }} aria-label="User avatar">
+                      {userInitial}
+                    </div>
                   )}
                 </div>
                 
