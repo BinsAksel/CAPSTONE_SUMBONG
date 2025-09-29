@@ -1,3 +1,5 @@
+// Track MongoDB connection status
+let dbConnected = false;
 const express = require('express');
 const session = require('express-session');
 const passport = require('passport');
@@ -5,7 +7,17 @@ const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
-const connectDB = require('./config/db');
+
+// Connect to MongoDB and update dbConnected status
+connectDB()
+  .then(() => {
+    dbConnected = true;
+    console.log('MongoDB connected');
+  })
+  .catch((err) => {
+    dbConnected = false;
+    console.error('MongoDB connection error:', err);
+  });
 const { signup, login, handleUpload, googleSignup } = require('./controllers/authController');
 const sendEmail = require('./utils/sendEmail');
 const { generateToken } = require('./controllers/authController');
