@@ -61,10 +61,16 @@ const CompleteProfile = () => {
           formDataToSend.append('credentials', image);
         });
       }
+      const token = localStorage.getItem('token');
       const response = await axios.post(
         'https://capstone-sumbong.onrender.com/api/auth/google-signup',
         formDataToSend,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        }
       );
       if (response.data.user) {
         Swal.fire({

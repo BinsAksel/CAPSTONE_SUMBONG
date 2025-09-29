@@ -1095,8 +1095,12 @@ const Dashboard = () => {
       if (complaint.evidence && complaint.evidence.length > 0) {
         complaint.evidence.forEach(file => formData.append('evidence', file));
       }
+      const token = localStorage.getItem('token');
       const res = await axios.post('https://capstone-sumbong.onrender.com/api/complaints', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}`
+        }
       });
       // Save a notification for the submission so count updates immediately
       try {
