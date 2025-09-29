@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
     type: String, // URL to stored profile picture
     default: null
   },
+  profilePicturePublicId: {
+    type: String,
+    default: null
+  },
   createdAt: {
     type: Date,
     default: Date.now

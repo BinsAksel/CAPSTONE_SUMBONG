@@ -10,7 +10,10 @@ const complaintSchema = new mongoose.Schema({
   location: String,
   people: String,
   description: String,
-  evidence: [String], // file paths
+  // Store evidence as objects so we can manage Cloudinary deletions. Backward compatibility: old records may still be strings.
+  evidence: [{
+    type: mongoose.Schema.Types.Mixed, // either string (legacy) or { url, publicId }
+  }],
   type: String,
   resolution: String,
   confidential: Boolean,

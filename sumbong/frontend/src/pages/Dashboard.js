@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
-import { toAbsolute } from '../utils/url';
+import { toAbsolute, withCacheBust } from '../utils/url';
 
 const defaultAvatar = 'https://ui-avatars.com/api/?name=User&background=4a90e2&color=fff';
 
@@ -1118,11 +1118,10 @@ const Dashboard = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (res.data && res.data.user) {
-        // Cache-bust profile picture if updated
+        // Cache-bust profile picture (only if present)
         const updatedUser = { ...res.data.user };
         if (updatedUser.profilePicture) {
-          const bust = Date.now();
-          updatedUser.profilePicture = `${updatedUser.profilePicture}?v=${bust}`;
+          updatedUser.profilePicture = withCacheBust(updatedUser.profilePicture);
         }
         setUser(updatedUser);
         localStorage.setItem('user', JSON.stringify(updatedUser));
@@ -1144,6 +1143,42 @@ const Dashboard = () => {
       }
     } catch (err) {
       Swal.fire('Error', 'Failed to update profile.', 'error');
+    }
+    setLoading(false);
+  };
+
+  // Remove profile picture handler
+  const handleRemoveProfilePicture = async () => {
+    if (!user.profilePicture) {
+      // Nothing to remove
+      setEditData(ed => ({ ...ed, profilePic: '', file: null }));
+      return;
+    }
+    const result = await Swal.fire({
+      title: 'Remove profile picture?',
+      text: 'This will delete the current profile photo. You can upload a new one later.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Yes, remove it',
+      cancelButtonText: 'Cancel'
+    });
+    if (!result.isConfirmed) return;
+    try {
+      setLoading(true);
+      await api.delete('/api/user/profile-picture');
+      const cleared = { ...user, profilePicture: null, profilePicturePublicId: null };
+      setUser(cleared);
+      localStorage.setItem('user', JSON.stringify(cleared));
+      setEditData(ed => ({
+        ...ed,
+        profilePic: '',
+        file: null
+      }));
+      Swal.fire({ icon: 'success', title: 'Profile picture removed' });
+    } catch (err) {
+      Swal.fire('Error', 'Failed to remove profile picture.', 'error');
     }
     setLoading(false);
   };
@@ -1258,6 +1293,9 @@ const Dashboard = () => {
       formData.append('resolution', editComplaintData.resolution);
       if (editComplaintData.evidence && editComplaintData.evidence.length > 0) {
         editComplaintData.evidence.forEach(file => formData.append('evidence', file));
+      }
+      if (editComplaintData.replaceEvidence) {
+        formData.append('replaceEvidence', 'true');
       }
       await api.patch(`/api/complaints/${editComplaint._id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -1570,7 +1608,27 @@ const Dashboard = () => {
                   className="hidden-input"
                   onChange={handleEditChange}
                 />
-               
+                <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="profile-action-btn"
+                    style={{ background: '#2563eb' }}
+                    onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  >
+                    Change Photo
+                  </button>
+                  {(user.profilePicture || editData.profilePic) && (
+                    <button
+                      type="button"
+                      className="profile-action-btn"
+                      style={{ background: '#dc2626' }}
+                      onClick={handleRemoveProfilePicture}
+                      disabled={loading}
+                    >
+                      {loading ? 'Removing...' : 'Remove Photo'}
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="profile-input-container">
                 <div className="input-wrapper">
@@ -1904,6 +1962,17 @@ const Dashboard = () => {
               <div className="complaint-input-container file">
                 <label className="complaint-label">Supporting evidence (pictures, videos, files):</label>
                 <input type="file" name="evidence" multiple onChange={handleEditComplaintChange} />
+                <div style={{ marginTop: 6 }}>
+                  <label style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      name="replaceEvidence"
+                      checked={!!editComplaintData.replaceEvidence}
+                      onChange={(e) => setEditComplaintData(d => ({ ...d, replaceEvidence: e.target.checked }))}
+                    />
+                    Replace existing evidence (old files will be deleted)
+                  </label>
+                </div>
               </div>
               <div className="complaint-input-container">
                 <label className="complaint-label">Type of complaint:</label>

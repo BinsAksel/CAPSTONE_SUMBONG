@@ -269,6 +269,12 @@ const complaintStorage = new CloudinaryStorage({
     };
   }
 });
+// Helper function to extract Cloudinary publicId from the file path
+function extractPublicId(filePath) {
+  const regex = /\/([^\/]+)$/; // Matches the last segment of the path
+  const match = filePath.match(regex);
+  return match ? match[1] : null;
+}
 const profileUpload = multer({ storage: profileStorage });
 // 10MB per evidence file limit
 const TEN_MB = 10 * 1024 * 1024;
@@ -445,6 +451,7 @@ function buildUserResponse(userDoc) {
     credentials: userDoc.credentials,
   // Keep absolute URL from Cloudinary; if legacy relative path, prefix
   profilePicture: userDoc.profilePicture ? (/^https?:\/\//.test(userDoc.profilePicture) ? userDoc.profilePicture : (userDoc.profilePicture.startsWith('uploads/') ? userDoc.profilePicture : `uploads/${userDoc.profilePicture}`)) : null,
+    profilePicturePublicId: userDoc.profilePicturePublicId || null,
     approved: userDoc.approved,
     verificationStatus: userDoc.verificationStatus,
     verificationDate: userDoc.verificationDate,
@@ -467,8 +474,26 @@ app.patch('/api/user', authenticateJWT, profileUpload.single('profilePic'), asyn
     if (lastName !== undefined) update.lastName = lastName;
     if (address !== undefined) update.address = address;
     if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
+    // If uploading a new file, destroy previous Cloudinary image (if any) first
     if (req.file && req.file.path) {
-      update.profilePicture = req.file.path; // Cloudinary returns secure URL in path
+      try {
+        const existing = await User.findById(req.user.id).select('profilePicturePublicId');
+        if (existing && existing.profilePicturePublicId) {
+          const { v2: cloudinary } = require('cloudinary');
+          cloudinary.uploader.destroy(existing.profilePicturePublicId, { resource_type: 'image' })
+            .catch(err => console.warn('Cloudinary destroy (profile) failed:', err.message));
+        }
+      } catch (e) {
+        console.warn('Lookup previous profile picture failed:', e.message);
+      }
+      update.profilePicture = req.file.path; // secure URL
+      // multer-storage-cloudinary typically exposes filename = public_id
+      if (req.file.filename) {
+        update.profilePicturePublicId = req.file.filename;
+      } else {
+        // Fallback: extract from URL
+        update.profilePicturePublicId = (req.file.path.match(/upload\/v\d+\/([^\.]+)(?=\.)/) || [])[1] || null;
+      }
     }
     const user = await User.findByIdAndUpdate(req.user.id, update, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -563,40 +588,82 @@ app.get('/api/complaints/user/:userId', async (req, res) => {
 // Edit a complaint
 app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (req, res) => {
   try {
-    // Use secure Cloudinary URLs (file.path is secure_url in multer-storage-cloudinary)
-    const newEvidence = req.files ? req.files.map(f => f.path || f.secure_url || f.url).filter(Boolean) : [];
-    const update = { ...req.body };
-    if (newEvidence.length > 0) {
-      // If we want to append instead of overwrite, fetch existing evidence first
-      try {
-        const existing = await Complaint.findById(req.params.id).select('evidence');
-        if (existing && Array.isArray(existing.evidence) && existing.evidence.length > 0) {
-          update.evidence = existing.evidence.concat(newEvidence);
-        } else {
-          update.evidence = newEvidence;
+    // Load existing complaint first for logic & deletion
+    const existingComplaint = await Complaint.findById(req.params.id);
+    if (!existingComplaint) {
+      return res.status(404).json({ message: 'Complaint not found' });
+    }
+
+    // Normalize existing evidence into array of { url, publicId }
+    const normalizeEvidenceItem = (item) => {
+      if (!item) return null;
+      if (typeof item === 'string') {
+        return { url: item, publicId: (item.match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/) || [])[1] || null };
+      }
+      if (item.url) return { url: item.url, publicId: item.publicId || ((item.url||'').match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/) || [])[1] || null };
+      return null;
+    };
+    const existingEvidence = Array.isArray(existingComplaint.evidence)
+      ? existingComplaint.evidence.map(normalizeEvidenceItem).filter(Boolean)
+      : [];
+
+    // New uploads (secure Cloudinary URLs)
+    const newEvidenceRaw = req.files ? req.files.map(f => f.path || f.secure_url || f.url).filter(Boolean) : [];
+    const newEvidenceObjs = newEvidenceRaw.map(url => ({
+      url,
+      publicId: (url.match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/) || [])[1] || null
+    }));
+
+    const update = {};
+    const replace = ['true', '1', true].includes(req.body.replaceEvidence);
+    if (newEvidenceObjs.length > 0) {
+      if (replace) {
+        update.evidence = newEvidenceObjs;
+      } else {
+        update.evidence = existingEvidence.concat(newEvidenceObjs);
+      }
+    } else if (replace) {
+      // Replace requested but no new uploads provided: clear evidence
+      update.evidence = [];
+    }
+
+    // Delete old evidence assets if replacing
+    if (replace && existingEvidence.length > 0) {
+      for (const ev of existingEvidence) {
+        if (ev.publicId) {
+          try {
+            await cloudinaryLib.uploader.destroy(ev.publicId, { resource_type: 'image' });
+            // Attempt video/raw variants if needed (non-blocking)
+          } catch (e) {
+            console.warn('Failed to delete old evidence asset', ev.publicId, e.message);
+          }
         }
-      } catch {
-        update.evidence = newEvidence; // fallback overwrite
       }
     }
-    // Only update feedback if present
+
+    // Copy over primitive updatable fields
+    const allowed = ['fullName','contact','date','time','location','people','description','type','resolution','anonymous','confidential'];
+    allowed.forEach(f => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
+
+    // Feedback update
     if (typeof req.body.feedback !== 'undefined') {
       update.feedback = req.body.feedback;
     }
-    
-    // Get the complaint before update to check if status changed
-    const oldComplaint = await Complaint.findById(req.params.id);
-    
+
+    const oldStatus = existingComplaint.status;
+    const oldFeedback = existingComplaint.feedback;
+
+    // Apply update
     const complaint = await Complaint.findByIdAndUpdate(req.params.id, update, { new: true });
     
     // If status changed, send real-time update and email
-    if (oldComplaint && oldComplaint.status !== complaint.status) {
+    if (oldStatus && oldStatus !== complaint.status) {
       sendRealTimeUpdate(complaint.user.toString(), {
         type: 'status_update',
         complaintId: complaint._id,
-        oldStatus: oldComplaint.status,
+        oldStatus: oldStatus,
         newStatus: complaint.status,
-        message: `Your complaint status has been updated from "${oldComplaint.status}" to "${complaint.status}"`
+        message: `Your complaint status has been updated from "${oldStatus}" to "${complaint.status}"`
       });
       // Send email notification for status change
       const user = await User.findById(complaint.user);
@@ -604,12 +671,12 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
         await sendEmail({
           to: user.email,
           subject: `Update on your complaint: ${complaint._id}`,
-          html: `<p>Your complaint status has been updated from <b>${oldComplaint.status}</b> to <b>${complaint.status}</b>.</p>`
+          html: `<p>Your complaint status has been updated from <b>${oldStatus}</b> to <b>${complaint.status}</b>.</p>`
         });
       }
     }
     // If feedback was added/updated, send real-time update and email
-    if (req.body.feedback && req.body.feedback !== oldComplaint?.feedback) {
+    if (req.body.feedback && req.body.feedback !== oldFeedback) {
       sendRealTimeUpdate(complaint.user.toString(), {
         type: 'feedback_update',
         complaintId: complaint._id,
@@ -1016,4 +1083,27 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+});
+
+// Delete current profile picture
+app.delete('/api/user/profile-picture', authenticateJWT, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('profilePicture profilePicturePublicId');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.profilePicturePublicId) {
+      try {
+        const { v2: cloudinary } = require('cloudinary');
+        await cloudinary.uploader.destroy(user.profilePicturePublicId, { resource_type: 'image' });
+      } catch (e) {
+        console.warn('Cloudinary destroy (remove profile) failed:', e.message);
+      }
+    }
+    user.profilePicture = null;
+    user.profilePicturePublicId = null;
+    await user.save();
+    res.json({ user: buildUserResponse(user), message: 'Profile picture removed' });
+  } catch (err) {
+    console.error('Remove profile picture error:', err);
+    res.status(500).json({ message: 'Failed to remove profile picture', error: err.message });
+  }
 });
