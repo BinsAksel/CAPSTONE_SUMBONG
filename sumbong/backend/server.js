@@ -27,6 +27,8 @@ const mongoose = require('mongoose');
 const fs = require('fs');
 const User = require('./models/User');
 const multer = require('multer');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('./config/cloudinary');
 const Complaint = require('./models/Complaint');
 const jwt = require('jsonwebtoken');
 
@@ -241,28 +243,32 @@ if (!fs.existsSync(uploadsDir)) {
 // Serve uploaded files
 app.use('/uploads', express.static(uploadsDir));
 
-// Configure multer for single image upload
-const profileStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+// Cloudinary storage configurations
+const profileStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    return {
+      folder: 'sumbong/profile_pictures',
+      resource_type: 'image',
+      format: undefined, // keep original
+      public_id: `profile_${Date.now()}_${Math.round(Math.random()*1e6)}`
+    };
+  }
+});
+const complaintStorage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    // Determine resource type based on mimetype
+    const isVideo = file.mimetype.startsWith('video/');
+    const isImage = file.mimetype.startsWith('image/');
+    return {
+      folder: 'sumbong/complaints',
+      resource_type: isVideo ? 'video' : (isImage ? 'image' : 'raw'),
+      public_id: `evidence_${Date.now()}_${Math.round(Math.random()*1e6)}`
+    };
   }
 });
 const profileUpload = multer({ storage: profileStorage });
-
-// Configure multer for complaint upload
-const complaintStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, 'uploads'));
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
 const complaintUpload = multer({ storage: complaintStorage });
 
 // Test route to verify database connection
@@ -427,7 +433,8 @@ function buildUserResponse(userDoc) {
     phoneNumber: userDoc.phoneNumber,
     address: userDoc.address,
     credentials: userDoc.credentials,
-    profilePicture: userDoc.profilePicture ? (userDoc.profilePicture.startsWith('uploads/') ? userDoc.profilePicture : `uploads/${userDoc.profilePicture}`) : null,
+  // Keep absolute URL from Cloudinary; if legacy relative path, prefix
+  profilePicture: userDoc.profilePicture ? (/^https?:\/\//.test(userDoc.profilePicture) ? userDoc.profilePicture : (userDoc.profilePicture.startsWith('uploads/') ? userDoc.profilePicture : `uploads/${userDoc.profilePicture}`)) : null,
     approved: userDoc.approved,
     verificationStatus: userDoc.verificationStatus,
     verificationDate: userDoc.verificationDate,
@@ -450,8 +457,8 @@ app.patch('/api/user', authenticateJWT, profileUpload.single('profilePic'), asyn
     if (lastName !== undefined) update.lastName = lastName;
     if (address !== undefined) update.address = address;
     if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
-    if (req.file) {
-      update.profilePicture = `uploads/${req.file.filename}`;
+    if (req.file && req.file.path) {
+      update.profilePicture = req.file.path; // Cloudinary returns secure URL in path
     }
     const user = await User.findByIdAndUpdate(req.user.id, update, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -474,8 +481,8 @@ app.patch('/api/user/:id', authenticateJWT, profileUpload.single('profilePic'), 
     if (lastName !== undefined) update.lastName = lastName;
     if (address !== undefined) update.address = address;
     if (phoneNumber !== undefined) update.phoneNumber = phoneNumber;
-    if (req.file) {
-      update.profilePicture = `uploads/${req.file.filename}`;
+    if (req.file && req.file.path) {
+      update.profilePicture = req.file.path;
     }
     const user = await User.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
@@ -505,7 +512,7 @@ app.post('/api/complaints', authenticateJWT, complaintUpload.array('evidence', 5
   try {
     console.log('POST /api/complaints req.user:', req.user);
     console.log('Complaint user id:', req.user.id);
-    const evidenceFiles = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
+    const evidenceFiles = req.files ? req.files.map(file => file.path || file.secure_url || file.url).filter(Boolean) : [];
     const allowedFields = ['fullName', 'contact', 'date', 'time', 'location', 'people', 'description', 'type', 'resolution', 'anonymous', 'confidential'];
     const complaintData = { user: req.user.id, evidence: evidenceFiles, status: 'pending' };
     allowedFields.forEach(field => {

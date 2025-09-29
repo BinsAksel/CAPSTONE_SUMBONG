@@ -1250,7 +1250,12 @@ const Dashboard = () => {
     setLoading(false);
   };
 
-  const profilePic = user.profilePicture ? `${API_BASE}/${user.profilePicture}` : defaultAvatar;
+  // Do not prefix if already an absolute Cloudinary (or any http/https) URL
+  const toAbsolute = (p) => {
+    if (!p) return '';
+    return /^https?:\/\//i.test(p) ? p : `${API_BASE}/${p}`;
+  };
+  const profilePic = user.profilePicture ? toAbsolute(user.profilePicture) : defaultAvatar;
   const editPreviewSrc = editData.profilePic
     ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : `https://capstone-sumbong.onrender.com/${editData.profilePic}`)
     : defaultAvatar;
@@ -1890,7 +1895,7 @@ const Dashboard = () => {
               <div className="profile-basic-info">
                 <div className="profile-picture-section">
                   {user.profilePicture ? (
-                    <img src={`${API_BASE}/${user.profilePicture}`} alt="Profile" className="profile-picture-large" />
+                    <img src={toAbsolute(user.profilePicture)} alt="Profile" className="profile-picture-large" />
                   ) : (
                     <img src={defaultAvatar} alt="Profile" className="profile-picture-large" />
                   )}
