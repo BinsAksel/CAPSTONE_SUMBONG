@@ -1378,7 +1378,13 @@ const Dashboard = () => {
   // Render the fullscreen evidence modal for complaints (user side)
   function renderEvidenceModal() {
     if (!viewComplaint || !viewComplaint.evidence || !evidenceModal.open) return null;
-    const evidenceList = viewComplaint.evidence;
+    const evidenceList = (viewComplaint.evidence || []).map(ev => {
+      if (!ev) return '';
+      if (typeof ev === 'string') return ev;
+      if (ev.url) return ev.url; // new object shape
+      return '';
+    }).filter(Boolean);
+    if (evidenceList.length === 0) return null;
     const idx = evidenceModal.index;
     const file = evidenceList[idx];
   const url = toAbsolute(file);
@@ -1833,8 +1839,10 @@ const Dashboard = () => {
                 {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
                   <div className="evidence-grid">
                     {viewComplaint.evidence.map((file, idx) => {
-                      const url = toAbsolute(file);
-                      const ext = file.split('.').pop().toLowerCase();
+                      const fileUrl = (typeof file === 'string') ? file : (file?.url || '');
+                      if (!fileUrl) return null;
+                      const url = toAbsolute(fileUrl);
+                      const ext = fileUrl.split('.').pop().toLowerCase();
                       // Stop propagation so background modal does not close
                       const handleEvidenceClick = (e) => {
                         e.stopPropagation();
@@ -1849,7 +1857,7 @@ const Dashboard = () => {
                               onClick={handleEvidenceClick}
                               title="Click to view full size"
                             />
-                            <small className="evidence-filename">{file.split('/').pop()}</small>
+                            <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
                           </div>
                         );
                       } else if (["mp4", "webm", "ogg"].includes(ext)) {
@@ -1863,7 +1871,7 @@ const Dashboard = () => {
                               <source src={url} type={`video/${ext}`} />
                               Your browser does not support the video tag.
                             </video>
-                            <small className="evidence-filename">{file.split('/').pop()}</small>
+                            <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
                           </div>
                         );
                       } else if (ext === 'pdf') {
@@ -1875,7 +1883,7 @@ const Dashboard = () => {
                               onClick={handleEvidenceClick}
                               title="Click to view full size"
                             />
-                            <small className="evidence-filename">{file.split('/').pop()}</small>
+                            <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
                           </div>
                         );
                       } else {
@@ -1884,7 +1892,7 @@ const Dashboard = () => {
                             <div className="file-placeholder" onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }}>
                               {ext.toUpperCase()}
                             </div>
-                            <small className="evidence-filename">{file.split('/').pop()}</small>
+                            <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
                           </div>
                         );
                       }

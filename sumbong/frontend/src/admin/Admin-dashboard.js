@@ -105,7 +105,13 @@ const AdminDashboard = () => {
   // Render the fullscreen evidence modal for complaints
   function renderEvidenceModal() {
     if (!viewComplaint || !viewComplaint.evidence || !evidenceModal.open) return null;
-    const evidenceList = viewComplaint.evidence;
+    const evidenceList = (viewComplaint.evidence || []).map(ev => {
+      if (!ev) return '';
+      if (typeof ev === 'string') return ev;
+      if (ev.url) return ev.url;
+      return '';
+    }).filter(Boolean);
+    if (evidenceList.length === 0) return null;
     const idx = evidenceModal.index;
     const file = evidenceList[idx];
   const url = toAbsolute(file);
@@ -913,8 +919,10 @@ const AdminDashboard = () => {
         {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
           <div className="evidence-grid">
             {viewComplaint.evidence.map((file, idx) => {
-              const url = toAbsolute(file);
-              const ext = file.split('.').pop().toLowerCase();
+              const fileUrl = typeof file === 'string' ? file : (file?.url || '');
+              if (!fileUrl) return null;
+              const url = toAbsolute(fileUrl);
+              const ext = fileUrl.split('.').pop().toLowerCase();
               const handleEvidenceClick = () => {
                 setEvidenceModal({ open: true, index: idx });
               };
@@ -922,28 +930,28 @@ const AdminDashboard = () => {
                 return (
                   <div key={idx} className="evidence-item">
                     <img src={url} alt={`Evidence ${idx + 1}`} onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }} />
-                    <small>{file.split('/').pop()}</small>
+                    <small>{fileUrl.split('/').pop()}</small>
                   </div>
                 );
               } else if (["mp4", "avi", "mov", "wmv", "flv", "webm"].includes(ext)) {
                 return (
                   <div key={idx} className="evidence-item">
                     <video src={url} controls onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }} />
-                    <small>{file.split('/').pop()}</small>
+                    <small>{fileUrl.split('/').pop()}</small>
                   </div>
                 );
               } else if (ext === "pdf") {
                 return (
                   <div key={idx} className="evidence-item">
                     <embed src={url} type="application/pdf" onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }} />
-                    <small>{file.split('/').pop()}</small>
+                    <small>{fileUrl.split('/').pop()}</small>
                   </div>
                 );
               } else {
                 return (
                   <div key={idx} className="evidence-item">
                     <div className="file-preview" onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }}>{ext.toUpperCase()}</div>
-                    <small>{file.split('/').pop()}</small>
+                    <small>{fileUrl.split('/').pop()}</small>
                   </div>
                 );
               }
