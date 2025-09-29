@@ -370,7 +370,7 @@ app.get('/api/admin/users', async (req, res) => {
   }
   
   try {
-    const users = await User.find();
+  const users = await User.find().sort({ createdAt: -1 });
     // Add full path to credentials and profile pictures
     const usersWithImagePaths = users.map(user => ({
       ...user.toObject(),
