@@ -8,6 +8,8 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
 
+// Load connectDB after dotenv and before using it
+const connectDB = require('./config/db');
 // Connect to MongoDB and update dbConnected status
 connectDB()
   .then(() => {
