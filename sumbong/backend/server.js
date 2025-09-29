@@ -15,26 +15,8 @@ const User = require('./models/User');
 const multer = require('multer');
 const Complaint = require('./models/Complaint');
 const jwt = require('jsonwebtoken');
-  try {
-    // Debug: print the user id from JWT
-    console.log('PATCH /api/user req.user:', req.user);
-    const update = {};
-    if (req.body.firstName !== undefined) update.firstName = req.body.firstName;
-    if (req.body.lastName !== undefined) update.lastName = req.body.lastName;
-    if (req.body.phoneNumber !== undefined) update.phoneNumber = req.body.phoneNumber;
-    if (req.body.address !== undefined) update.address = req.body.address;
-    if (req.file) {
-      update.profilePicture = `uploads/${req.file.filename}`;
-    }
-    const user = await User.findByIdAndUpdate(req.user.id, update, { new: true });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ user });
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to update profile', error: err.message });
-  }
-  dbConnected = false;
-  console.error('MongoDB connection error:', err);
-});
+
+
 
 // Initialize express app before any app.use/app.get/app.post
 const app = express();
