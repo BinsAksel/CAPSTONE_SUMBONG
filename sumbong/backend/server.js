@@ -90,13 +90,18 @@ app.get('/api/user/me', authenticateJWT, async (req, res) => {
   }
 });
 
-app.patch('/api/user', authenticateJWT, async (req, res) => {
+// PATCH /api/user with profile picture upload support
+app.patch('/api/user', authenticateJWT, profileUpload.single('profilePic'), async (req, res) => {
   try {
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      req.body,
-      { new: true }
-    );
+    const update = {};
+    if (req.body.firstName !== undefined) update.firstName = req.body.firstName;
+    if (req.body.lastName !== undefined) update.lastName = req.body.lastName;
+    if (req.body.phoneNumber !== undefined) update.phoneNumber = req.body.phoneNumber;
+    if (req.body.address !== undefined) update.address = req.body.address;
+    if (req.file) {
+      update.profilePicture = `uploads/${req.file.filename}`;
+    }
+    const user = await User.findByIdAndUpdate(req.user.id, update, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({ user });
   } catch (err) {
@@ -467,12 +472,13 @@ app.post('/api/complaints', authenticateJWT, complaintUpload.array('evidence', 5
   try {
     console.log('POST /api/complaints req.user:', req.user);
     const evidenceFiles = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
-    const complaint = await Complaint.create({
-      ...req.body,
-      user: req.user.id,
-      evidence: evidenceFiles,
-      status: 'pending'
+    // Only allow fields that should be set by the user
+    const allowedFields = ['fullName', 'contact', 'date', 'time', 'location', 'people', 'description', 'type', 'resolution', 'anonymous', 'confidential'];
+    const complaintData = { user: req.user.id, evidence: evidenceFiles, status: 'pending' };
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) complaintData[field] = req.body[field];
     });
+    const complaint = await Complaint.create(complaintData);
     res.json({ complaint });
   } catch (err) {
     res.status(500).json({ message: 'Failed to submit complaint', error: err.message });
