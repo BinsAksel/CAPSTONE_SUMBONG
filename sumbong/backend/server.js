@@ -269,7 +269,16 @@ const complaintStorage = new CloudinaryStorage({
   }
 });
 const profileUpload = multer({ storage: profileStorage });
-const complaintUpload = multer({ storage: complaintStorage });
+// 10MB per evidence file limit
+const TEN_MB = 10 * 1024 * 1024;
+const complaintUpload = multer({
+  storage: complaintStorage,
+  limits: { fileSize: TEN_MB },
+  fileFilter: (req, file, cb) => {
+    // Optionally restrict disallowed mimetypes here; for now allow all
+    cb(null, true);
+  }
+});
 
 // Test route to verify database connection
 app.get('/api/test', async (req, res) => {
@@ -508,7 +517,17 @@ app.get('/api/user/:id', async (req, res) => {
 });
 
 // Submit a new complaint
-app.post('/api/complaints', authenticateJWT, complaintUpload.array('evidence', 5), async (req, res) => {
+app.post('/api/complaints', authenticateJWT, (req, res, next) => {
+  complaintUpload.array('evidence', 5)(req, res, function(err){
+    if (err) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({ message: 'One or more evidence files exceed the 10MB limit.' });
+      }
+      return res.status(400).json({ message: 'Upload failed', error: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
   try {
     console.log('POST /api/complaints req.user:', req.user);
     console.log('Complaint user id:', req.user.id);

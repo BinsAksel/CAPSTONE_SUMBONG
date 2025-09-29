@@ -1121,7 +1121,18 @@ const Dashboard = () => {
     if (type === 'checkbox') {
       setComplaint({ ...complaint, [name]: checked });
     } else if (type === 'file') {
-      setComplaint({ ...complaint, evidence: files ? Array.from(files) : [] });
+      const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+      const list = files ? Array.from(files) : [];
+      const tooLarge = list.filter(f => f.size > MAX_BYTES);
+      if (tooLarge.length > 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'File Too Large',
+          html: `The following file(s) exceed the 10MB limit:<br/><ul style="text-align:left;">${tooLarge.map(f=>`<li>${f.name} (${(f.size/1024/1024).toFixed(2)}MB)</li>`).join('')}</ul>`,
+        });
+      }
+      const accepted = list.filter(f => f.size <= MAX_BYTES).slice(0,5); // still respect max 5 on client side
+      setComplaint({ ...complaint, evidence: accepted });
     } else {
       setComplaint({ ...complaint, [name]: value });
     }
@@ -1654,6 +1665,14 @@ const Dashboard = () => {
               <div className="complaint-input-container file">
                 <label className="complaint-label">Supporting evidence (pictures, videos, files):</label>
                 <input type="file" name="evidence" multiple ref={complaintFileInputRef} onChange={handleComplaintChange} />
+                <small style={{ display:'block', marginTop:4, color:'#555' }}>
+                  Max 5 files. Each file up to 10MB. Oversized files will be skipped.
+                </small>
+                {complaint.evidence && complaint.evidence.length > 0 && (
+                  <div style={{ marginTop:6, fontSize:12, color:'#2563eb' }}>
+                    {complaint.evidence.length} file(s) selected.
+                  </div>
+                )}
               </div>
               <div className="complaint-input-container">
                 <label className="complaint-label">Type of complaint:</label>
