@@ -109,6 +109,38 @@ const Dashboard = () => {
     file: null,
   });
 
+  // Sync edit form with fetched user data (initial load or when user changes) unless user is actively editing.
+  useEffect(() => {
+    // Avoid overwriting while the modal is open (user is editing) or if no real user loaded yet
+    if (!showEdit && user && user._id) {
+      setEditData(prev => ({
+        ...prev,
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        phoneNumber: user.phoneNumber || '',
+        address: user.address || '',
+        profilePic: user.profilePicture || '',
+        // Do not carry over previous file selection after user refresh
+        file: null,
+      }));
+    }
+  }, [user._id, user.firstName, user.lastName, user.phoneNumber, user.address, user.profilePicture, showEdit]);
+
+  // If the user opens the edit modal before the user data finished loading, populate once it opens.
+  useEffect(() => {
+    if (showEdit && user && user._id) {
+      setEditData(prev => ({
+        ...prev,
+        firstName: user.firstName || '',
+        lastName: user.lastName || '',
+        phoneNumber: user.phoneNumber || '',
+        address: user.address || '',
+        // Only replace preview if user hasn't selected a new local file
+        profilePic: prev.file ? prev.profilePic : (user.profilePicture || ''),
+      }));
+    }
+  }, [showEdit, user._id, user.firstName, user.lastName, user.phoneNumber, user.address, user.profilePicture]);
+
   // Complaint form state
   const [complaint, setComplaint] = useState({
     fullName: '',
@@ -1262,11 +1294,6 @@ const Dashboard = () => {
     setLoading(false);
   };
 
-  // Do not prefix if already an absolute Cloudinary (or any http/https) URL
-  const toAbsolute = (p) => {
-    if (!p) return '';
-    return /^https?:\/\//i.test(p) ? p : `${API_BASE}/${p}`;
-  };
   const profilePic = user.profilePicture ? toAbsolute(user.profilePicture) : defaultAvatar;
   const editPreviewSrc = editData.profilePic
     ? (editData.profilePic.startsWith('blob:') ? editData.profilePic : toAbsolute(editData.profilePic))
