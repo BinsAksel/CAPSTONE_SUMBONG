@@ -34,15 +34,44 @@ const SignIn = () => {
 
   const handleImageChange = (e) => {
     if (e.target.files) {
-      setImages(Array.from(e.target.files));
+      const files = Array.from(e.target.files);
+      const allowedTypes = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
+        'application/pdf',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ];
+      const invalid = files.find(file => !allowedTypes.includes(file.type));
+      if (invalid) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid File Type',
+          text: 'Only images (JPG, PNG, GIF, BMP, WEBP), PDF, and Word documents are allowed.',
+          confirmButtonColor: '#1a365d'
+        });
+        return;
+      }
+      setImages(files);
     }
-  };
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
+
+    // Phone number validation (Philippines: 10-13 digits, numbers only)
+    const phone = formData.phoneNumber.trim();
+    if (!/^\d{10,13}$/.test(phone)) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Invalid Phone Number',
+        text: 'Please enter a valid phone number (10-13 digits, numbers only).',
+        confirmButtonColor: '#1a365d'
+      });
+      setLoading(false);
+      return;
+    }
 
     try {
       const formDataToSend = new FormData();
@@ -62,14 +91,12 @@ const SignIn = () => {
         }
       });
       if (response.data.success) {
-        // SweetAlert for signup success
-        window.Swal && Swal.fire({
+        Swal.fire({
           icon: 'success',
           title: 'Signed Up!',
           text: 'You are now signed up! Please wait for the admin to verify your account before logging in.',
           confirmButtonColor: '#1a365d'
         });
-        setSuccess('You are now signed up! Please wait for the admin to verify your account before logging in.');
         setFormData({
           firstName: '',
           lastName: '',
@@ -79,11 +106,15 @@ const SignIn = () => {
           password: '',
         });
         setImages([]);
-        // Do not store token or redirect
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.response?.data || err.message || 'Registration failed. Please try again.';
-      setError(typeof errorMessage === 'string' ? errorMessage : 'Registration failed. Please try again.');
+      Swal.fire({
+        icon: 'error',
+        title: 'Registration Failed',
+        text: typeof errorMessage === 'string' ? errorMessage : 'Registration failed. Please try again.',
+        confirmButtonColor: '#1a365d'
+      });
     } finally {
       setLoading(false);
     }
@@ -99,8 +130,7 @@ const SignIn = () => {
           <div className="signin-form-box">
             <h2>Create Account</h2>
             <GoogleButton text="Sign up with Google" onClick={handleGoogleSignUp} />
-            {success && <div className="success-message">{typeof success === 'string' ? success : 'Success!'}</div>}
-            {error && <div className="error-message">{typeof error === 'string' ? error : 'An error occurred'}</div>}
+            {/* SweetAlert handles all success and error messages, so no inline messages here */}
             <form onSubmit={handleSubmit} className="signin-form">
           <div className="form-group">
             <input
