@@ -15,21 +15,23 @@ const User = require('./models/User');
 const multer = require('multer');
 const Complaint = require('./models/Complaint');
 const jwt = require('jsonwebtoken');
-
-let dbConnected = false;
-
-// Connect to MongoDB and track connection state
-connectDB();
-
-mongoose.connection.on('connected', () => {
-  dbConnected = true;
-  console.log('MongoDB connected');
-});
-mongoose.connection.on('disconnected', () => {
-  dbConnected = false;
-  console.log('MongoDB disconnected');
-});
-mongoose.connection.on('error', (err) => {
+  try {
+    // Debug: print the user id from JWT
+    console.log('PATCH /api/user req.user:', req.user);
+    const update = {};
+    if (req.body.firstName !== undefined) update.firstName = req.body.firstName;
+    if (req.body.lastName !== undefined) update.lastName = req.body.lastName;
+    if (req.body.phoneNumber !== undefined) update.phoneNumber = req.body.phoneNumber;
+    if (req.body.address !== undefined) update.address = req.body.address;
+    if (req.file) {
+      update.profilePicture = `uploads/${req.file.filename}`;
+    }
+    const user = await User.findByIdAndUpdate(req.user.id, update, { new: true });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update profile', error: err.message });
+  }
   dbConnected = false;
   console.error('MongoDB connection error:', err);
 });
@@ -63,6 +65,8 @@ function authenticateJWT(req, res, next) {
 app.get('/api/user/me', authenticateJWT, async (req, res) => {
   try {
     console.log('GET /api/user/me req.user:', req.user);
+    // Debug: print the user id from JWT
+    console.log('JWT user id:', req.user.id);
     const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({
@@ -91,23 +95,6 @@ app.get('/api/user/me', authenticateJWT, async (req, res) => {
 });
 
 // PATCH /api/user with profile picture upload support
-app.patch('/api/user', authenticateJWT, profileUpload.single('profilePic'), async (req, res) => {
-  try {
-    const update = {};
-    if (req.body.firstName !== undefined) update.firstName = req.body.firstName;
-    if (req.body.lastName !== undefined) update.lastName = req.body.lastName;
-    if (req.body.phoneNumber !== undefined) update.phoneNumber = req.body.phoneNumber;
-    if (req.body.address !== undefined) update.address = req.body.address;
-    if (req.file) {
-      update.profilePicture = `uploads/${req.file.filename}`;
-    }
-    const user = await User.findByIdAndUpdate(req.user.id, update, { new: true });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json({ user });
-  } catch (err) {
-    res.status(500).json({ message: 'Failed to update profile', error: err.message });
-  }
-});
 
 // Passport config
 passport.use(new GoogleStrategy({
@@ -471,6 +458,8 @@ app.get('/api/user/:id', async (req, res) => {
 app.post('/api/complaints', authenticateJWT, complaintUpload.array('evidence', 5), async (req, res) => {
   try {
     console.log('POST /api/complaints req.user:', req.user);
+    // Debug: print the user id from JWT
+    console.log('Complaint user id:', req.user.id);
     const evidenceFiles = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
     // Only allow fields that should be set by the user
     const allowedFields = ['fullName', 'contact', 'date', 'time', 'location', 'people', 'description', 'type', 'resolution', 'anonymous', 'confidential'];
