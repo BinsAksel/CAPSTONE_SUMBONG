@@ -703,8 +703,54 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
 // Delete a complaint
 app.delete('/api/complaints/:id', async (req, res) => {
   try {
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ message: 'Complaint not found' });
+    }
+
+    // Normalize evidence list to objects with url + publicId
+    const evidenceItems = Array.isArray(complaint.evidence) ? complaint.evidence : [];
+    const toDelete = [];
+    evidenceItems.forEach(item => {
+      if (!item) return;
+      let url = null; let publicId = null;
+      if (typeof item === 'string') {
+        url = item;
+      } else if (item.url) {
+        url = item.url;
+        if (item.publicId) publicId = item.publicId;
+      }
+      if (!publicId && url) {
+        // Regex similar to other usage to extract publicId (folder segments safe)
+        const match = url.match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/);
+        if (match && match[1]) publicId = match[1];
+      }
+      if (publicId) {
+        // Heuristic for resource type: treat common video extensions as video
+        const lower = (url || '').toLowerCase();
+        const isVideo = /(mp4|webm|ogg|mov|avi|mkv)$/i.test(lower);
+        toDelete.push({ publicId, resource_type: isVideo ? 'video' : 'image' });
+      }
+    });
+
+    const deletionResults = [];
+    for (const asset of toDelete) {
+      try {
+        // Attempt destroy; ignore failures but record
+        await cloudinary.uploader.destroy(asset.publicId, { resource_type: asset.resource_type });
+        deletionResults.push({ publicId: asset.publicId, status: 'deleted' });
+      } catch (e) {
+        deletionResults.push({ publicId: asset.publicId, status: 'failed', error: e.message });
+      }
+    }
+
     await Complaint.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
+
+    res.json({
+      success: true,
+      deletedAssets: deletionResults,
+      attempted: deletionResults.length
+    });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete complaint', error: err.message });
   }
