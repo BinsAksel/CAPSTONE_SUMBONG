@@ -6,7 +6,6 @@ import Login from '../auth/Login';
 import Dashboard from '../pages/Dashboard';
 import Admin from '../admin/Admin';
 import AdminDashboard from '../admin/Admin-dashboard';
-import React, { useEffect } from 'react';
 
 // Admin protected route
 const AdminRoute = ({ children }) => {

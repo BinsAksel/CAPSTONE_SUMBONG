@@ -8,6 +8,7 @@ const API_BASE = process.env.REACT_APP_API_BASE || 'https://capstone-sumbong.onr
 const Admin = () => {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -16,24 +17,72 @@ const Admin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return; // prevent duplicate rapid submits
     setError('');
-    try {
-      const resp = await fetch(`${API_BASE}/api/auth/admin/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email.trim(), password: form.password })
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.success) {
-        throw new Error(data.message || 'Login failed');
+    setLoading(true);
+
+    // Single-read body helper
+    const attemptLogin = async (url) => {
+      let resp;
+      try {
+        resp = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: form.email.trim(), password: form.password })
+        });
+      } catch (netErr) {
+        throw new Error(`Network error contacting server: ${netErr.message}`);
       }
-      // Store token & admin flag
+
+      const raw = await resp.text(); // read once
+      let dataParsed = null;
+      if (raw) {
+        try { dataParsed = JSON.parse(raw); } catch { /* non-JSON (likely HTML) */ }
+      }
+
+      // If non-JSON and not ok, craft message with snippet
+      if (!dataParsed) {
+        if (!resp.ok) {
+          const snippet = raw ? raw.replace(/<[^>]*>/g, ' ').slice(0,120).trim() : '';
+          throw new Error(`Unexpected ${resp.status} from server. ${snippet || 'Non-JSON response.'}`);
+        }
+        throw new Error('Unexpected non-JSON success response from server');
+      }
+
+      if (!resp.ok || !dataParsed.success) {
+        throw new Error(dataParsed.message || `Login failed (status ${resp.status})`);
+      }
+      return dataParsed;
+    };
+
+    try {
+      const primaryUrl = `${API_BASE.replace(/\/$/, '')}/api/auth/admin/login`;
+      console.log('[AdminLogin] Attempting URL:', primaryUrl);
+      let data;
+      try {
+        data = await attemptLogin(primaryUrl);
+      } catch (firstErr) {
+        if (/404/.test(firstErr.message) || /Unexpected 404/.test(firstErr.message)) {
+          const fallbackUrl = primaryUrl.replace('/api/auth/', '/auth/');
+            if (fallbackUrl !== primaryUrl) {
+              console.warn('[AdminLogin] Retrying fallback URL:', fallbackUrl);
+              data = await attemptLogin(fallbackUrl);
+            } else {
+              throw firstErr;
+            }
+        } else {
+          throw firstErr;
+        }
+      }
       localStorage.setItem('token', data.token);
       localStorage.setItem('isAdmin', 'true');
       localStorage.setItem('adminUser', JSON.stringify(data.user));
       navigate('/admin-dashboard');
     } catch (err) {
+      console.error('[AdminLogin] Error:', err);
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -63,7 +112,9 @@ const Admin = () => {
               required
             />
           </div>
-          <button type="submit" className="login-button">Login as Admin</button>
+          <button type="submit" className="login-button" disabled={loading}>
+            {loading ? 'Logging in...' : 'Login as Admin'}
+          </button>
           <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
             Use your provisioned admin account credentials.
           </div>

@@ -178,8 +178,8 @@ const AdminDashboard = () => {
   ];
 
   useEffect(() => {
-    // Only allow access if admin is logged in
-    if (!localStorage.getItem('admin')) {
+    // Only allow access if admin token & flag present
+    if (!localStorage.getItem('token') || localStorage.getItem('isAdmin') !== 'true') {
       navigate('/admin');
       return;
     }
