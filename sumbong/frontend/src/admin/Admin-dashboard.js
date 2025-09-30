@@ -715,7 +715,16 @@ const AdminDashboard = () => {
                       <div className="verify-actions-inner">
                         <button className="action-btn approve-btn" onClick={() => verifyUser(user._id)} disabled={user.approved}>Approve</button>
                         <button className="action-btn disapprove-btn" onClick={() => disapproveUser(user._id)} disabled={!user.approved}>Disapprove</button>
-                        <button className="action-btn delete-btn" onClick={() => deleteUser(user._id)}>Delete</button>
+                        {user.isAdmin ? (
+                          <button
+                            className="action-btn delete-btn"
+                            style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                            title="Admin accounts cannot be deleted"
+                            disabled
+                          >Delete</button>
+                        ) : (
+                          <button className="action-btn delete-btn" onClick={() => deleteUser(user._id)}>Delete</button>
+                        )}
                       </div>
                     </td>
                   </tr>

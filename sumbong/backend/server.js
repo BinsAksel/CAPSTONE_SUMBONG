@@ -38,6 +38,18 @@ const jwt = require('jsonwebtoken');
 // Initialize express app before any app.use/app.get/app.post
 const app = express();
 
+// After DB connection attempt, log a warning if no admin users exist (no auto-create logic)
+setTimeout(async () => {
+  try {
+    const adminCount = await User.countDocuments({ isAdmin: true });
+    if (adminCount === 0) {
+      console.warn('[STARTUP WARNING] No admin users found. Run: npm run seed:admin');
+    }
+  } catch (e) {
+    console.warn('Admin presence check failed:', e.message);
+  }
+}, 5000);
+
 // --- CORS middleware at the very top ---
 // IMPORTANT: CORS must be registered BEFORE any routes so that all responses
 // (including /api/user/me) include the proper Access-Control-* headers.
@@ -447,10 +459,32 @@ app.patch('/api/admin/disapprove/:id', authenticateJWT, requireAdmin, async (req
   res.json({ success: true });
 });
 
-// Delete a user
+// Delete a user (with admin safety guard)
 app.delete('/api/admin/delete/:id', authenticateJWT, requireAdmin, async (req, res) => {
-  await User.findByIdAndDelete(req.params.id);
-  res.json({ success: true });
+  try {
+    const targetId = req.params.id;
+    const targetUser = await User.findById(targetId).select('_id email isAdmin');
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    // Prevent deleting yourself (avoid accidental lockout during admin maintenance)
+    if (targetUser._id.toString() === req.user.id) {
+      return res.status(400).json({ success: false, message: 'Admins cannot delete their own account' });
+    }
+    // If target is an admin, enforce extra safeguards
+    if (targetUser.isAdmin) {
+      const adminCount = await User.countDocuments({ isAdmin: true });
+      if (adminCount <= 1) {
+        return res.status(400).json({ success: false, message: 'Cannot delete the last remaining admin' });
+      }
+      return res.status(403).json({ success: false, message: 'Deletion of admin accounts is not allowed via this endpoint' });
+    }
+    await User.findByIdAndDelete(targetId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete user error:', err);
+    res.status(500).json({ success: false, message: 'Failed to delete user', error: err.message });
+  }
 });
 
 // Update user profile (name, address, phone number, and profile picture)
