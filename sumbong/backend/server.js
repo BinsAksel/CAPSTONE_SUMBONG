@@ -638,12 +638,19 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
     // Delete old evidence assets if replacing
     if (replace && existingEvidence.length > 0) {
       for (const ev of existingEvidence) {
-        if (ev.publicId) {
+        if (!ev.publicId) continue;
+        const urlLower = (ev.url || '').toLowerCase();
+        const isVideo = /(mp4|webm|ogg|mov|avi|mkv)$/i.test(urlLower);
+        const resourceTypesToTry = isVideo ? ['video','image'] : ['image','video'];
+        for (const rType of resourceTypesToTry) {
           try {
-            await cloudinaryLib.uploader.destroy(ev.publicId, { resource_type: 'image' });
-            // Attempt video/raw variants if needed (non-blocking)
+            const resp = await cloudinary.uploader.destroy(ev.publicId, { resource_type: rType });
+            if (resp && (resp.result === 'ok' || resp.result === 'not found')) break; // stop trying other types
           } catch (e) {
-            console.warn('Failed to delete old evidence asset', ev.publicId, e.message);
+            // Continue to next resource type
+            if (rType === resourceTypesToTry[resourceTypesToTry.length -1]) {
+              console.warn('Failed to delete old evidence asset', ev.publicId, e.message);
+            }
           }
         }
       }
