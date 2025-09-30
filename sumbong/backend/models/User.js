@@ -97,6 +97,13 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   }
+  ,
+  // Administrative role flag
+  isAdmin: {
+    type: Boolean,
+    default: false,
+    index: true
+  }
 });
 
 // Hash password before saving

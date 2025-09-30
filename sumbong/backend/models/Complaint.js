@@ -19,6 +19,12 @@ const complaintSchema = new mongoose.Schema({
   confidential: Boolean,
   status: { type: String, enum: ['pending', 'in progress', 'solved'], default: 'pending' },
   feedback: { type: String, default: '' },
+  // New threaded feedback entries (backward compatible with single feedback field)
+  feedbackEntries: [{
+    authorType: { type: String, enum: ['admin', 'user'], required: true },
+    message: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 

@@ -142,9 +142,9 @@ function checkFileType(file, cb) {
   }
 }
 
-// Generate JWT Token
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
+// Generate JWT Token (optionally embed role flags)
+const generateToken = (id, extra = {}) => {
+  return jwt.sign({ id, ...extra }, process.env.JWT_SECRET, {
     expiresIn: '30d'
   });
 };
@@ -280,7 +280,7 @@ const login = async (req, res) => {
 
     res.json({
       success: true,
-      token: generateToken(user._id),
+      token: generateToken(user._id, { isAdmin: !!user.isAdmin }),
       user: {
         _id: user._id,
         firstName: user.firstName,
@@ -289,7 +289,8 @@ const login = async (req, res) => {
         phoneNumber: user.phoneNumber,
         address: user.address,
         credentials: user.credentials,
-        profilePicture: user.profilePicture
+        profilePicture: user.profilePicture,
+        isAdmin: !!user.isAdmin
       }
     });
   } catch (error) {
@@ -301,10 +302,32 @@ const login = async (req, res) => {
   }
 };
 
+// @desc Admin login (requires existing user with isAdmin true)
+// @route POST /api/auth/admin/login
+// @access Public (credentials required)
+const adminLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email, isAdmin: true });
+    if (!user) return res.status(401).json({ success: false, message: 'Invalid admin credentials' });
+    const match = await user.matchPassword(password);
+    if (!match) return res.status(401).json({ success: false, message: 'Invalid admin credentials' });
+    return res.json({
+      success: true,
+      token: generateToken(user._id, { isAdmin: true }),
+      user: { _id: user._id, firstName: user.firstName, lastName: user.lastName, email: user.email, isAdmin: true }
+    });
+  } catch (err) {
+    console.error('Admin login error:', err);
+    res.status(500).json({ success: false, message: 'Admin login failed' });
+  }
+};
+
 module.exports = {
   signup,
   login,
   handleUpload,
   googleSignup,
-  generateToken
+  generateToken,
+  adminLogin
 };

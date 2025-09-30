@@ -6,6 +6,17 @@ import Login from '../auth/Login';
 import Dashboard from '../pages/Dashboard';
 import Admin from '../admin/Admin';
 import AdminDashboard from '../admin/Admin-dashboard';
+import React, { useEffect } from 'react';
+
+// Admin protected route
+const AdminRoute = ({ children }) => {
+  const isAdmin = localStorage.getItem('isAdmin') === 'true';
+  const token = localStorage.getItem('token');
+  if (!isAdmin || !token) {
+    return <Navigate to="/admin" replace />;
+  }
+  return children;
+};
 
 // Protected Route component
 const ProtectedRoute = ({ children }) => {
@@ -64,7 +75,11 @@ const routes = [
   },
   {
     path: '/admin-dashboard',
-    element: <AdminDashboard />
+    element: (
+      <AdminRoute>
+        <AdminDashboard />
+      </AdminRoute>
+    )
   },
   {
     path: '*',

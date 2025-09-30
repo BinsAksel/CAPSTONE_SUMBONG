@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './Admin.css';
 
+// Adjust base URL if you have env var (e.g., process.env.REACT_APP_API_BASE)
+const API_BASE = process.env.REACT_APP_API_BASE || 'https://capstone-sumbong.onrender.com';
+
 const Admin = () => {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
@@ -11,14 +14,26 @@ const Admin = () => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Hardcoded admin credentials (for demo)
-    if (form.email === 'admin@gmail.com' && form.password === 'admin123') {
-      localStorage.setItem('admin', 'true');
+    setError('');
+    try {
+      const resp = await fetch(`${API_BASE}/api/auth/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.trim(), password: form.password })
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) {
+        throw new Error(data.message || 'Login failed');
+      }
+      // Store token & admin flag
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('isAdmin', 'true');
+      localStorage.setItem('adminUser', JSON.stringify(data.user));
       navigate('/admin-dashboard');
-    } else {
-      setError('Invalid admin credentials');
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -49,6 +64,9 @@ const Admin = () => {
             />
           </div>
           <button type="submit" className="login-button">Login as Admin</button>
+          <div style={{ marginTop: '8px', fontSize: '12px', color: '#888' }}>
+            Use your provisioned admin account credentials.
+          </div>
         </form>
       </div>
     </div>

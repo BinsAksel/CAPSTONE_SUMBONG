@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 // If you have sweetalert2 installed, uncomment the next line and use Swal.fire instead of window.alert
 import Swal from 'sweetalert2';
 import axios from 'axios';
+import adminApi from '../api/adminApi';
 import { useNavigate } from 'react-router-dom';
 import './Admin-dashboard.css';
 import Select from 'react-select';
@@ -23,8 +24,13 @@ const AdminDashboard = () => {
     const prevComplaintsCount = useRef(0);
   const [activeTab, setActiveTab] = useState('users');
   const [viewComplaint, setViewComplaint] = useState(null);
-  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackText, setFeedbackText] = useState(''); // legacy single feedback field
   const [feedbackLoading, setFeedbackLoading] = useState(false);
+  // Threaded feedback state
+  const [threadMessage, setThreadMessage] = useState('');
+  const [postingThreadMsg, setPostingThreadMsg] = useState(false);
+  const eventSourceRef = useRef(null);
+  const adminUser = (() => { try { return JSON.parse(localStorage.getItem('adminUser')||'{}'); } catch { return {}; } })();
   const [complaintFilter, setComplaintFilter] = useState('all');
   const [complaintSearch, setComplaintSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');
@@ -189,14 +195,32 @@ const AdminDashboard = () => {
     });
     // Initial fetch and set previous counts
     const initFetch = async () => {
-      const usersRes = await axios.get('https://capstone-sumbong.onrender.com/api/admin/users');
+  const usersRes = await adminApi.get('/api/admin/users');
       setUsers(usersRes.data.users);
       prevUsersCount.current = usersRes.data.users.length;
-      const complaintsRes = await axios.get('https://capstone-sumbong.onrender.com/api/complaints');
+  const complaintsRes = await adminApi.get('/api/complaints');
       setComplaints(complaintsRes.data.complaints);
       prevComplaintsCount.current = complaintsRes.data.complaints.length;
     };
     initFetch();
+    // Establish SSE for admin to receive updates (re-using user channel - admin sees user updates by refetch or optionally all)
+    if (adminUser && adminUser._id && !eventSourceRef.current) {
+      const es = new EventSource(`https://capstone-sumbong.onrender.com/api/realtime/${adminUser._id}`);
+      eventSourceRef.current = es;
+      es.onmessage = (ev) => {
+        try {
+          const data = JSON.parse(ev.data);
+          if (data.type === 'feedback_thread_update' || data.type === 'status_update' || data.type === 'feedback_update') {
+            // Simple strategy: refetch complaints to keep state in sync
+            fetchComplaints();
+          }
+        } catch (e) { /* ignore */ }
+      };
+      es.onerror = () => {
+        es.close();
+        eventSourceRef.current = null;
+      };
+    }
     // Auto-refresh lists every 10 seconds to reflect user profile/photo updates
     const intervalId = setInterval(() => {
       fetchUsers();
@@ -213,7 +237,7 @@ const AdminDashboard = () => {
 
   const fetchUsers = async () => {
     try {
-      const res = await axios.get('https://capstone-sumbong.onrender.com/api/admin/users');
+  const res = await adminApi.get('/api/admin/users');
       // Check for new user
       if (prevUsersCount.current && res.data.users.length > prevUsersCount.current) {
         Swal.fire({
@@ -235,7 +259,7 @@ const AdminDashboard = () => {
 
   const fetchComplaints = async () => {
     try {
-      const res = await axios.get('https://capstone-sumbong.onrender.com/api/complaints');
+  const res = await adminApi.get('/api/complaints');
       // Check for new complaint
       if (prevComplaintsCount.current && res.data.complaints.length > prevComplaintsCount.current) {
         Swal.fire({
@@ -258,7 +282,7 @@ const AdminDashboard = () => {
 
   const verifyUser = async (userId) => {
     try {
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/verify/${userId}`);
+  await adminApi.patch(`/api/admin/verify/${userId}`);
       fetchUsers();
       Swal.fire({ icon: 'success', title: 'User verified!' });
     } catch (err) {
@@ -268,7 +292,7 @@ const AdminDashboard = () => {
 
   const disapproveUser = async (userId) => {
     try {
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/disapprove/${userId}`);
+  await adminApi.patch(`/api/admin/disapprove/${userId}`);
       fetchUsers();
       Swal.fire({ icon: 'success', title: 'User disapproved!' });
     } catch (err) {
@@ -286,7 +310,7 @@ const AdminDashboard = () => {
     });
     if (!result.isConfirmed) return;
     try {
-      await axios.delete(`https://capstone-sumbong.onrender.com/api/admin/delete/${userId}`);
+  await adminApi.delete(`/api/admin/delete/${userId}`);
       fetchUsers();
       Swal.fire({ icon: 'success', title: 'User deleted!' });
     } catch (err) {
@@ -311,7 +335,7 @@ const AdminDashboard = () => {
 
   const handleStatusChange = async (complaintId, status) => {
     try {
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/complaints/${complaintId}/status`, { status });
+  await adminApi.patch(`/api/complaints/${complaintId}/status`, { status });
       fetchComplaints();
       Swal.fire({ icon: 'success', title: 'Status updated!' });
     } catch (err) {
@@ -322,7 +346,7 @@ const AdminDashboard = () => {
   const handleSendFeedback = async () => {
     setFeedbackLoading(true);
     try {
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/complaints/${viewComplaint._id}/status`, { 
+      await adminApi.patch(`/api/complaints/${viewComplaint._id}/status`, { 
         status: viewComplaint.status,
         feedback: feedbackText 
       });
@@ -333,6 +357,29 @@ const AdminDashboard = () => {
       Swal.fire({ icon: 'error', title: 'Failed to send feedback' });
     }
     setFeedbackLoading(false);
+  };
+
+  // Post threaded feedback entry
+  const postThreadMessage = async () => {
+    if (!threadMessage.trim()) return;
+    setPostingThreadMsg(true);
+    try {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`https://capstone-sumbong.onrender.com/api/complaints/${viewComplaint._id}/feedback-entry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: threadMessage.trim() })
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || 'Failed');
+      setThreadMessage('');
+      setViewComplaint(data.complaint);
+      // Also update complaints list
+      setComplaints(prev => prev.map(c => c._id === data.complaint._id ? data.complaint : c));
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Failed to post entry' });
+    }
+    setPostingThreadMsg(false);
   };
 
   const viewCredential = (url, firstName, lastName, userId) => {
@@ -382,7 +429,7 @@ const AdminDashboard = () => {
     
     setVerificationLoading(true);
     try {
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/approve-credentials/${userId}`, {
+      await adminApi.patch(`/api/admin/approve-credentials/${userId}`, {
         adminNotes: adminNotes || 'Credentials verified successfully'
       });
       fetchUsers();
@@ -410,7 +457,7 @@ const AdminDashboard = () => {
     
     setVerificationLoading(true);
     try {
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/reject-credentials/${userId}`, {
+      await adminApi.patch(`/api/admin/reject-credentials/${userId}`, {
         issueDetails: issueDetails.trim(),
         adminNotes: adminNotes.trim() || 'Credentials rejected due to issues found',
         requiredActions: requiredActions.trim() || 'Please upload corrected credentials'
@@ -452,7 +499,7 @@ const AdminDashboard = () => {
 
   const fetchVerificationHistory = async () => {
     try {
-      const res = await axios.get('https://capstone-sumbong.onrender.com/api/admin/verification-history');
+  const res = await adminApi.get('/api/admin/verification-history');
       setVerificationHistory(res.data.verificationHistory);
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Failed to fetch verification history' });
@@ -474,7 +521,7 @@ const AdminDashboard = () => {
     
     setVerificationLoading(true);
     try {
-      await axios.patch(`https://capstone-sumbong.onrender.com/api/admin/request-resubmission/${userId}`, {
+      await adminApi.patch(`/api/admin/request-resubmission/${userId}`, {
         reason: issueDetails.trim(),
         deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
       });
@@ -963,20 +1010,29 @@ const AdminDashboard = () => {
         {renderEvidenceModal()}
       </div>
 
-      {/* 🔹 Extra Admin Feature: Feedback */}
-      <div className="feedback-section">
-        <label><strong>Admin Feedback:</strong></label>
-        <textarea
-          value={feedbackText}
-          onChange={(e) => setFeedbackText(e.target.value)}
-          placeholder="Type feedback for the user..."
-        />
-        <button 
-          onClick={handleSendFeedback} 
-          disabled={feedbackLoading}
-        >
-          {feedbackLoading ? "Sending..." : "Send Feedback"}
-        </button>
+      {/* Legacy single feedback field (optional) */}
+      <div className="feedback-section" style={{ marginTop: 24 }}>
+        <label><strong>Admin Feedback (legacy single):</strong></label>
+        <textarea value={feedbackText} onChange={e=>setFeedbackText(e.target.value)} placeholder="Type short summary feedback..." />
+        <button onClick={handleSendFeedback} disabled={feedbackLoading}>{feedbackLoading ? 'Saving...' : 'Save Summary Feedback'}</button>
+      </div>
+
+      {/* Threaded Feedback */}
+      <div className="feedback-section" style={{ marginTop: 24 }}>
+        <label><strong>Feedback Thread:</strong></label>
+        <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8, background: '#f9fafb' }}>
+          {(viewComplaint.feedbackEntries || []).length === 0 && <div style={{ color: '#666', fontSize: 14 }}>No messages yet.</div>}
+          {(viewComplaint.feedbackEntries || []).slice().sort((a,b)=> new Date(a.createdAt)-new Date(b.createdAt)).map((entry, idx) => (
+            <div key={idx} style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: entry.authorType === 'admin' ? '#2563eb' : '#16a34a' }}>
+                {entry.authorType === 'admin' ? 'Admin' : 'User'} • {new Date(entry.createdAt).toLocaleString()}
+              </div>
+              <div style={{ whiteSpace: 'pre-wrap' }}>{entry.message}</div>
+            </div>
+          ))}
+        </div>
+        <textarea value={threadMessage} onChange={e=>setThreadMessage(e.target.value)} placeholder="Type a message to add to the thread..." style={{ marginTop: 8 }} />
+        <button onClick={postThreadMessage} disabled={postingThreadMsg || !threadMessage.trim()}>{postingThreadMsg ? 'Posting...' : 'Post Message'}</button>
       </div>
     </div>
   </div>

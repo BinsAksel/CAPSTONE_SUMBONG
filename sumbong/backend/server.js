@@ -21,7 +21,7 @@ connectDB()
     dbConnected = false;
     console.error('MongoDB connection error:', err);
   });
-const { signup, login, handleUpload, googleSignup } = require('./controllers/authController');
+const { signup, login, handleUpload, googleSignup, adminLogin } = require('./controllers/authController');
 const sendEmail = require('./utils/sendEmail');
 const { generateToken } = require('./controllers/authController');
 const mongoose = require('mongoose');
@@ -75,6 +75,14 @@ function authenticateJWT(req, res, next) {
   } else {
     res.status(401).json({ message: 'No token provided' });
   }
+}
+
+// Require admin role (token must include isAdmin true)
+function requireAdmin(req, res, next) {
+  if (!req.user || !req.user.isAdmin) {
+    return res.status(403).json({ message: 'Admin access required' });
+  }
+  next();
 }
 
 // Get current user profile (for dashboard/profile info)
@@ -355,7 +363,7 @@ app.post('/api/auth/signup', handleUpload, signup);
 app.post('/api/auth/login', login);
 
 // Get all users
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/users', authenticateJWT, requireAdmin, async (req, res) => {
   if (!dbConnected) {
     console.log('⚠️ Database not connected, returning sample data for testing');
     // Return sample data for testing when MongoDB is not connected
@@ -412,7 +420,7 @@ app.get('/api/admin/users', async (req, res) => {
 });
 
 // Verify a user
-app.patch('/api/admin/verify/:id', async (req, res) => {
+app.patch('/api/admin/verify/:id', authenticateJWT, requireAdmin, async (req, res) => {
   const user = await User.findByIdAndUpdate(req.params.id, { approved: true }, { new: true });
   // Send approval email
   if (user) {
@@ -426,7 +434,7 @@ app.patch('/api/admin/verify/:id', async (req, res) => {
 });
 
 // Disapprove a user
-app.patch('/api/admin/disapprove/:id', async (req, res) => {
+app.patch('/api/admin/disapprove/:id', authenticateJWT, requireAdmin, async (req, res) => {
   const user = await User.findByIdAndUpdate(req.params.id, { approved: false }, { new: true });
   // Send disapproval email
   if (user) {
@@ -440,7 +448,7 @@ app.patch('/api/admin/disapprove/:id', async (req, res) => {
 });
 
 // Delete a user
-app.delete('/api/admin/delete/:id', async (req, res) => {
+app.delete('/api/admin/delete/:id', authenticateJWT, requireAdmin, async (req, res) => {
   await User.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });
@@ -660,7 +668,7 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
     const allowed = ['fullName','contact','date','time','location','people','description','type','resolution','anonymous','confidential'];
     allowed.forEach(f => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
 
-    // Feedback update
+    // Legacy single feedback update support (kept for backward compatibility)
     if (typeof req.body.feedback !== 'undefined') {
       update.feedback = req.body.feedback;
     }
@@ -715,12 +723,50 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
   }
 });
 
-// Delete a complaint
-app.delete('/api/complaints/:id', async (req, res) => {
+// Threaded feedback entry (admin or user) - requires JWT auth for user; admin identified via isAdmin in token
+app.post('/api/complaints/:id/feedback-entry', authenticateJWT, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message || !message.trim()) {
+      return res.status(400).json({ message: 'Message is required' });
+    }
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) return res.status(404).json({ message: 'Complaint not found' });
+    // Only authorise: user who owns complaint OR admin
+    const isOwner = complaint.user.toString() === req.user.id;
+    const authorType = req.user.isAdmin ? 'admin' : 'user';
+    if (!isOwner && authorType !== 'admin') {
+      return res.status(403).json({ message: 'Not authorised to post feedback on this complaint' });
+    }
+    const entry = { authorType, message: message.trim(), createdAt: new Date() };
+    complaint.feedbackEntries = complaint.feedbackEntries || [];
+    complaint.feedbackEntries.push(entry);
+    // Maintain legacy last feedback field for display if needed
+    complaint.feedback = authorType === 'admin' ? message.trim() : complaint.feedback;
+    await complaint.save();
+    // Real-time notify the other party (user always; admin dashboard could listen with special channel later if needed)
+    sendRealTimeUpdate(complaint.user.toString(), {
+      type: 'feedback_thread_update',
+      complaintId: complaint._id,
+      entry
+    });
+    res.json({ success: true, complaint });
+  } catch (err) {
+    console.error('Add feedback entry error:', err);
+    res.status(500).json({ message: 'Failed to add feedback entry', error: err.message });
+  }
+});
+
+// Delete a complaint (owner or admin)
+app.delete('/api/complaints/:id', authenticateJWT, async (req, res) => {
   try {
     const complaint = await Complaint.findById(req.params.id);
     if (!complaint) {
       return res.status(404).json({ message: 'Complaint not found' });
+    }
+    const isOwner = complaint.user && complaint.user.toString() === req.user.id;
+    if (!isOwner && !req.user.isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to delete this complaint' });
     }
 
     // Normalize evidence list to objects with url + publicId
@@ -779,7 +825,7 @@ app.delete('/api/complaints/:id', async (req, res) => {
 });
 
 // Get all complaints (admin view, with user info)
-app.get('/api/complaints', async (req, res) => {
+app.get('/api/complaints', authenticateJWT, requireAdmin, async (req, res) => {
   const complaints = await Complaint.find().populate('user', 'firstName lastName email').sort({ createdAt: -1 });
   // Add user info to each complaint
   const complaintsWithUser = complaints.map(c => ({
@@ -791,7 +837,7 @@ app.get('/api/complaints', async (req, res) => {
 });
 
 // Admin endpoint to update complaint status
-app.patch('/api/complaints/:id/status', async (req, res) => {
+app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const { status, feedback } = req.body;
     
@@ -841,7 +887,7 @@ app.patch('/api/complaints/:id/status', async (req, res) => {
 });
 
 // Admin endpoint to approve user credentials
-app.patch('/api/admin/approve-credentials/:userId', async (req, res) => {
+app.patch('/api/admin/approve-credentials/:userId', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('Approve credentials called for userId:', req.params.userId);
     const { adminNotes } = req.body;
@@ -906,7 +952,7 @@ app.patch('/api/admin/approve-credentials/:userId', async (req, res) => {
 });
 
 // Admin endpoint to reject user credentials with issue details
-app.patch('/api/admin/reject-credentials/:userId', async (req, res) => {
+app.patch('/api/admin/reject-credentials/:userId', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('Reject credentials called for userId:', req.params.userId);
     const { issueDetails, adminNotes, requiredActions } = req.body;
@@ -993,7 +1039,7 @@ app.patch('/api/admin/reject-credentials/:userId', async (req, res) => {
 });
 
 // Admin endpoint to get credential verification history
-app.get('/api/admin/verification-history', async (req, res) => {
+app.get('/api/admin/verification-history', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const users = await User.find({
       $or: [
@@ -1013,7 +1059,7 @@ app.get('/api/admin/verification-history', async (req, res) => {
 });
 
 // Admin endpoint to request credential resubmission
-app.patch('/api/admin/request-resubmission/:userId', async (req, res) => {
+app.patch('/api/admin/request-resubmission/:userId', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     console.log('Request resubmission called for userId:', req.params.userId);
     const { reason, deadline } = req.body;
@@ -1175,3 +1221,8 @@ app.delete('/api/user/profile-picture', authenticateJWT, async (req, res) => {
     res.status(500).json({ message: 'Failed to remove profile picture', error: err.message });
   }
 });
+
+// Auth routes (existing user login/signup)
+app.post('/api/auth/login', login);
+app.post('/api/auth/signup', handleUpload, signup);
+app.post('/api/auth/admin/login', adminLogin);
