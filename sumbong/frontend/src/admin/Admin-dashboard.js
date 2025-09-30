@@ -656,8 +656,13 @@ const AdminDashboard = () => {
                   const searchMatch = !search || name.includes(search) || email.includes(search);
                   return statusMatch && searchMatch;
                 }).map(user => (
-            <tr key={user._id}>
-              <td>{user.email}</td>
+            <tr key={user._id} className={user.isAdmin ? 'admin-row-highlight' : ''}>
+              <td>
+                <span className="admin-email-wrapper">{user.email}
+                  {/* {user.isAdmin && <span className="admin-role-badge" title="Administrator">Admin</span>} */}
+                  {user.isAdmin && <span className="admin-email-subline">SYSTEM ADMIN</span>}
+                </span>
+              </td>
               <td>{user.firstName} {user.lastName}</td>
               <td>{user.phoneNumber}</td>
               <td>{user.address || 'N/A'}</td>

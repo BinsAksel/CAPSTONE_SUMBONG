@@ -1,4 +1,62 @@
 /* Credential Issues Modal: always-red reject button, no hover effect */
+/* ================= Admin Row Highlight & Badge ================= */
+.admin-row-highlight {
+  position: relative;
+  background: linear-gradient(90deg, #fff8e1 0%, #fffdf7 100%) !important;
+}
+.admin-row-highlight td {
+  border-top: 2px solid #ffd666 !important;
+  border-bottom: 2px solid #ffd666 !important;
+}
+.admin-row-highlight:hover {
+  background: linear-gradient(90deg, #fff4cc 0%, #fffbe9 100%) !important;
+}
+/*.admin-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px 2px 6px;
+  background: #ffb300;
+  color: #1f2933;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(255,179,0,0.4), 0 2px 4px rgba(0,0,0,0.08);
+  vertical-align: middle;
+  margin-left: 6px;
+  position: relative;
+}*/
+.admin-role-badge:before {
+  content: '\272A'; /* star glyph */
+  font-size: 11px;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 0 2px rgba(0,0,0,0.25);
+}
+.admin-row-highlight .action-btn.delete-btn[disabled] {
+  background: #f0f0f0 !important;
+  color: #999 !important;
+  box-shadow: none;
+}
+.admin-row-highlight td:first-child {
+  box-shadow: inset 4px 0 0 #ffb300;
+}
+.admin-row-highlight td:first-child .admin-email-wrapper {
+  display: flex;
+  flex-direction: column;
+  font-weight: 600;
+  color: #1f2933;
+}
+.admin-email-subline {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  font-weight: 700;
+  color: #d97706;
+  margin-top: 1px;
+}
+/* =============================================================== */
 .credential-issues-actions .reject-credentials-btn {
   background: #ef4444 !important;
   color: #fff !important;
