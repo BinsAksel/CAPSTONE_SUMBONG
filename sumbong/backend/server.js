@@ -275,6 +275,14 @@ function extractPublicId(filePath) {
   const match = filePath.match(regex);
   return match ? match[1] : null;
 }
+// New helper to extract the FULL Cloudinary public_id (including folder path) from a secure URL
+// Example: https://res.cloudinary.com/<cloud>/image/upload/v1234567/sumbong/complaints/evidence_abc123.jpg
+// Returns: sumbong/complaints/evidence_abc123
+function extractFullPublicId(url) {
+  if (!url) return null;
+  const match = url.match(/\/upload\/v\d+\/([^\.]+)(?=\.)/); // capture segment(s) up to before extension
+  return match ? match[1] : null;
+}
 const profileUpload = multer({ storage: profileStorage });
 // 10MB per evidence file limit
 const TEN_MB = 10 * 1024 * 1024;
@@ -598,9 +606,9 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
     const normalizeEvidenceItem = (item) => {
       if (!item) return null;
       if (typeof item === 'string') {
-        return { url: item, publicId: (item.match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/) || [])[1] || null };
+  return { url: item, publicId: extractFullPublicId(item) };
       }
-      if (item.url) return { url: item.url, publicId: item.publicId || ((item.url||'').match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/) || [])[1] || null };
+  if (item.url) return { url: item.url, publicId: item.publicId || extractFullPublicId(item.url) };
       return null;
     };
     const existingEvidence = Array.isArray(existingComplaint.evidence)
@@ -611,7 +619,7 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
     const newEvidenceRaw = req.files ? req.files.map(f => f.path || f.secure_url || f.url).filter(Boolean) : [];
     const newEvidenceObjs = newEvidenceRaw.map(url => ({
       url,
-      publicId: (url.match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/) || [])[1] || null
+  publicId: extractFullPublicId(url)
     }));
 
     const update = {};
@@ -721,9 +729,12 @@ app.delete('/api/complaints/:id', async (req, res) => {
         if (item.publicId) publicId = item.publicId;
       }
       if (!publicId && url) {
-        // Regex similar to other usage to extract publicId (folder segments safe)
-        const match = url.match(/upload\/v\d+\/([^\.\/]+)(?=\.|$)/);
-        if (match && match[1]) publicId = match[1];
+        publicId = extractFullPublicId(url);
+      }
+      // For legacy stored publicIds that lost folder path, try to rebuild path using URL hints
+      if (publicId && !publicId.includes('/') && url) {
+        if (url.includes('/sumbong/complaints/')) publicId = 'sumbong/complaints/' + publicId;
+        else if (url.includes('/sumbong/profile_pictures/')) publicId = 'sumbong/profile_pictures/' + publicId; // unlikely here but safe
       }
       if (publicId) {
         // Heuristic for resource type: treat common video extensions as video
@@ -736,9 +747,13 @@ app.delete('/api/complaints/:id', async (req, res) => {
     const deletionResults = [];
     for (const asset of toDelete) {
       try {
-        // Attempt destroy; ignore failures but record
-        await cloudinary.uploader.destroy(asset.publicId, { resource_type: asset.resource_type });
-        deletionResults.push({ publicId: asset.publicId, status: 'deleted' });
+        // Attempt destroy; inspect response so we don't report false positives
+        const resp = await cloudinary.uploader.destroy(asset.publicId, { resource_type: asset.resource_type });
+        if (resp && (resp.result === 'ok' || resp.result === 'not found')) {
+          deletionResults.push({ publicId: asset.publicId, status: resp.result });
+        } else {
+          deletionResults.push({ publicId: asset.publicId, status: 'unexpected', response: resp });
+        }
       } catch (e) {
         deletionResults.push({ publicId: asset.publicId, status: 'failed', error: e.message });
       }
