@@ -635,6 +635,21 @@ app.get('/api/complaints/user/:userId', async (req, res) => {
   res.json({ complaints });
 });
 
+// Get single complaint (owner or admin) including threaded feedback entries
+app.get('/api/complaints/:id', authenticateJWT, async (req, res) => {
+  try {
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) return res.status(404).json({ message: 'Complaint not found' });
+    const isOwner = complaint.user.toString() === req.user.id;
+    if (!isOwner && !req.user.isAdmin) {
+      return res.status(403).json({ message: 'Not authorized to view this complaint' });
+    }
+    res.json({ complaint });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to load complaint', error: e.message });
+  }
+});
+
 // Edit a complaint
 app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (req, res) => {
   try {
@@ -775,15 +790,31 @@ app.post('/api/complaints/:id/feedback-entry', authenticateJWT, async (req, res)
     const entry = { authorType, message: message.trim(), createdAt: new Date() };
     complaint.feedbackEntries = complaint.feedbackEntries || [];
     complaint.feedbackEntries.push(entry);
-    // Maintain legacy last feedback field for display if needed
-    complaint.feedback = authorType === 'admin' ? message.trim() : complaint.feedback;
+  // Do NOT auto-overwrite legacy single feedback field; keep summary independent of thread entries
     await complaint.save();
-    // Real-time notify the other party (user always; admin dashboard could listen with special channel later if needed)
+    // Real-time notify: always update the owner (so their thread updates live)
     sendRealTimeUpdate(complaint.user.toString(), {
       type: 'feedback_thread_update',
       complaintId: complaint._id,
       entry
     });
+    // Additionally notify all admins when the USER posts a new entry so they see/respond quickly
+    if (authorType === 'user') {
+      try {
+        const adminIds = await User.find({ isAdmin: true }).select('_id');
+        adminIds.forEach(a => {
+          // Avoid duplicate notify if somehow user is also admin (edge case)
+          if (a._id.toString() === complaint.user.toString()) return;
+          sendRealTimeUpdate(a._id.toString(), {
+            type: 'feedback_thread_update',
+            complaintId: complaint._id,
+            entry
+          });
+        });
+      } catch (e) {
+        console.warn('Failed to broadcast feedback thread update to admins:', e.message);
+      }
+    }
     res.json({ success: true, complaint });
   } catch (err) {
     console.error('Add feedback entry error:', err);
@@ -870,50 +901,40 @@ app.get('/api/complaints', authenticateJWT, requireAdmin, async (req, res) => {
   res.json({ complaints: complaintsWithUser });
 });
 
-// Admin endpoint to update complaint status
+// Admin endpoint to update complaint status (legacy feedback removed; feedback text becomes a thread entry)
 app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const { status, feedback } = req.body;
-    
-    // Validate status
     if (!['pending', 'in progress', 'solved'].includes(status)) {
       return res.status(400).json({ message: 'Invalid status value' });
     }
-    
-    // Get the complaint before update to check if status changed
-    const oldComplaint = await Complaint.findById(req.params.id);
-    if (!oldComplaint) {
-      return res.status(404).json({ message: 'Complaint not found' });
+    const complaint = await Complaint.findById(req.params.id);
+    if (!complaint) return res.status(404).json({ message: 'Complaint not found' });
+    const oldStatus = complaint.status;
+    complaint.status = status;
+    // Convert provided feedback into a thread entry instead of touching complaint.feedback (deprecated)
+    if (feedback && feedback.trim()) {
+      complaint.feedbackEntries = complaint.feedbackEntries || [];
+      complaint.feedbackEntries.push({ authorType: 'admin', message: feedback.trim(), createdAt: new Date() });
     }
-    
-    const update = { status };
-    if (feedback !== undefined) {
-      update.feedback = feedback;
-    }
-    
-    const complaint = await Complaint.findByIdAndUpdate(req.params.id, update, { new: true });
-    
-    // Send real-time update to the user
-    if (oldComplaint.status !== status) {
+    await complaint.save();
+    if (oldStatus !== status) {
       sendRealTimeUpdate(complaint.user.toString(), {
         type: 'status_update',
         complaintId: complaint._id,
-        oldStatus: oldComplaint.status,
+        oldStatus,
         newStatus: status,
-        message: `Your complaint status has been updated from "${oldComplaint.status}" to "${status}"`
+        message: `Your complaint status has been updated from "${oldStatus}" to "${status}"`
       });
     }
-    
-    // If feedback was added/updated, send real-time update
-    if (feedback && feedback !== oldComplaint.feedback) {
+    if (feedback && feedback.trim()) {
+      const entry = complaint.feedbackEntries[complaint.feedbackEntries.length - 1];
       sendRealTimeUpdate(complaint.user.toString(), {
-        type: 'feedback_update',
+        type: 'feedback_thread_update',
         complaintId: complaint._id,
-        feedback: feedback,
-        message: 'Admin has added feedback to your complaint'
+        entry
       });
     }
-    
     res.json({ complaint });
   } catch (err) {
     res.status(500).json({ message: 'Failed to update complaint status', error: err.message });

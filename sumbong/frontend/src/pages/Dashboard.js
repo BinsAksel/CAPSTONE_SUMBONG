@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import deleteIcon from '../assets/delete.png';
 import { useNavigate } from 'react-router-dom';
 // Use centralized axios client with interceptors
@@ -168,12 +168,53 @@ const Dashboard = () => {
   // Complaints list state
   const [complaints, setComplaints] = useState([]);
   const [viewComplaint, setViewComplaint] = useState(null);
+  // Ref mirror of viewComplaint to avoid stale closure inside SSE handlers
+  const viewComplaintRef = useRef(null);
+  useEffect(()=>{ viewComplaintRef.current = viewComplaint; }, [viewComplaint]);
+  // Thread last-read timestamps (per complaint) for unread badge
+  const [threadLastRead, setThreadLastRead] = useState({});
+  const threadListRef = useRef(null);
+  // Threaded feedback (user <-> admin) state
+  const [threadMessageUser, setThreadMessageUser] = useState('');
+  const [postingUserThread, setPostingUserThread] = useState(false);
   const [editComplaint, setEditComplaint] = useState(null);
   const [editComplaintData, setEditComplaintData] = useState(null);
   const [notificationCount, setNotificationCount] = useState(0);
   const [notificationsList, setNotificationsList] = useState([]);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const notificationContentRef = useRef(null);
+
+  // Reliable scrolling helper (multiple attempts to handle late renders/media)
+  const scrollThreadToBottomReliable = (attempts = 5) => {
+    const el = threadListRef.current;
+    if (!el) return;
+    try { el.scrollTop = el.scrollHeight; } catch {}
+    if (attempts > 1) {
+      setTimeout(() => scrollThreadToBottomReliable(attempts - 1), 40);
+    }
+  };
+
+  // Reconcile open complaint view with master complaints list in case an SSE append landed there first
+  useEffect(() => {
+    if (!viewComplaintRef.current) return;
+    const latest = complaints.find(c => c._id === viewComplaintRef.current._id);
+    if (!latest) return;
+    // If counts differ, update viewComplaint to include new entries
+    const openEntries = (viewComplaintRef.current.feedbackEntries || []).length;
+    const latestEntries = (latest.feedbackEntries || []).length;
+    if (latestEntries !== openEntries) {
+      setViewComplaint(prev => prev && prev._id === latest._id ? { ...latest, feedback: prev.feedback } : prev);
+      // Optionally auto-scroll if we were at bottom
+      setTimeout(() => {
+        const listEl = threadListRef.current;
+        if (!listEl) return;
+        const distanceFromBottom = listEl.scrollHeight - (listEl.scrollTop + listEl.clientHeight);
+        if (distanceFromBottom < 5) {
+          listEl.scrollTop = listEl.scrollHeight;
+        }
+      }, 30);
+    }
+  }, [complaints]);
 
   // Evidence modal state for complaint evidence viewer (user side)
   const [evidenceModal, setEvidenceModal] = useState({ open: false, index: 0 });
@@ -455,8 +496,8 @@ const Dashboard = () => {
           case 'status_update':
             handleStatusUpdate(data);
             break;
-          case 'feedback_update':
-            handleFeedbackUpdate(data);
+          case 'feedback_thread_update':
+            handleThreadFeedbackUpdate(data);
             break;
           case 'credential_verification':
             handleCredentialVerification(data);
@@ -536,6 +577,38 @@ const Dashboard = () => {
     setNotificationsList(notifications);
     const unreadCount = notifications.filter(n => n.timestamp > lastSeen).length;
     setNotificationCount(unreadCount);
+  };
+
+  // Open complaint with fresh data (ensures feedbackEntries present)
+  const openComplaint = async (complaintLite) => {
+    try {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`${API_BASE}/api/complaints/${complaintLite._id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!resp.ok) {
+        setViewComplaint(complaintLite); // Fallback
+        setTimeout(() => scrollThreadToBottomReliable(), 60);
+        return;
+      }
+      const data = await resp.json();
+      if (data && data.complaint) {
+        setViewComplaint(data.complaint);
+        setComplaints(prev => prev.map(c => c._id === data.complaint._id ? data.complaint : c));
+        // Mark thread as read (store newest entry timestamp)
+        const entries = data.complaint.feedbackEntries || [];
+        const latestTs = entries.length ? new Date(entries[entries.length - 1].createdAt).getTime() : Date.now();
+        setThreadLastRead(prev => ({ ...prev, [data.complaint._id]: latestTs }));
+        setTimeout(() => scrollThreadToBottomReliable(), 60);
+      } else {
+        setViewComplaint(complaintLite);
+        setTimeout(() => scrollThreadToBottomReliable(), 60);
+      }
+    } catch (e) {
+      console.error('Failed to load complaint details', e);
+      setViewComplaint(complaintLite);
+      setTimeout(() => scrollThreadToBottomReliable(), 60);
+    }
   };
 
   // Scroll to updated complaint
@@ -638,7 +711,8 @@ const Dashboard = () => {
       timer: 5000,
       timerProgressBar: true
     });
-    if (viewComplaint && viewComplaint._id === data.complaintId) {
+    const openNow = viewComplaintRef.current;
+    if (openNow && openNow._id === data.complaintId) {
       setViewComplaint(prev => ({ ...prev, status: data.newStatus }));
     }
     saveNotificationToStorage({ ...data, subject, complaintType, location });
@@ -654,31 +728,109 @@ const Dashboard = () => {
     }, 15000);
   };
 
-  const handleFeedbackUpdate = (data) => {
-    if (!isLoggedIn || !user || !user._id) return;
-    setComplaints(prevComplaints => 
-      prevComplaints.map(complaint => 
-        complaint._id === data.complaintId 
-          ? { ...complaint, feedback: data.feedback }
-          : complaint
-      )
-    );
-    Swal.fire({
-      title: 'New Feedback!',
-      text: data.message,
-      icon: 'info',
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 5000,
-      timerProgressBar: true
-    });
-    if (viewComplaint && viewComplaint._id === data.complaintId) {
-      setViewComplaint(prev => ({ ...prev, feedback: data.feedback }));
+  // Threaded feedback SSE handler (append single entry safely)
+  const handleThreadFeedbackUpdate = (data) => {
+    try { console.log('[SSE:user] feedback_thread_update received', data); } catch {}
+    // Merge into complaints list without touching existing summary feedback field
+    setComplaints(prev => prev.map(c => {
+      if (c._id !== data.complaintId) return c;
+      const existing = Array.isArray(c.feedbackEntries) ? c.feedbackEntries : [];
+      const dup = existing.some(e => e.createdAt === data.entry.createdAt && e.message === data.entry.message && e.authorType === data.entry.authorType);
+      if (dup) return c;
+      return { ...c, feedbackEntries: [...existing, data.entry], feedback: c.feedback };
+    }));
+    // Merge into open modal view using ref to avoid stale closure
+    const currentOpen = viewComplaintRef.current;
+    if (currentOpen && currentOpen._id === data.complaintId) {
+      setViewComplaint(prev => {
+        if (!prev) return prev;
+        const existing = Array.isArray(prev.feedbackEntries) ? prev.feedbackEntries : [];
+        const dup = existing.some(e => e.createdAt === data.entry.createdAt && e.message === data.entry.message && e.authorType === data.entry.authorType);
+        if (dup) return prev;
+        return { ...prev, feedbackEntries: [...existing, data.entry], feedback: prev.feedback };
+      });
+      // Decide if we should auto-scroll: only if user is already near bottom (to avoid yanking when reading older msgs)
+      setTimeout(() => {
+        const listEl = threadListRef.current;
+        if (!listEl) return;
+        const threshold = 80; // px from bottom considered "near bottom"
+        const distanceFromBottom = listEl.scrollHeight - (listEl.scrollTop + listEl.clientHeight);
+        if (distanceFromBottom <= threshold) {
+          listEl.scrollTop = listEl.scrollHeight; // smooth could be added via CSS scroll-behavior
+        }
+      }, 40);
+      // Mark last read (since user is viewing it)
+      const ts = new Date(data.entry.createdAt).getTime();
+      setThreadLastRead(prev => ({ ...prev, [data.complaintId]: ts }));
     }
-    saveNotificationToStorage(data);
-    setTimeout(() => { scrollToUpdatedComplaint(data.complaintId); }, 1000);
+    // Only notify if entry author is admin (thread reply). Distinguish from summary feedback updates.
+    if (data.entry && data.entry.authorType === 'admin') {
+      try { console.log('[SSE:user] admin entry notification logic triggered'); } catch {}
+      const shortMsg = data.entry.message.length > 80 ? data.entry.message.slice(0,80) + '…' : data.entry.message;
+      const notification = {
+        type: 'feedback_thread_entry',
+        complaintId: data.complaintId,
+        message: "There's a new message",
+        preview: shortMsg,
+        authorType: 'admin',
+        rawMessage: data.entry.message,
+        timestamp: Date.now()
+      };
+      saveNotificationToStorage(notification);
+      Swal.fire({
+        title: "There's a new message",
+        text: shortMsg,
+        icon: 'info',
+        toast: true,
+        position: 'top-end',
+        timer: 4500,
+        showConfirmButton: false
+      });
+    }
   };
+
+  // User posts a new threaded feedback message
+  const postUserThreadMessage = async () => {
+    if (!threadMessageUser.trim() || !viewComplaint) return;
+    setPostingUserThread(true);
+    try {
+      const token = localStorage.getItem('token');
+      const resp = await fetch(`${API_BASE}/api/complaints/${viewComplaint._id}/feedback-entry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: threadMessageUser.trim() })
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.message || 'Failed to send');
+      setThreadMessageUser('');
+      // Merge returned complaint but keep existing summary feedback (avoid accidental overwrite)
+      setComplaints(prev => prev.map(c => {
+        if (c._id !== data.complaint._id) return c;
+        const existingFeedback = c.feedback; // preserve summary
+        return { ...data.complaint, feedback: existingFeedback };
+      }));
+      if (viewComplaint && viewComplaint._id === data.complaint._id) {
+        setViewComplaint(prev => {
+          const existingFeedback = prev ? prev.feedback : data.complaint.feedback;
+          return { ...data.complaint, feedback: existingFeedback };
+        });
+        // Scroll after DOM paints new message
+        setTimeout(() => {
+          if (threadListRef.current) {
+            threadListRef.current.scrollTop = threadListRef.current.scrollHeight;
+          }
+        }, 50);
+        const entries = data.complaint.feedbackEntries || [];
+        const latestTs = entries.length ? new Date(entries[entries.length - 1].createdAt).getTime() : Date.now();
+        setThreadLastRead(prev => ({ ...prev, [data.complaint._id]: latestTs }));
+      }
+    } catch (e) {
+      console.error('Failed to post thread message', e);
+    } finally {
+      setPostingUserThread(false);
+    }
+  };
+
   // Render missed notifications (after login), under welcome
   function renderMissedNotifications() {
     if (!justLoggedIn || missedNotifications.length === 0) return null;
@@ -687,9 +839,9 @@ const Dashboard = () => {
       missedNotifications.forEach((notif, idx) => {
         setTimeout(() => {
           Swal.fire({
-            title: notif.type === 'feedback_update' ? 'New Feedback!' : 'Status Update!',
+            title: 'Status Update!',
             text: notif.message,
-            icon: notif.type === 'feedback_update' ? 'info' : 'info',
+            icon: 'info',
             toast: true,
             position: 'top-end',
             showConfirmButton: false,
@@ -726,9 +878,9 @@ const Dashboard = () => {
         missedNotifications.forEach((notif, idx) => {
           const t = setTimeout(() => {
             Swal.fire({
-              title: notif.type === 'feedback_update' ? 'New Feedback!' : 'Status Update!',
+              title: 'Status Update!',
               text: notif.message,
-              icon: notif.type === 'feedback_update' ? 'info' : 'info',
+              icon: 'info',
               toast: true,
               position: 'top-end',
               showConfirmButton: false,
@@ -1035,12 +1187,12 @@ const Dashboard = () => {
         }
         if ((old.feedback || '') !== (newC.feedback || '') && newC.feedback) {
           saveNotificationToStorage({
-            type: 'feedback_update',
+            // legacy feedback_update removed
             complaintId: newC._id,
             subject: newC.subject || newC.type || 'Complaint',
             feedback: newC.feedback,
             updatedAt: newC.updatedAt,
-            message: 'Admin added new feedback to your complaint.'
+            message: 'Admin added a new message to your complaint.'
           });
         }
       });
@@ -1333,6 +1485,20 @@ const Dashboard = () => {
     setLoading(false);
   };
 
+  // Force scroll to bottom on every modal open using layout phase + rAF retries
+  useLayoutEffect(() => {
+    if (!viewComplaint) return;
+    let frame = 0;
+    const maxFrames = 6; // ~6 * 16ms ≈ <100ms coverage
+    const attempt = () => {
+      scrollThreadToBottomReliable(1); // single immediate scroll per frame
+      frame++;
+      if (frame < maxFrames) requestAnimationFrame(attempt);
+    };
+    requestAnimationFrame(attempt);
+    // no cleanup needed besides letting frames finish
+  }, [viewComplaint?._id]);
+
   // Derive user initial for avatar fallback (first letter of first name, else email, else 'U')
   const userInitial = (user.firstName || user.email || 'U').trim()[0]?.toUpperCase() || 'U';
 
@@ -1350,6 +1516,15 @@ const Dashboard = () => {
     }
   }
   const avatarBg = computeColorFromString(user.firstName || user.email || user._id || 'User');
+
+  // Compute unread admin messages for a complaint
+  const unreadForComplaint = (c) => {
+    try {
+      const lastRead = threadLastRead[c._id] || 0;
+      const entries = c.feedbackEntries || [];
+      return entries.filter(e => e.authorType === 'admin' && new Date(e.createdAt).getTime() > lastRead).length;
+    } catch { return 0; }
+  };
 
   const profilePic = user.profilePicture ? toAbsolute(user.profilePicture) : null;
   const editPreviewSrc = editData.profilePic
@@ -1586,7 +1761,25 @@ const Dashboard = () => {
                     : complaints.filter(c => (c.status || '').toLowerCase() !== 'solved')
                   ).map(c => (
                     <tr key={c._id} data-complaint-id={c._id}>
-                      <td>{c.date}</td>
+                      <td style={{ position: 'relative' }}>
+                        {c.date}
+                        {unreadForComplaint(c) > 0 && (
+                          <span style={{
+                            position: 'absolute',
+                            top: 2,
+                            left: 4,
+                            background: '#ef4444',
+                            color: '#fff',
+                            borderRadius: '10px',
+                            padding: '0 6px',
+                            fontSize: 10,
+                            fontWeight: 600,
+                            lineHeight: '16px'
+                          }} title={`${unreadForComplaint(c)} unread message(s)`}>
+                            {unreadForComplaint(c)}
+                          </span>
+                        )}
+                      </td>
                       <td>{c.type}</td>
                       <td>{c.location}</td>
                       <td>
@@ -1601,7 +1794,7 @@ const Dashboard = () => {
                       </td>
                       <td>
                         <div className="dashboard-action-buttons">
-                          <button onClick={() => setViewComplaint(c)} className="action-btn view-btn">View</button>
+                          <button onClick={() => openComplaint(c)} className="action-btn view-btn">View</button>
                           {!showHistory && (
                             <button onClick={() => { setEditComplaint(c); setEditComplaintData({ ...c, evidence: [] }); }} className="edit-btn">Edit</button>
                           )}
@@ -1792,7 +1985,7 @@ const Dashboard = () => {
                 <textarea name="description" value={complaint.description} onChange={handleComplaintChange} placeholder="Describe what happened..." required />
               </div>
               <div className="complaint-input-container file">
-                <label className="complaint-label">Supporting evidence (pictures, videos, files):</label>
+                                              <label className="complaint-label">Supporting evidence (pictures, videos, files):</label>
                 <input type="file" name="evidence" multiple ref={complaintFileInputRef} onChange={handleComplaintChange} />
                 <small style={{ display:'block', marginTop:4, color:'#555' }}>
                   Max 5 files. Each file up to 10MB. Oversized files will be skipped.
@@ -1826,7 +2019,7 @@ const Dashboard = () => {
       {/* View Complaint Modal */}
       {viewComplaint && (
         <div className="dashboard-modal-bg" onClick={() => setViewComplaint(null)}>
-          <div className="dashboard-modal complaint-details-modal">
+          <div className="dashboard-modal complaint-details-modal" onClick={(e)=>e.stopPropagation()}>
             <button 
               className="modal-close-x" 
               onClick={() => setViewComplaint(null)}
@@ -1945,12 +2138,67 @@ const Dashboard = () => {
                 {renderEvidenceModal()}
               </div>
             </div>
-            {viewComplaint.feedback && (
-              <div className="feedback-area">
-                <b>Admin Feedback:</b>
-                <div>{viewComplaint.feedback}</div>
+            {/* Legacy single Admin Feedback removed; only thread messages below */}
+            {/* Threaded Feedback Section (two-way) */}
+            <div className="feedback-thread-wrapper">
+              <b>Messages</b>
+              <div
+                ref={threadListRef}
+                className="feedback-thread-list"
+                style={{
+                  maxHeight: 200,
+                  overflowY: 'auto',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 6,
+                  padding: 8,
+                  background: '#f9fafb',
+                  marginTop: 4,
+                  scrollBehavior: 'smooth'
+                }}
+              >
+                {(!viewComplaint.feedbackEntries || viewComplaint.feedbackEntries.length === 0) && (
+                  <div style={{ color: '#666', fontSize: 13 }}>No messages yet.</div>
+                )}
+                {(viewComplaint.feedbackEntries || [])
+                  .slice()
+                  .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
+                  .map((entry, idx) => {
+                    const isUserSelf = entry.authorType !== 'admin';
+                    const rowSide = isUserSelf ? 'right' : 'left';
+                    const bubbleClass = 'feedback-bubble ' + (entry.authorType === 'admin' ? 'admin' : 'userSelf');
+                    const fullName = isUserSelf ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'You' : 'Admin';
+                    return (
+                      <div
+                        key={idx}
+                        className={`feedback-msg-row ${rowSide}`}
+                        style={{ marginBottom: 8, display: 'flex' }}
+                      >
+                        <div className={bubbleClass} style={{ lineHeight: 1.3 }}>
+                          <div className="feedback-meta" style={{ marginBottom: 4 }}>
+                            <span>{fullName}</span>
+                            <span> • {new Date(entry.createdAt).toLocaleString()}</span>
+                          </div>
+                          <div>{entry.message}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
               </div>
-            )}
+              <div className="feedback-thread-input">
+                <textarea
+                  value={threadMessageUser || ''}
+                  onChange={e=>setThreadMessageUser(e.target.value)}
+                  placeholder="Type a message to the admin..."
+                />
+                <button
+                  onClick={postUserThreadMessage}
+                  disabled={postingUserThread || !threadMessageUser || !threadMessageUser.trim()}
+                  className="complaint-btn"
+                >
+                  {postingUserThread ? 'Sending...' : 'Send Message'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

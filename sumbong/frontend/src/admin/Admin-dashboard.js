@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useLayoutEffect } from 'react';
 // If you have sweetalert2 installed, uncomment the next line and use Swal.fire instead of window.alert
 import Swal from 'sweetalert2';
 import axios from 'axios';
@@ -24,13 +24,39 @@ const AdminDashboard = () => {
     const prevComplaintsCount = useRef(0);
   const [activeTab, setActiveTab] = useState('users');
   const [viewComplaint, setViewComplaint] = useState(null);
-  const [feedbackText, setFeedbackText] = useState(''); // legacy single feedback field
+  // Ref mirror of viewComplaint to avoid stale closure inside SSE handler
+  const viewComplaintRef = useRef(null);
+  useEffect(()=>{ viewComplaintRef.current = viewComplaint; }, [viewComplaint]);
+  const threadListRef = useRef(null);
+  const [threadLastRead, setThreadLastRead] = useState({});
+  // Basic one-shot scroll (kept for internal calls)
+  const scrollThreadToBottom = () => {
+    const el = threadListRef.current;
+    if (!el) return;
+    try { el.scrollTop = el.scrollHeight; } catch {}
+  };
+  // Reliable multi-attempt scrolling (handles late layout/media)
+  const scrollThreadToBottomReliable = (attempts = 5) => {
+    const el = threadListRef.current;
+    if (!el) return;
+    try { el.scrollTop = el.scrollHeight; } catch {}
+    if (attempts > 1) {
+      setTimeout(() => scrollThreadToBottomReliable(attempts - 1), 40);
+    }
+  };
+  // Legacy single feedback field removed; using threaded messages only
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   // Threaded feedback state
   const [threadMessage, setThreadMessage] = useState('');
   const [postingThreadMsg, setPostingThreadMsg] = useState(false);
   const eventSourceRef = useRef(null);
-  const adminUser = (() => { try { return JSON.parse(localStorage.getItem('adminUser')||'{}'); } catch { return {}; } })();
+  // Try multiple possible keys for stored admin info for robustness
+  const adminUser = (() => {
+    try {
+      const raw = localStorage.getItem('adminUser') || localStorage.getItem('admin') || '{}';
+      return JSON.parse(raw);
+    } catch { return {}; }
+  })();
   const [complaintFilter, setComplaintFilter] = useState('all');
   const [complaintSearch, setComplaintSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');
@@ -210,11 +236,64 @@ const AdminDashboard = () => {
       es.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data);
-          if (data.type === 'feedback_thread_update' || data.type === 'status_update' || data.type === 'feedback_update') {
-            // Simple strategy: refetch complaints to keep state in sync
+          if (!data || !data.type) return;
+          if (data.type === 'status_update') {
+            // Light refetch for status changes
             fetchComplaints();
+            return;
           }
-        } catch (e) { /* ignore */ }
+          if (data.type === 'feedback_thread_update' && data.complaintId && data.entry) {
+            try { console.log('[SSE:admin] feedback_thread_update received', data); } catch {}
+            // Merge into complaints list directly (no full refetch needed for each message)
+            setComplaints(prev => prev.map(c => {
+              if (c._id !== data.complaintId) return c;
+              const existing = Array.isArray(c.feedbackEntries) ? c.feedbackEntries : [];
+              const dup = existing.some(e => e.createdAt === data.entry.createdAt && e.message === data.entry.message && e.authorType === data.entry.authorType);
+              if (dup) return c;
+              return { ...c, feedbackEntries: [...existing, data.entry], feedback: c.feedback };
+            }));
+            // If modal open for this complaint, merge there too (use ref to prevent stale capture)
+            const openNow = viewComplaintRef.current;
+            if (openNow && openNow._id === data.complaintId) {
+              setViewComplaint(prev => {
+                if (!prev) return prev;
+                const existing = Array.isArray(prev.feedbackEntries) ? prev.feedbackEntries : [];
+                const dup = existing.some(e => e.createdAt === data.entry.createdAt && e.message === data.entry.message && e.authorType === data.entry.authorType);
+                if (dup) return prev;
+                return { ...prev, feedbackEntries: [...existing, data.entry], feedback: prev.feedback };
+              });
+              // Mark last read (always update since admin is looking at it)
+              try {
+                const ts = new Date(data.entry.createdAt).getTime();
+                setThreadLastRead(prev => ({ ...prev, [data.complaintId]: ts }));
+              } catch {}
+              // Near-bottom detection to avoid yanking if admin scrolled up
+              setTimeout(() => {
+                const el = threadListRef.current;
+                if (!el) return;
+                const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
+                const threshold = 100;
+                if (distance <= threshold || data.entry.authorType === 'admin') {
+                  scrollThreadToBottom();
+                }
+              }, 40);
+            }
+            if (data.entry.authorType === 'user') {
+              try { console.log('[SSE:admin] user entry notification toast triggered'); } catch {}
+              const shortMsg = data.entry.message.length > 90 ? data.entry.message.slice(0,90)+'…' : data.entry.message;
+              Swal.fire({
+                title: 'User Thread Reply',
+                text: shortMsg,
+                icon: 'info',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 4500,
+                timerProgressBar: true
+              });
+            }
+          }
+        } catch (e) { /* ignore malformed event */ }
       };
       es.onerror = () => {
         es.close();
@@ -229,11 +308,7 @@ const AdminDashboard = () => {
     return () => clearInterval(intervalId);
   }, [navigate]);
 
-  useEffect(() => {
-    if (viewComplaint) {
-      setFeedbackText(viewComplaint.feedback || '');
-    }
-  }, [viewComplaint]);
+  // Removed legacy feedback sync effect (summary field deprecated)
 
   const fetchUsers = async () => {
     try {
@@ -273,6 +348,17 @@ const AdminDashboard = () => {
         });
       }
       setComplaints(res.data.complaints);
+      // Initialize last-read for new complaints
+      setThreadLastRead(prev => {
+        const merged = { ...prev };
+        (res.data.complaints || []).forEach(c => {
+          if (!(c._id in merged)) {
+            const entries = c.feedbackEntries || [];
+            merged[c._id] = entries.length ? new Date(entries[entries.length - 1].createdAt).getTime() : 0;
+          }
+        });
+        return merged;
+      });
       prevComplaintsCount.current = res.data.complaints.length;
     } catch (err) {
       setComplaints([]);
@@ -343,21 +429,32 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleSendFeedback = async () => {
-    setFeedbackLoading(true);
+  // handleSendFeedback removed (legacy summary feedback deprecated)
+  const unreadForComplaint = (c) => {
     try {
-      await adminApi.patch(`/api/complaints/${viewComplaint._id}/status`, { 
-        status: viewComplaint.status,
-        feedback: feedbackText 
-      });
-      setViewComplaint({ ...viewComplaint, feedback: feedbackText });
-      fetchComplaints();
-      Swal.fire({ icon: 'success', title: 'Feedback sent!' });
-    } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed to send feedback' });
-    }
-    setFeedbackLoading(false);
+      const lastRead = threadLastRead[c._id] || 0;
+      const entries = c.feedbackEntries || [];
+      return entries.filter(e => e.authorType === 'user' && new Date(e.createdAt).getTime() > lastRead).length;
+    } catch { return 0; }
   };
+
+  // Reconcile open complaint with master list (in case SSE merged there first)
+  useEffect(() => {
+    if (!viewComplaintRef.current) return;
+    const latest = complaints.find(c => c._id === viewComplaintRef.current._id);
+    if (!latest) return;
+    const openEntries = (viewComplaintRef.current.feedbackEntries || []).length;
+    const latestEntries = (latest.feedbackEntries || []).length;
+    if (openEntries !== latestEntries) {
+      setViewComplaint(prev => prev && prev._id === latest._id ? { ...latest, feedback: prev.feedback } : prev);
+      setTimeout(() => {
+        const el = threadListRef.current;
+        if (!el) return;
+        const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
+        if (distance < 5) scrollThreadToBottom();
+      }, 30);
+    }
+  }, [complaints]);
 
   // Post threaded feedback entry
   const postThreadMessage = async () => {
@@ -373,14 +470,46 @@ const AdminDashboard = () => {
       const data = await resp.json();
       if (!resp.ok) throw new Error(data.message || 'Failed');
       setThreadMessage('');
-      setViewComplaint(data.complaint);
-      // Also update complaints list
-      setComplaints(prev => prev.map(c => c._id === data.complaint._id ? data.complaint : c));
+      // Preserve existing summary feedback (do not let thread post overwrite it)
+      setViewComplaint(prev => {
+        if (!prev) return data.complaint;
+        return { ...data.complaint, feedback: prev.feedback };
+      });
+      // Also update complaints list preserving summary feedback
+      setComplaints(prev => prev.map(c => {
+        if (c._id === data.complaint._id) {
+          return { ...data.complaint, feedback: c.feedback };
+        }
+        return c;
+      }));
+      // Scroll after paint
+      setTimeout(scrollThreadToBottom, 50);
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Failed to post entry' });
     }
     setPostingThreadMsg(false);
   };
+
+  // Force scroll to bottom on every modal open using layout phase + rAF retries
+  useLayoutEffect(() => {
+    if (!viewComplaint) return;
+    // Mark last read immediately (admin viewing newest)
+    try {
+      const entries = viewComplaint.feedbackEntries || [];
+      if (entries.length) {
+        const latestTs = new Date(entries[entries.length - 1].createdAt).getTime();
+        setThreadLastRead(prev => ({ ...prev, [viewComplaint._id]: latestTs }));
+      }
+    } catch {}
+    let frame = 0;
+    const maxFrames = 6; // cover ~ first 100ms of paints
+    const attempt = () => {
+      scrollThreadToBottomReliable(1); // one immediate scroll per frame
+      frame++;
+      if (frame < maxFrames) requestAnimationFrame(attempt);
+    };
+    requestAnimationFrame(attempt);
+  }, [viewComplaint?._id]);
 
   const viewCredential = (url, firstName, lastName, userId) => {
     setSelectedCredential({ url, firstName, lastName, userId });
@@ -813,7 +942,25 @@ const AdminDashboard = () => {
                   <tr key={c._id}>
                     <td>{c.fullName || 'Anonymous'}</td>
                     <td>{c.contact || 'N/A'}</td>
-                    <td>{c.type}</td>
+                    <td style={{ position: 'relative' }}>
+                      {c.type}
+                      {unreadForComplaint(c) > 0 && (
+                        <span style={{
+                          position: 'absolute',
+                          top: 2,
+                          left: 4,
+                          background: '#2563eb',
+                          color: '#fff',
+                          borderRadius: '10px',
+                          padding: '0 6px',
+                          fontSize: 10,
+                          fontWeight: 600,
+                          lineHeight: '16px'
+                        }} title={`${unreadForComplaint(c)} unread user message(s)`}>
+                          {unreadForComplaint(c)}
+                        </span>
+                      )}
+                    </td>
                     <td>{c.date} {c.time}</td>
                     <td>
                       <Select
@@ -1024,26 +1171,31 @@ const AdminDashboard = () => {
         {renderEvidenceModal()}
       </div>
 
-      {/* Legacy single feedback field (optional) */}
-      <div className="feedback-section" style={{ marginTop: 24 }}>
-        <label><strong>Admin Feedback (legacy single):</strong></label>
-        <textarea value={feedbackText} onChange={e=>setFeedbackText(e.target.value)} placeholder="Type short summary feedback..." />
-        <button onClick={handleSendFeedback} disabled={feedbackLoading}>{feedbackLoading ? 'Saving...' : 'Save Summary Feedback'}</button>
-      </div>
+      {/* Legacy single feedback field removed */}
 
-      {/* Threaded Feedback */}
+      {/* Threaded Feedback (chat layout) */}
       <div className="feedback-section" style={{ marginTop: 24 }}>
-        <label><strong>Feedback Thread:</strong></label>
-        <div style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8, background: '#f9fafb' }}>
+        <label><strong>Messages:</strong></label>
+  <div ref={threadListRef} className="feedback-thread-list" style={{ maxHeight: 200, overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: 6, padding: 8, background: '#f9fafb', scrollBehavior: 'smooth' }}>
           {(viewComplaint.feedbackEntries || []).length === 0 && <div style={{ color: '#666', fontSize: 14 }}>No messages yet.</div>}
-          {(viewComplaint.feedbackEntries || []).slice().sort((a,b)=> new Date(a.createdAt)-new Date(b.createdAt)).map((entry, idx) => (
-            <div key={idx} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: entry.authorType === 'admin' ? '#2563eb' : '#16a34a' }}>
-                {entry.authorType === 'admin' ? 'Admin' : 'User'} • {new Date(entry.createdAt).toLocaleString()}
+          {(viewComplaint.feedbackEntries || []).slice().sort((a,b)=> new Date(a.createdAt)-new Date(b.createdAt)).map((entry, idx) => {
+            const isAdmin = entry.authorType === 'admin';
+            const rowSide = isAdmin ? 'right' : 'left';
+            const bubbleClass = 'feedback-bubble ' + (isAdmin ? 'admin' : 'userSelf');
+            // For user name, we try to pull from viewComplaint.fullName (if owner) else generic 'User'
+            const userName = !isAdmin ? (viewComplaint.fullName || 'User') : 'Admin';
+            return (
+              <div key={idx} className={`feedback-msg-row ${rowSide}`}>
+                <div className={bubbleClass}>
+                  <div className="feedback-meta">
+                    <span>{userName}</span>
+                    <span>• {new Date(entry.createdAt).toLocaleString()}</span>
+                  </div>
+                  <div>{entry.message}</div>
+                </div>
               </div>
-              <div style={{ whiteSpace: 'pre-wrap' }}>{entry.message}</div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <textarea value={threadMessage} onChange={e=>setThreadMessage(e.target.value)} placeholder="Type a message to add to the thread..." style={{ marginTop: 8 }} />
         <button onClick={postThreadMessage} disabled={postingThreadMsg || !threadMessage.trim()}>{postingThreadMsg ? 'Posting...' : 'Post Message'}</button>
