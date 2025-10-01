@@ -10,13 +10,8 @@
   "background_color": "#001C2B",
   "theme_color": "#1d4ed8",
   "icons": [
-    {
-      "src": "sumbong-logo.ico",
-      "sizes": "16x16 24x24 32x32 48x48 64x64",
-      "type": "image/x-icon"
-    },
-    { "src": "assets/icons/sumbong192.png", "type": "image/png", "sizes": "192x192", "purpose": "any maskable" },
-    { "src": "assets/icons/sumbong512.png", "type": "image/png", "sizes": "512x512", "purpose": "any maskable" }
+    { "src": "assets/icons/sumbong192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "assets/icons/sumbong512.png", "type": "image/png", "sizes": "512x512" }
   ],
   "categories": ["productivity","utilities","social"],
   "dir": "ltr",

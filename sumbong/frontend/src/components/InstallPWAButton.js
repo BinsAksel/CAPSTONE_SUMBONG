@@ -1,53 +1,128 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import './InstallPWAButton.css';
 
-// Captures beforeinstallprompt event and shows a button so user can install app
+// Enhanced floating installer with fallback instructions (iOS / unsupported browsers)
 export default function InstallPWAButton() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [visible, setVisible] = useState(false);
+  const [showCard, setShowCard] = useState(false);
+  const [showFallback, setShowFallback] = useState(false);
+  const [alreadyInstalled, setAlreadyInstalled] = useState(false);
+  const [platform, setPlatform] = useState('');
+  const timeoutRef = useRef(null);
+
+  const isIOS = () => /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+  const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  const isAndroid = () => /android/i.test(window.navigator.userAgent);
 
   useEffect(() => {
-    function handleBeforeInstallPrompt(e) {
-      // Prevent automatic mini-infobar on mobile
+    setPlatform(isIOS() ? 'iOS' : isAndroid() ? 'Android' : 'Other');
+    if (isStandalone()) {
+      setAlreadyInstalled(true);
+      return; // already installed, don't show anything
+    }
+
+    const handleBeforeInstallPrompt = (e) => {
+      // Prevent the default mini-infobar
       e.preventDefault();
       setDeferredPrompt(e);
-      setVisible(true);
-    }
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      setShowFallback(false);
+      setShowCard(true);
+      console.log('[PWA] beforeinstallprompt fired');
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
 
-    // If already installed, hide
-    window.addEventListener('appinstalled', () => {
-      setVisible(false);
+    const handleAppInstalled = () => {
+      console.log('[PWA] appinstalled event');
+      setShowCard(false);
       setDeferredPrompt(null);
-    });
+      setAlreadyInstalled(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    // Fallback: if no event within 5s & on iOS or other unsupported, show manual instructions
+    timeoutRef.current = setTimeout(() => {
+      if (!deferredPrompt && !isStandalone()) {
+        if (isIOS()) {
+          setShowFallback(true);
+          setShowCard(true);
+        } else {
+          // For Android if it didn't fire, do nothing (Chrome may show menu option)
+          // Optionally we could still show fallback, but we keep it clean.
+        }
+      }
+    }, 5000);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, []);
+  }, [deferredPrompt]);
 
-  if (!visible || !deferredPrompt) return null;
+  if (alreadyInstalled) return null;
+  if (!showCard) return null;
 
-  const handleClick = async () => {
+  const handleInstall = async () => {
     try {
+      if (!deferredPrompt) {
+        // If no prompt (iOS) just toggle fallback instructions
+        setShowFallback(true);
+        return;
+      }
       deferredPrompt.prompt();
       const choice = await deferredPrompt.userChoice;
-      if (choice.outcome !== 'accepted') {
-        // Keep button visible so they can try again
-        console.log('PWA install dismissed');
+      console.log('[PWA] user choice', choice);
+      if (choice.outcome === 'accepted') {
+        setShowCard(false);
       } else {
-        console.log('PWA installed');
-        setVisible(false);
+        // Keep card so user can try again
       }
       setDeferredPrompt(null);
-    } catch (e) {
-      console.warn('Install prompt failed', e);
+    } catch (err) {
+      console.warn('PWA install failed', err);
     }
   };
 
+  const handleDismiss = () => {
+    setShowCard(false);
+    setDeferredPrompt(null);
+  };
+
   return (
-    <button className="pwa-install-btn" onClick={handleClick} aria-label="Install Sumbong App">
-      Install App
-    </button>
+    <div className="pwa-install-card" role="dialog" aria-label="Install App Prompt">
+      <button className="pwa-install-dismiss" onClick={handleDismiss} aria-label="Dismiss install prompt">×</button>
+      <div className="pwa-install-header">
+        <div className="pwa-install-icon" aria-hidden="true">📱</div>
+        <div className="pwa-install-text-group">
+          <div className="pwa-install-title">Install Sumbong</div>
+          <div className="pwa-install-sub">Quick access on your home screen</div>
+        </div>
+      </div>
+      {showFallback ? (
+        <div className="pwa-install-fallback">
+          {platform === 'iOS' ? (
+            <ol>
+              <li>Tap the Share icon (square with ↑)</li>
+              <li>Select <b>Add to Home Screen</b></li>
+              <li>Confirm by tapping <b>Add</b></li>
+            </ol>
+          ) : (
+            <p>Open the browser menu and choose <b>Add to Home screen</b> to install.</p>
+          )}
+        </div>
+      ) : null}
+      <div className="pwa-install-actions">
+        {!showFallback && (
+          <button className="pwa-install-primary" onClick={handleInstall} aria-label="Install application">
+            {deferredPrompt ? 'Install Now' : 'How to Install'}
+          </button>
+        )}
+        {showFallback && (
+          <button className="pwa-install-secondary" onClick={() => setShowCard(false)}>Got it</button>
+        )}
+      </div>
+    </div>
   );
 }
