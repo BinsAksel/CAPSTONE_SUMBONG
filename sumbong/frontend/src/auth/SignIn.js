@@ -322,46 +322,39 @@ const SignIn = () => {
       </div>
       {showPoliciesModal && (
         <div className="modal-overlay" onClick={() => setShowPoliciesModal(false)}>
-          <div className="credential-modal" onClick={e=>e.stopPropagation()} style={{ maxWidth: 720, width:'95%', padding:24, display:'flex', flexDirection:'column' }}>
-            <div className="modal-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <h3 style={{ margin:0 }}>{activePolicy === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}</h3>
+          <div className="credential-modal" role="dialog" aria-modal="true" aria-labelledby="policy-modal-title" onClick={e=>e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 id="policy-modal-title">{activePolicy === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}</h3>
               <button className="modal-close-x" type="button" aria-label="Close" onClick={()=>setShowPoliciesModal(false)} />
             </div>
-            <div ref={modalScrollRef} style={{ maxHeight: '55vh', overflowY:'auto', marginTop:16, paddingRight:8 }}>
+            <div ref={modalScrollRef} className="policy-scroll">
               {renderMarkdown(policyContent)}
-            </div>
-            {!scrolledToBottom && (
-              <div style={{ marginTop:12, fontSize:12, color:'#b45309', background:'#fff7ed', padding:'6px 10px', borderRadius:4 }}>
-                Scroll to the bottom to enable the Accept button.
+              <div className="policy-actions single">
+                {((activePolicy==='terms' && !acceptedTerms) || (activePolicy==='privacy' && !acceptedPrivacy)) && (
+                  <button
+                    disabled={!scrolledToBottom}
+                    onClick={()=>{
+                      if (activePolicy==='terms') setAcceptedTerms(true); else setAcceptedPrivacy(true);
+                      setShowPoliciesModal(false);
+                      setTimeout(()=>{
+                        const termsAccepted = activePolicy==='terms' ? true : acceptedTerms;
+                        const privacyAccepted = activePolicy==='privacy' ? true : acceptedPrivacy;
+                        if (pendingSubmit) {
+                          if (!termsAccepted) { fetchPolicy('terms'); return; }
+                          if (!privacyAccepted) { fetchPolicy('privacy'); return; }
+                          performSignup();
+                        }
+                      }, 30);
+                    }}
+                    className="action-btn primary"
+                    style={{ background: scrolledToBottom? '#1d4ed8':'#93c5fd', color:'#fff' }}>
+                    Accept & Continue
+                  </button>
+                )}
+                {((activePolicy==='terms' && acceptedTerms) || (activePolicy==='privacy' && acceptedPrivacy)) && (
+                  <span className="policy-accepted-pill">Accepted</span>
+                )}
               </div>
-            )}
-            <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end', alignItems:'center' }}>
-              <button onClick={()=>setShowPoliciesModal(false)} className="action-btn" style={{ background:'#6b7280', color:'#fff' }}>Close</button>
-              {((activePolicy==='terms' && !acceptedTerms) || (activePolicy==='privacy' && !acceptedPrivacy)) && (
-                <button
-                  disabled={!scrolledToBottom}
-                  onClick={()=>{
-                    if (activePolicy==='terms') setAcceptedTerms(true); else setAcceptedPrivacy(true);
-                    setShowPoliciesModal(false);
-                    // decide next step after state update
-                    setTimeout(()=>{
-                      const termsAccepted = activePolicy==='terms' ? true : acceptedTerms;
-                      const privacyAccepted = activePolicy==='privacy' ? true : acceptedPrivacy;
-                      if (pendingSubmit) {
-                        if (!termsAccepted) { fetchPolicy('terms'); return; }
-                        if (!privacyAccepted) { fetchPolicy('privacy'); return; }
-                        performSignup();
-                      }
-                    }, 30);
-                  }}
-                  className="action-btn"
-                  style={{ background: scrolledToBottom? '#1d4ed8':'#93c5fd', color:'#fff', cursor: scrolledToBottom? 'pointer':'not-allowed' }}>
-                  Accept & Continue
-                </button>
-              )}
-              {((activePolicy==='terms' && acceptedTerms) || (activePolicy==='privacy' && acceptedPrivacy)) && (
-                <span style={{ background:'#dcfce7', color:'#166534', fontSize:12, padding:'6px 10px', borderRadius:8, fontWeight:600 }}>Accepted</span>
-              )}
             </div>
           </div>
         </div>

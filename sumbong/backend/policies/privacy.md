@@ -67,5 +67,5 @@ We may update this Privacy Policy from time to time. Material changes will be re
 
 If you have questions, concerns, or requests regarding this Privacy Policy, please contact us at:
 
-📧 sumbongsytem@gmail.com (placeholder email address)
+📧 sumbongsytem@gmail.com 
  

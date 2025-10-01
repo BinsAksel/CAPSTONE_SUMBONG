@@ -173,8 +173,9 @@ const CompleteProfile = () => {
   };
 
   return (
-    <div className="complete-profile-container">
-      <h2>Complete Your Profile</h2>
+    <div className="complete-profile-layout">
+      <div className="complete-profile-card">
+      <h2 className="complete-profile-title">Complete Your Profile</h2>
       {formData.profilePicture && (
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
           <img
@@ -256,7 +257,7 @@ const CompleteProfile = () => {
       </form>
       {showPoliciesModal && (
         <div className="modal-overlay" onClick={()=>setShowPoliciesModal(false)}>
-          <div className="credential-modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:720, width:'95%', padding:24, display:'flex', flexDirection:'column' }}>
+          <div className="credential-modal" onClick={e=>e.stopPropagation()}>
             <div className="modal-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
               <h3 style={{ margin:0 }}>{activePolicy === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}</h3>
               <button className="modal-close-x" type="button" aria-label="Close" onClick={()=>setShowPoliciesModal(false)} />
@@ -295,6 +296,7 @@ const CompleteProfile = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

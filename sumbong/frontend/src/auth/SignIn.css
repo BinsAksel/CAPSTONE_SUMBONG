@@ -222,3 +222,79 @@ button:disabled {
   .form-group input { padding: 11px 14px; }
   button { padding: 12px 20px; }
 }
+
+  /* =========================
+     Policy Modal (responsive centered)
+  ========================= */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(4px);
+    display: grid; /* grid centers content even with scrollbars */
+    place-items: center;
+    /* Horizontal padding logic: keep at least 20px gutters, otherwise perfectly center 500px target width */
+    padding: 48px calc(max(20px, (100vw - 500px) / 2));
+    overflow-y: auto;
+    z-index: 1000;
+    scrollbar-gutter: stable both-edges; /* keep centering when scrollbar appears */
+    box-sizing: border-box;
+  }
+  .credential-modal {
+    background: #ffffff;
+    width: min(500px, 100%); /* fill available inner width but never exceed 500 */
+    border-radius: 28px;
+    padding: 30px 40px 36px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.18), 0 16px 48px rgba(0,0,0,0.12);
+    display: flex;
+    flex-direction: column;
+    animation: modalIn 320ms ease;
+    position: relative;
+    box-sizing: border-box;
+    margin: 0 auto;
+  }
+  @keyframes modalIn { from { opacity:0; transform: translateY(14px) scale(.98);} to { opacity:1; transform: translateY(0) scale(1);} }
+  .modal-header { display:flex; justify-content:space-between; align-items:center; gap:16px; }
+  .modal-header h3 { margin:0; font-size: clamp(1.1rem, 2.2vw, 1.35rem); color:#0f172a; }
+  .modal-close-x { background:none; border:none; width:36px; height:36px; position:relative; cursor:pointer; border-radius:8px; }
+  .modal-close-x::before, .modal-close-x::after { content:""; position:absolute; top:50%; left:50%; width:18px; height:2px; background:#334155; transform-origin:center; }
+  .modal-close-x::before { transform:translate(-50%, -50%) rotate(45deg); }
+  .modal-close-x::after { transform:translate(-50%, -50%) rotate(-45deg); }
+  .modal-close-x:hover { background:#f1f5f9; }
+  .policy-scroll { max-height:55vh; overflow-y:auto; margin-top:18px; padding-right:12px; scrollbar-width: thin; scrollbar-gutter: stable both-edges; }
+  .policy-scroll::-webkit-scrollbar { width:8px; }
+  .policy-scroll::-webkit-scrollbar-track { background:rgba(0,0,0,0.06); border-radius:8px; }
+  .policy-scroll::-webkit-scrollbar-thumb { background:#93c5fd; border-radius:8px; }
+  .policy-scroll::-webkit-scrollbar-thumb:hover { background:#60a5fa; }
+  .policy-warning { margin-top:12px; font-size:12px; color:#b45309; background:#fff7ed; padding:6px 10px; border-radius:4px; }
+  .policy-actions { margin-top:18px; display:flex; gap:12px; justify-content:flex-end; align-items:center; flex-wrap:wrap; }
+  .policy-actions .action-btn { width:auto; padding:10px 18px; border-radius:8px; font-size:14px; font-weight:500; }
+  .policy-actions .action-btn:disabled { background:#93c5fd !important; cursor:not-allowed; }
+  .policy-accepted-pill { background:#dcfce7; color:#166534; font-size:12px; padding:6px 10px; border-radius:8px; font-weight:600; }
+
+  @media (max-width: 640px) {
+    /* scale down outer vertical & horizontal padding; horizontal formula keeps 20px minimum gutters */
+    .modal-overlay { padding: 44px calc(max(20px, (100vw - 500px) / 2)) 54px; }
+    .credential-modal { padding:24px 26px 28px; border-radius:24px; }
+    .policy-scroll { max-height:58vh; }
+    .policy-actions { flex-wrap:wrap; }
+    .policy-actions .action-btn { flex:1 1 auto; min-width:140px; }
+  }
+  @media (max-width: 480px) {
+    .modal-overlay { padding: 38px 20px 50px; place-items:start center; }
+    .credential-modal { padding:22px 20px 26px; border-radius:22px; }
+    .policy-scroll { max-height:60vh; padding-right:10px; }
+    .modal-header h3 { font-size: clamp(1.05rem, 5.4vw, 1.22rem); }
+    .policy-actions { gap:10px; }
+    .policy-actions .action-btn { flex:1 1 100%; width:100%; }
+  }
+    /* when only one action (Accept or Accepted pill) */
+    .policy-actions.single { justify-content: flex-end; }
+    @media (max-width:480px){
+      .policy-actions.single { justify-content:center; }
+    }
+  @media (max-width: 360px) {
+    .modal-overlay { padding: 30px 16px 38px; }
+    .credential-modal { padding:18px 16px 22px; border-radius:20px; }
+    .policy-scroll { max-height:62vh; }
+  }

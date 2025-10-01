@@ -56,5 +56,5 @@ Any disputes arising from or relating to these Terms shall fall under the exclus
 
 If you have any questions about these Terms, please contact us at:
 
-📧 sumbongsytem@gmail.com (placeholder email address)
+📧 sumbongsytem@gmail.com 
  
