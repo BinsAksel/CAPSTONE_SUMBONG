@@ -22,31 +22,20 @@ const Login = () => {
   };
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const response = await axios.post('https://capstone-sumbong.onrender.com/api/auth/login', formData);
-
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
-
-        // Save a flag to indicate a fresh login
         localStorage.setItem('justLoggedIn', 'true');
-
-        // Redirect
         window.location.href = '/dashboard';
       }
     } catch (error) {
-      console.error('Error during login:', error);
-
-      // Check for not approved error from backend
       const msg = error.response?.data?.message || '';
       if (msg.toLowerCase().includes('not approved')) {
         Swal.fire({
@@ -67,54 +56,46 @@ const Login = () => {
   };
 
   return (
-    <div className="login-container">
-      <div className="login-content">
-        {/* Left Section - Illustration */}
-        <div className="login-illustration">
-          <img src={loginImage} alt="Login Illustration" />
-        </div>
-        
-        {/* Right Section - Sign In Form */}
-        <div className="login-form-container">
-          <div className="login-form-box">
-            <h2>Sign in</h2>
-            <GoogleButton text="Continue with Google" onClick={handleGoogleLogin} />
-            <form onSubmit={handleSubmit} className="login-form">
-              <div className="form-group">
-                <label htmlFor="email">Email or phone number</label>
+    <div className="login-layout">{/* Mirror SignIn outer layout */}
+      <div className="login-illustration-panel" aria-hidden="true">
+        <img src={loginImage} alt="Illustration" />
+      </div>
+      <div className="login-form-region" role="presentation">
+        <div className="login-form-box" role="dialog" aria-modal="true" aria-labelledby="login-modal-title">
+          <h2 id="login-modal-title">Sign in</h2>
+          <GoogleButton text="Continue with Google" onClick={handleGoogleLogin} />
+          <form onSubmit={handleSubmit} className="login-form" /* internal scroll on large screens */>
+            <div className="form-group">
+              <label htmlFor="email">Email or phone number</label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="password">Password</label>
+              <div className="password-input-container">
                 <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  value={formData.password}
                   onChange={handleChange}
                   required
                 />
+                <button
+                  type="button"
+                  className={`password-toggle ${showPassword ? 'show' : ''}`}
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                />
               </div>
-              
-              <div className="form-group">
-                <label htmlFor="password">Password</label>
-                <div className="password-input-container">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    id="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className={`password-toggle ${showPassword ? 'show' : ''}`}
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                  </button>
-                </div>
-              </div>
-              
-              <button type="submit" className="signin-button">Sign in</button>
-            </form>
-            
+            </div>
+            <button type="submit" className="signin-button">Sign in</button>
             <div className="login-options">
               <div className="remember-me">
                 <input
@@ -127,15 +108,13 @@ const Login = () => {
               </div>
               <Link to="/help" className="help-link">Need help?</Link>
             </div>
-            
             <div className="signup-prompt">
               Don't have an account? <Link to="/signup">Sign up</Link>
             </div>
-            
             <div className="learn-more">
               <Link to="/learn-more">Learn more.</Link>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </div>

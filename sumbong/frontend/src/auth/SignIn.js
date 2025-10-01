@@ -10,11 +10,8 @@ const SignIn = () => {
   const navigate = useNavigate();
 
   // Lock background scroll when SignIn (modal) is mounted
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previousOverflow; };
-  }, []);
+  // Removed body overflow lock to allow natural page scrolling
+  useEffect(() => {}, []);
   // Google sign up handler
   const handleGoogleSignUp = () => {
     window.location.href = 'https://capstone-sumbong.onrender.com/api/auth/google';
@@ -313,18 +310,14 @@ const SignIn = () => {
               Accepted formats: Images (JPG, PNG, GIF), PDF, Word documents. You can add a profile picture later after logging in.
             </small>
           </div>
-          <p className="policy-disclaimer">
-            By signing up, you agree to our{' '}
-            <button type="button" onClick={()=>fetchPolicy('terms')}>Terms & Conditions</button>
-            {acceptedTerms && <span style={{ color:'#059669', fontSize:11, marginLeft:4 }}>(accepted)</span>}{' '}and{' '}
-            <button type="button" onClick={()=>fetchPolicy('privacy')}>Privacy Policy</button>
-            {acceptedPrivacy && <span style={{ color:'#059669', fontSize:11, marginLeft:4 }}>(accepted)</span>}. Version {POLICIES_VERSION}
-          </p>
-          <button type="submit" disabled={loading}>
+          <button type="submit" disabled={loading} className="signin-submit-btn">
             {loading ? 'Signing up...' : (acceptedTerms && acceptedPrivacy ? 'Sign Up' : 'Continue & Accept Policies')}
           </button>
+          <p className="policy-disclaimer full-line">
+            By signing up, you agree to our <button type="button" onClick={()=>fetchPolicy('terms')} className="inline-policy-link">Terms &amp; Conditions</button> and <button type="button" onClick={()=>fetchPolicy('privacy')} className="inline-policy-link">Privacy Policy</button>. <span className="policy-version">Version {POLICIES_VERSION}</span>
+          </p>
+          <p className="login-link">Already have an account? <Link to="/login">Login</Link></p>
         </form>
-        <p className="login-link">Already have an account? <Link to="/login">Login</Link></p>
         </div>
       </div>
       {showPoliciesModal && (
