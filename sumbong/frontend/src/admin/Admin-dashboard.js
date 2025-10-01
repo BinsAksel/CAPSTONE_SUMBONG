@@ -428,9 +428,22 @@ const AdminDashboard = () => {
     try {
   await adminApi.patch(`/api/admin/verify/${userId}`);
       fetchUsers();
-      Swal.fire({ icon: 'success', title: 'User verified!' });
+      Swal.fire({
+        icon: 'success',
+        title: 'User verified',
+        timer: 650,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        position: 'center'
+      });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed to verify user' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to verify user',
+        timer: 1100,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     }
   };
 
@@ -438,9 +451,22 @@ const AdminDashboard = () => {
     try {
   await adminApi.patch(`/api/admin/disapprove/${userId}`);
       fetchUsers();
-      Swal.fire({ icon: 'success', title: 'User disapproved!' });
+      Swal.fire({
+        icon: 'success',
+        title: 'User disapproved',
+        timer: 650,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        position: 'center'
+      });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed to disapprove user' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to disapprove user',
+        timer: 1100,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     }
   };
 
@@ -471,9 +497,29 @@ const AdminDashboard = () => {
       cancelButtonText: 'Cancel',
     });
     if (!result.isConfirmed) return;
-    localStorage.removeItem('admin');
-    Swal.fire({ icon: 'success', title: 'Logged out!' }).then(() => {
-      navigate('/admin');
+    try {
+      // Clear all possible admin/session keys
+      localStorage.removeItem('admin');
+      localStorage.removeItem('adminUser');
+      localStorage.removeItem('isAdmin');
+      // If token should be distinct for admin vs user, remove token to force re-auth
+      localStorage.removeItem('token');
+      // Optional: clear any cached notifications state keys if pattern used
+      Object.keys(localStorage).forEach(k => {
+        if (/^notifications_/i.test(k) || /^notif_last_seen_/i.test(k)) {
+          try { localStorage.removeItem(k); } catch {}
+        }
+      });
+    } catch {}
+    Swal.fire({
+      icon: 'success',
+      title: 'Logged out',
+      showConfirmButton: false,
+      timer: 700,
+      timerProgressBar: true,
+      position: 'top-end',
+      toast: true,
+      didClose: () => navigate('/admin/login')
     });
   };
 
@@ -579,9 +625,27 @@ const AdminDashboard = () => {
     try {
   await adminApi.patch(`/api/complaints/${complaintId}/status`, { status });
       fetchComplaints();
-      Swal.fire({ icon: 'success', title: 'Status updated!' });
+      Swal.fire({
+        icon: 'success',
+        title: 'Status updated!',
+        timer: 500,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        position: 'center',
+        didOpen: (popup) => {
+          // Optional subtle progress feel
+          popup.addEventListener('mouseenter', Swal.stopTimer);
+          popup.addEventListener('mouseleave', Swal.resumeTimer);
+        }
+      });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed to update status' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to update status',
+        timer: 800,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     }
   };
 
@@ -708,7 +772,13 @@ const AdminDashboard = () => {
   // New credential verification functions
   const handleApproveCredentials = async (userId) => {
     if (!userId) {
-      Swal.fire({ icon: 'error', title: 'Error: User ID not found. Please try again.' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error: User ID not found. Please try again.',
+        timer: 900,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
       return;
     }
     
@@ -720,9 +790,23 @@ const AdminDashboard = () => {
       fetchUsers();
       closeCredentialModal();
       setAdminNotes('');
-      Swal.fire({ icon: 'success', title: 'Credentials approved successfully!' });
+      Swal.fire({
+        icon: 'success',
+        title: 'Credentials approved!',
+        timer: 650,
+        showConfirmButton: false,
+        timerProgressBar: true,
+        position: 'center'
+      });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed to approve credentials', text: err.response?.data?.message || err.message });
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to approve credentials',
+        text: err.response?.data?.message || err.message,
+        timer: 1200,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     }
     setVerificationLoading(false);
   };
@@ -732,11 +816,23 @@ const AdminDashboard = () => {
     console.log('currentUserId state:', currentUserId);
     
     if (!userId) {
-      Swal.fire({ icon: 'error', title: 'Error: User ID not found. Please try again.' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error: User ID not found. Please try again.',
+        timer: 900,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
       return;
     }
     if (!issueDetails.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Please provide issue details' });
+      Swal.fire({
+        icon: 'warning',
+        title: 'Please provide issue details',
+        timer: 1000,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
       return;
     }
     
@@ -752,9 +848,22 @@ const AdminDashboard = () => {
       setIssueDetails('');
       setAdminNotes('');
       setRequiredActions('');
-      Swal.fire({ icon: 'success', title: 'Credentials rejected with issue details!' });
+      Swal.fire({
+        icon: 'success',
+        title: 'Credentials rejected',
+        timer: 700,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed to reject credentials', text: err.response?.data?.message || err.message });
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to reject credentials',
+        text: err.response?.data?.message || err.message,
+        timer: 1400,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     }
     setVerificationLoading(false);
   };
@@ -796,11 +905,23 @@ const AdminDashboard = () => {
     console.log('currentUserId state:', currentUserId);
     
     if (!userId) {
-      Swal.fire({ icon: 'error', title: 'Error: User ID not found. Please try again.' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error: User ID not found. Please try again.',
+        timer: 900,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
       return;
     }
     if (!issueDetails.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Please provide reason for resubmission' });
+      Swal.fire({
+        icon: 'warning',
+        title: 'Provide reason for resubmission',
+        timer: 1000,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
       return;
     }
     
@@ -815,9 +936,22 @@ const AdminDashboard = () => {
       setIssueDetails('');
       setAdminNotes('');
       setRequiredActions('');
-      Swal.fire({ icon: 'success', title: 'Resubmission requested successfully!' });
+      Swal.fire({
+        icon: 'success',
+        title: 'Resubmission requested',
+        timer: 700,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Failed to request resubmission', text: err.response?.data?.message || err.message });
+      Swal.fire({
+        icon: 'error',
+        title: 'Failed to request resubmission',
+        text: err.response?.data?.message || err.message,
+        timer: 1400,
+        showConfirmButton: false,
+        timerProgressBar: true
+      });
     }
     setVerificationLoading(false);
   };
@@ -838,8 +972,55 @@ const AdminDashboard = () => {
   const inProgressComplaints = complaints.filter(c => (c.status || '').toLowerCase() === 'in progress' || (c.status || '').toLowerCase() === 'inprogress').length;
   const solvedComplaints = complaints.filter(c => (c.status || '').toLowerCase() === 'solved').length;
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const toggleSidebar = () => setSidebarOpen(o => !o);
+  const closeSidebar = () => setSidebarOpen(false);
+
+  // Lock body scroll when sidebar is open on small screens
+  useEffect(() => {
+    const htmlEl = document.documentElement;
+    const bodyEl = document.body;
+    if (sidebarOpen) {
+      htmlEl.classList.add('no-scroll');
+      bodyEl.classList.add('no-scroll');
+    } else {
+      htmlEl.classList.remove('no-scroll');
+      bodyEl.classList.remove('no-scroll');
+    }
+    return () => {
+      htmlEl.classList.remove('no-scroll');
+      bodyEl.classList.remove('no-scroll');
+    };
+  }, [sidebarOpen]);
+
+  // Close sidebar on route/tab change (mobile) to reduce clutter
+  useEffect(() => { closeSidebar(); }, [activeTab]);
+
+  // Close on ESC key
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'Escape') closeSidebar(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   return (
-    <div className="admin-root" style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
+    <div className={`admin-root ${sidebarOpen ? 'sidebar-open' : ''}`} style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
+      {/* Mobile Hamburger Button */}
+      <button
+        type="button"
+        className="admin-hamburger-btn"
+        aria-label="Toggle navigation menu"
+        aria-expanded={sidebarOpen}
+        aria-controls="admin-sidebar-nav"
+        onClick={toggleSidebar}
+      >
+        <span className="bar" />
+        <span className="bar" />
+        <span className="bar" />
+      </button>
+      {/* Mobile overlay */}
+      {sidebarOpen && <div className="admin-sidebar-overlay" onClick={closeSidebar} aria-hidden="true" />}
       {/* Floating Notification Bell (moved from sidebar to top-right) */}
       <div className="admin-bell-floating" ref={bellButtonRef}>
         <NotificationBell count={unreadCount} onClick={toggleNotifications} open={notifOpen} />
@@ -860,7 +1041,7 @@ const AdminDashboard = () => {
         )}
       </div>
       {/* Sidebar */}
-      <div className="admin-sidebar">
+      <div className="admin-sidebar" id="admin-sidebar-nav">
         <div className="admin-sidebar-content">
           <h2>Admin</h2>
           <button className={activeTab === 'users' ? 'active' : ''} onClick={() => setActiveTab('users')}>
@@ -881,8 +1062,10 @@ const AdminDashboard = () => {
           }}>
             Verification History
           </button>
+          <div className="admin-sidebar-footer">
+            <button className="logout-btn" onClick={handleLogout}>Logout</button>
+          </div>
         </div>
-        <button className="logout-btn" onClick={handleLogout}>Logout</button>
       </div>
       {/* Main Content */}
       <div className="admin-main">
@@ -934,7 +1117,9 @@ const AdminDashboard = () => {
                 />
               </div>
             </div>
-            <table className="admin-table">
+            <div className="admin-table-viewport">
+            <div className="admin-table-scroll">
+            <table className="admin-table admin-users">
         <thead>
           <tr>
             <th>Email</th>
@@ -1040,6 +1225,8 @@ const AdminDashboard = () => {
                 ))}
               </tbody>
             </table>
+            </div>
+            </div>
           </>
         )}
         {activeTab === 'complaints' && (
@@ -1093,7 +1280,9 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </div>
-            <table className="admin-table">
+            <div className="admin-table-viewport">
+            <div className="admin-table-scroll">
+            <table className="admin-table admin-complaints">
               <thead>
                 <tr>
                   <th>User</th>
@@ -1190,6 +1379,8 @@ const AdminDashboard = () => {
                 ))}
               </tbody>
             </table>
+            </div>
+            </div>
           </>
         )}
         {activeTab === 'verification-history' && (
@@ -1198,7 +1389,9 @@ const AdminDashboard = () => {
             <div style={{ marginBottom: 16 }}>
               <p>This tab shows the complete history of all credential verifications, including approvals, rejections, and resubmission requests.</p>
             </div>
-            <table className="admin-table">
+            <div className="admin-table-viewport">
+              <div className="admin-table-scroll">
+                <table className="admin-table admin-verification">
               <thead>
                 <tr>
                   <th>User</th>
@@ -1239,7 +1432,9 @@ const AdminDashboard = () => {
                   </tr>
                 ))}
               </tbody>
-            </table>
+                </table>
+              </div>
+            </div>
             {verificationHistory.length === 0 && (
               <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
                 No verification history found.

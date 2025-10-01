@@ -286,3 +286,16 @@
   .password-toggle { width: 30px; height: 30px; }
   .signin-button { min-height: 48px; }
 }
+
+/* Desktop vertical centering specifically for admin login */
+@media (min-width: 1024px) {
+  .admin-login .login-form-region {
+    display: flex;
+    align-items: center; /* vertical center */
+    padding-top: 0; /* remove large top padding */
+    padding-bottom: 0; /* use natural centering */
+  }
+  .admin-login .login-form-box {
+    margin-top: 40px; /* gentle downward bias so it feels balanced */
+  }
+}

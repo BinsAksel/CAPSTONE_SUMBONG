@@ -69,8 +69,17 @@ const routes = [
     )
   },
   {
-    path: '/admin',
+    path: '/admin/login',
     element: <Admin />
+  },
+  {
+    path: '/admin',
+    element: (() => {
+      const isAdmin = localStorage.getItem('isAdmin') === 'true';
+      const token = localStorage.getItem('token');
+      if (isAdmin && token) return <Navigate to="/admin-dashboard" replace />;
+      return <Navigate to="/admin/login" replace />;
+    })()
   },
   {
     path: '/admin-dashboard',
