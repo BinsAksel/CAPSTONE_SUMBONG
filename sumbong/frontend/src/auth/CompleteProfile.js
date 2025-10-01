@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
@@ -27,6 +27,77 @@ const CompleteProfile = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [showPoliciesModal, setShowPoliciesModal] = useState(false);
+  const [activePolicy, setActivePolicy] = useState('terms');
+  const [policyContent, setPolicyContent] = useState('');
+  const POLICIES_VERSION = '1.0.0';
+  const modalScrollRef = useRef(null);
+  const [scrolledToBottom, setScrolledToBottom] = useState(false);
+
+  const fetchPolicy = async (name) => {
+    try {
+      const res = await fetch(`https://capstone-sumbong.onrender.com/api/policies/${name}`);
+      if (!res.ok) throw new Error('Failed to load policy');
+      const txt = await res.text();
+      setPolicyContent(txt);
+      setActivePolicy(name);
+      setShowPoliciesModal(true);
+      setScrolledToBottom(false);
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Unable to load policy', text: e.message });
+    }
+  };
+
+  // Lightweight markdown renderer (shared logic with SignIn; consider refactor to common util if reused again)
+  const renderMarkdown = (md) => {
+    if (!md) return null;
+    const lines = md.split(/\r?\n/);
+    const elements = [];
+    let listBuffer = [];
+    const flushList = () => {
+      if (listBuffer.length) {
+        elements.push(<ul key={elements.length} style={{ paddingLeft: 20, margin: '8px 0' }}>{listBuffer.map((li,i)=><li key={i}>{li}</li>)}</ul>);
+        listBuffer = [];
+      }
+    };
+    const formatInline = (txt) => {
+      txt = txt.replace(/\*\*(.*?)\*\*/g, (m,p1)=>`<b>${p1}</b>`).replace(/\*(.*?)\*/g,(m,p1)=>`<i>${p1}</i>`).replace(/`([^`]+)`/g,(m,p1)=>`<code>${p1}</code>`).replace(/\[(.*?)\]\((https?:[^)]+)\)/g,(m,text,url)=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`);
+      return <span dangerouslySetInnerHTML={{ __html: txt }} />;
+    };
+    lines.forEach((raw,i)=>{
+      const line = raw.trimEnd();
+      if (!line.trim()) { flushList(); return; }
+      const headingMatch = line.match(/^(#{1,6})\s+(.*)$/);
+      if (headingMatch) {
+        flushList();
+        const level = headingMatch[1].length;
+        const Tag = `h${Math.min(level,6)}`;
+        elements.push(<Tag key={i} style={{ margin:'12px 0 6px', fontSize: level===1? '1.4rem': level===2? '1.25rem': '1rem', borderBottom: level<3? '1px solid #e5e7eb':'none', paddingBottom: level<3?4:0 }}>{formatInline(headingMatch[2])}</Tag>);
+        return;
+      }
+      const listMatch = line.match(/^[*-]\s+(.*)$/);
+      if (listMatch) { listBuffer.push(formatInline(listMatch[1])); return; }
+      flushList();
+      elements.push(<p key={i} style={{ margin:'6px 0', lineHeight:1.5 }}>{formatInline(line)}</p>);
+    });
+    flushList();
+    return elements;
+  };
+
+  useEffect(()=>{
+    if (!showPoliciesModal) return;
+    const el = modalScrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 5) {
+        setScrolledToBottom(true);
+      }
+    };
+    el.addEventListener('scroll', onScroll);
+    return ()=> el.removeEventListener('scroll', onScroll);
+  },[showPoliciesModal]);
 
   const handleChange = (e) => {
     setFormData({
@@ -61,6 +132,9 @@ const CompleteProfile = () => {
           formDataToSend.append('credentials', image);
         });
       }
+  formDataToSend.append('acceptedTerms', acceptedTerms ? 'true' : 'false');
+  formDataToSend.append('acceptedPrivacy', acceptedPrivacy ? 'true' : 'false');
+      formDataToSend.append('policiesVersion', POLICIES_VERSION);
       const token = localStorage.getItem('token');
       const response = await axios.post(
         'https://capstone-sumbong.onrender.com/api/auth/google-signup',
@@ -169,10 +243,49 @@ const CompleteProfile = () => {
             required
           />
         </div>
-        <button type="submit" disabled={loading}>
+        <div className="form-group" style={{ marginTop: 4, display:'flex', flexDirection:'column', gap:6 }}>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, lineHeight: '18px' }}>
+            <input type="checkbox" checked={acceptedTerms} onChange={e=>setAcceptedTerms(e.target.checked)} required />
+            <span>I agree to the <button type="button" onClick={()=>fetchPolicy('terms')} style={{ background:'none', border:'none', color:'#1d4ed8', cursor:'pointer', padding:0 }}>Terms & Conditions</button>.</span>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, lineHeight: '18px' }}>
+            <input type="checkbox" checked={acceptedPrivacy} onChange={e=>setAcceptedPrivacy(e.target.checked)} required />
+            <span>I agree to the <button type="button" onClick={()=>fetchPolicy('privacy')} style={{ background:'none', border:'none', color:'#1d4ed8', cursor:'pointer', padding:0 }}>Privacy Policy</button>.</span>
+          </label>
+          <small style={{ color:'#6b7280' }}>Both must be accepted. Version {POLICIES_VERSION}</small>
+        </div>
+        <button type="submit" disabled={loading || !(acceptedTerms && acceptedPrivacy)}>
           {loading ? 'Submitting...' : 'Submit'}
         </button>
       </form>
+      {showPoliciesModal && (
+        <div className="modal-overlay" onClick={()=>setShowPoliciesModal(false)}>
+          <div className="credential-modal" onClick={e=>e.stopPropagation()} style={{ maxWidth:720, width:'95%', padding:24, display:'flex', flexDirection:'column' }}>
+            <div className="modal-header" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <h3 style={{ margin:0 }}>{activePolicy === 'terms' ? 'Terms & Conditions' : 'Privacy Policy'}</h3>
+              <button className="modal-close-x" type="button" aria-label="Close" onClick={()=>setShowPoliciesModal(false)} />
+            </div>
+            <div ref={modalScrollRef} style={{ maxHeight:'55vh', overflowY:'auto', marginTop:16, paddingRight:8 }}>
+              {renderMarkdown(policyContent)}
+            </div>
+            {!scrolledToBottom && (
+              <div style={{ marginTop:12, fontSize:12, color:'#b45309', background:'#fff7ed', padding:'6px 10px', borderRadius:4 }}>
+                Scroll to the bottom to enable the Accept button.
+              </div>
+            )}
+            <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end' }}>
+              <button onClick={()=>setShowPoliciesModal(false)} className="action-btn" style={{ background:'#6b7280', color:'#fff' }}>Close</button>
+              <button disabled={!scrolledToBottom} onClick={()=>{
+                if (activePolicy==='terms') setAcceptedTerms(true); else setAcceptedPrivacy(true);
+                try { const now=new Date().toISOString(); localStorage.setItem(`policy_accept_${activePolicy}`, now); } catch {}
+                setShowPoliciesModal(false);
+              }} className="action-btn" style={{ background: scrolledToBottom? '#1d4ed8':'#93c5fd', color:'#fff', cursor: scrolledToBottom? 'pointer':'not-allowed' }}>
+                Accept {activePolicy === 'terms' ? 'Terms' : 'Privacy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

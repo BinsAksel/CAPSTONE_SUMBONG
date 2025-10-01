@@ -99,6 +99,11 @@ const userSchema = new mongoose.Schema({
     default: null
   }
   ,
+  // Policy acceptance tracking
+  acceptedTerms: { type: Boolean, default: false },
+  acceptedPrivacy: { type: Boolean, default: false },
+  policiesVersion: { type: String, default: '1.0.0' },
+  acceptedPoliciesAt: { type: Date, default: null },
   // Administrative role flag
   isAdmin: {
     type: Boolean,

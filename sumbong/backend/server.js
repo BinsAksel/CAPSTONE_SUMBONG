@@ -8,6 +8,10 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const cors = require('cors');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
+const sanitizeHtml = require('sanitize-html');
 
 // Load connectDB after dotenv and before using it
 const connectDB = require('./config/db');
@@ -37,6 +41,31 @@ const jwt = require('jsonwebtoken');
 
 // Initialize express app before any app.use/app.get/app.post
 const app = express();
+
+// --- Global Security Middleware ---
+app.use(helmet({
+  contentSecurityPolicy: false // We may serve mixed user-uploaded content; full CSP can be added separately.
+}));
+// Custom selective CSP header (light) - allow self + cloudinary
+app.use((req,res,next)=>{
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' https://res.cloudinary.com data:; media-src 'self' https://res.cloudinary.com data:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  res.setHeader('X-Content-Type-Options','nosniff');
+  res.setHeader('Referrer-Policy','no-referrer');
+  res.setHeader('Permissions-Policy','geolocation=(), microphone=(), camera=()');
+  next();
+});
+// Rate limiter (general) and stricter auth limiter
+const generalLimiter = rateLimit({ windowMs: 15*60*1000, limit: 100, standardHeaders: true, legacyHeaders: false });
+const authLimiter = rateLimit({ windowMs: 15*60*1000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { message: 'Too many auth attempts, please try again later.' }});
+app.use('/api/', generalLimiter);
+app.use('/api/auth/', authLimiter);
+// Mongo sanitize to strip $ and . operators
+app.use(mongoSanitize());
+// Basic body sanitization wrapper for selected text fields
+const sanitizeBodyFields = (fields=[]) => (req,res,next)=>{
+  fields.forEach(f=>{ if (req.body && typeof req.body[f] === 'string') { req.body[f] = sanitizeHtml(req.body[f], { allowedTags: [], allowedAttributes: {} }); }});
+  next();
+};
 
 // After DB connection attempt, log a warning if no admin users exist (no auto-create logic)
 setTimeout(async () => {
@@ -361,8 +390,10 @@ const complaintUpload = multer({
   storage: complaintStorage,
   limits: { fileSize: TEN_MB },
   fileFilter: (req, file, cb) => {
-    // Optionally restrict disallowed mimetypes here; for now allow all
-    cb(null, true);
+    const allowedImage = ['image/jpeg','image/png','image/gif','image/webp','image/bmp'];
+    const allowedVideo = ['video/mp4','video/webm','video/ogg','video/quicktime'];
+    if (allowedImage.includes(file.mimetype) || allowedVideo.includes(file.mimetype)) return cb(null,true);
+    return cb(new Error('Unsupported evidence file type'));
   }
 });
 
@@ -718,7 +749,7 @@ app.get('/api/user/:id', async (req, res) => {
 });
 
 // Submit a new complaint
-app.post('/api/complaints', authenticateJWT, (req, res, next) => {
+app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','contact','location','people','description','type','resolution']), (req, res, next) => {
   complaintUpload.array('evidence', 5)(req, res, function(err){
     if (err) {
       if (err.code === 'LIMIT_FILE_SIZE') {
@@ -776,7 +807,7 @@ app.get('/api/complaints/:id', authenticateJWT, async (req, res) => {
 });
 
 // Edit a complaint
-app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (req, res) => {
+app.patch('/api/complaints/:id', sanitizeBodyFields(['fullName','contact','location','people','description','type','resolution']), complaintUpload.array('evidence', 5), async (req, res) => {
   try {
     // Load existing complaint first for logic & deletion
     const existingComplaint = await Complaint.findById(req.params.id);
@@ -898,7 +929,7 @@ app.patch('/api/complaints/:id', complaintUpload.array('evidence', 5), async (re
 });
 
 // Threaded feedback entry (admin or user) - requires JWT auth for user; admin identified via isAdmin in token
-app.post('/api/complaints/:id/feedback-entry', authenticateJWT, async (req, res) => {
+app.post('/api/complaints/:id/feedback-entry', authenticateJWT, sanitizeBodyFields(['message']), async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || !message.trim()) {
@@ -1027,7 +1058,7 @@ app.get('/api/complaints', authenticateJWT, requireAdmin, async (req, res) => {
 });
 
 // Admin endpoint to update complaint status (legacy feedback removed; feedback text becomes a thread entry)
-app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, async (req, res) => {
+app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, sanitizeBodyFields(['feedback']), async (req, res) => {
   try {
     const { status, feedback } = req.body;
     if (!['pending', 'in progress', 'solved'].includes(status)) {
@@ -1323,7 +1354,7 @@ app.post('/api/user/credentials', authenticateJWT, credentialUploadMemory.array(
     }
     const user = await User.findById(req.user.id).select('credentials');
     if (!user) return res.status(404).json({ message: 'User not found' });
-    const folder = `sumbong/credentials/${req.user.id}`;
+  const folder = `sumbong/credentials/${req.user.id}`;
     const uploaded = [];
     for (const f of req.files) {
       const b64 = `data:${f.mimetype};base64,${f.buffer.toString('base64')}`;
@@ -1419,6 +1450,18 @@ app.use((err, req, res, next) => {
     success: false,
     message: 'Internal server error',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// --- Policy Endpoints (simple file serving) ---
+const policyBase = path.join(__dirname, 'policies');
+app.get('/api/policies/:name', (req,res) => {
+  const name = req.params.name;
+  if (!/^[a-zA-Z0-9_-]+$/.test(name)) return res.status(400).json({ message: 'Invalid policy name'});
+  const file = path.join(policyBase, `${name}.md`);
+  fs.readFile(file,'utf8',(err,data)=>{
+    if (err) return res.status(404).json({ message: 'Policy not found'});
+    res.type('text/markdown').send(data);
   });
 });
 

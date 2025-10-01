@@ -3,7 +3,7 @@
 // @access  Public
 const googleSignup = async (req, res) => {
   try {
-    const { firstName, lastName, email, phoneNumber, address } = req.body;
+    const { firstName, lastName, email, phoneNumber, address, acceptedTerms, acceptedPrivacy, policiesVersion } = req.body;
     // Validate required fields
     if (!firstName || !lastName || !email || !phoneNumber || !address) {
       return res.status(400).json({
@@ -27,13 +27,17 @@ const googleSignup = async (req, res) => {
         message: 'Please provide a valid phone number'
       });
     }
-    // Check if user already exists
+  // Check if user already exists
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({
         success: false,
         message: 'User already exists'
       });
+    }
+    // Enforce policy acceptance
+    if (!acceptedTerms || !acceptedPrivacy) {
+      return res.status(400).json({ success: false, message: 'You must accept Terms and Privacy Policy' });
     }
     // Upload credentials to Cloudinary (temporary folder until full user provisioning logic)
     const credentialObjs = [];
@@ -66,7 +70,11 @@ const googleSignup = async (req, res) => {
       password: randomPassword,
       credentials: credentialObjs,
       profilePicture: req.body.profilePicture || null,
-      approved: false
+      approved: false,
+      acceptedTerms: true,
+      acceptedPrivacy: true,
+      policiesVersion: policiesVersion || '1.0.0',
+      acceptedPoliciesAt: new Date()
     });
     if (user) {
       res.status(201).json({
@@ -151,7 +159,7 @@ const generateToken = (id, extra = {}) => {
 // @access  Public
 const signup = async (req, res) => {
   try {
-    const { firstName, lastName, email, phoneNumber, password } = req.body;
+    const { firstName, lastName, email, phoneNumber, password, acceptedTerms, acceptedPrivacy, policiesVersion } = req.body;
       
       // Validate required fields
       if (!firstName || !lastName || !email || !phoneNumber || !password) {
@@ -188,6 +196,10 @@ const signup = async (req, res) => {
         });
       }
 
+      if (!acceptedTerms || !acceptedPrivacy) {
+        return res.status(400).json({ success: false, message: 'You must accept Terms and Privacy Policy' });
+      }
+
       // Upload credential files to Cloudinary
       const credentialObjs = [];
       for (const f of (req.files || [])) {
@@ -219,7 +231,11 @@ const signup = async (req, res) => {
         password,
         credentials: credentialObjs,
         profilePicture: null, // Profile picture will be added later
-        approved: false // User must be approved by admin
+        approved: false, // User must be approved by admin
+        acceptedTerms: true,
+        acceptedPrivacy: true,
+        policiesVersion: policiesVersion || '1.0.0',
+        acceptedPoliciesAt: new Date()
       });
 
       if (user) {
