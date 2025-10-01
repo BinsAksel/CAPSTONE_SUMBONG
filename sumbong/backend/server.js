@@ -1013,6 +1013,22 @@ app.post('/api/complaints/:id/feedback-entry', authenticateJWT, sanitizeBodyFiel
         console.warn('Failed to broadcast feedback thread update to admins:', e.message);
       }
     }
+    // Optional email notification for ADMIN -> USER feedback entries
+    const emailThreadEnabled = ['1','true','yes'].includes(String(process.env.ENABLE_EMAIL_THREAD||'').toLowerCase());
+    if (emailThreadEnabled && authorType === 'admin') {
+      try {
+        const user = await User.findById(complaint.user).select('email firstName');
+        if (user && user.email) {
+          await sendEmail({
+            to: user.email,
+            subject: `New feedback on your complaint (${complaint._id})`,
+            html: `<p>Dear ${user.firstName || 'user'},</p><p>An administrator added a new message to your complaint:</p><blockquote>${entry.message.replace(/</g,'&lt;')}</blockquote><p>Log in to view the full thread.</p>`
+          });
+        }
+      } catch (e) {
+        console.warn('Email (feedback-entry) failed:', e.message);
+      }
+    }
     res.json({ success: true, complaint });
   } catch (err) {
     console.error('Add feedback entry error:', err);
@@ -1124,6 +1140,20 @@ app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, sanitizeB
         newStatus: status,
         message: `Your complaint status has been updated from "${oldStatus}" to "${status}"`
       });
+      // Optional email for status change (same flag controls)
+      const emailThreadEnabled = ['1','true','yes'].includes(String(process.env.ENABLE_EMAIL_THREAD||'').toLowerCase());
+      if (emailThreadEnabled) {
+        try {
+          const user = await User.findById(complaint.user).select('email firstName');
+          if (user && user.email) {
+            await sendEmail({
+              to: user.email,
+              subject: `Complaint status updated (${complaint._id})`,
+              html: `<p>Hi ${user.firstName || ''},</p><p>Your complaint status changed from <b>${oldStatus}</b> to <b>${status}</b>.</p><p>Log in for details.</p>`
+            });
+          }
+        } catch (e) { console.warn('Email (status change) failed:', e.message); }
+      }
     }
     if (feedback && feedback.trim()) {
       const entry = complaint.feedbackEntries[complaint.feedbackEntries.length - 1];
@@ -1132,6 +1162,20 @@ app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, sanitizeB
         complaintId: complaint._id,
         entry
       });
+      // Email for feedback provided via status endpoint (admin authored)
+      const emailThreadEnabled2 = ['1','true','yes'].includes(String(process.env.ENABLE_EMAIL_THREAD||'').toLowerCase());
+      if (emailThreadEnabled2) {
+        try {
+          const user = await User.findById(complaint.user).select('email firstName');
+          if (user && user.email) {
+            await sendEmail({
+              to: user.email,
+              subject: `New admin note on your complaint (${complaint._id})`,
+              html: `<p>Hi ${user.firstName || 'user'},</p><p>An admin added a note:</p><blockquote>${entry.message.replace(/</g,'&lt;')}</blockquote>`
+            });
+          }
+        } catch (e) { console.warn('Email (status feedback) failed:', e.message); }
+      }
     }
     res.json({ complaint });
   } catch (err) {
