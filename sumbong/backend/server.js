@@ -54,7 +54,7 @@ setTimeout(async () => {
 // IMPORTANT: CORS must be registered BEFORE any routes so that all responses
 // (including /api/user/me) include the proper Access-Control-* headers.
 const allowedOrigins = [
-  'https://sumbong.netlify.app',
+  'https://sumbongsystem.netlify.app/',
   'http://localhost:3000'
 ];
 app.use(cors({
@@ -228,15 +228,15 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
         email: user.email || (user.emails && user.emails[0] && user.emails[0].value) || '',
         profilePicture: user.profilePicture || (user.photos && user.photos[0] && user.photos[0].value) || ''
       }).toString();
-      return res.redirect(`https://sumbong.netlify.app/complete-profile?${params}`);
+      return res.redirect(`https://sumbongsystem.netlify.app/complete-profile?${params}`);
     }
     // Existing users: only allow login if approved
     if (!user.approved) {
       // Optionally, you can redirect to a custom pending page or show a message
-      return res.redirect('https://sumbong.netlify.app/login?pending=1');
+      return res.redirect('https://sumbongsystem.netlify.app/login?pending=1');
     }
     const token = generateToken(user._id);
-    return res.redirect(`https://sumbong.netlify.app/dashboard?token=${token}`);
+    return res.redirect(`https://sumbongsystem.netlify.app/dashboard?token=${token}`);
   } catch (err) {
     console.error('Error in Google OAuth callback:', err);
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
