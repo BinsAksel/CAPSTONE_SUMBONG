@@ -1,0 +1,25 @@
+.pwa-install-btn {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  z-index: 3000;
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  padding: 12px 18px;
+  border-radius: 28px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  letter-spacing: .5px;
+  transition: background .2s, transform .2s;
+}
+.pwa-install-btn:hover { background:#1e40af; }
+.pwa-install-btn:active { transform: translateY(1px); }
+@media (max-width:480px) {
+  .pwa-install-btn { bottom:12px; right:12px; padding:10px 16px; font-size:13px; }
+}
