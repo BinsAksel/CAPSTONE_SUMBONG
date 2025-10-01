@@ -252,6 +252,7 @@ const Dashboard = () => {
           timerProgressBar: true,
           position: 'top-end',
           toast: true,
+          customClass: { popup: 'notif-toast' }
         });
 
         localStorage.removeItem('justLoggedIn');
@@ -646,7 +647,8 @@ const Dashboard = () => {
           position: 'top-end',
           showConfirmButton: false,
           timer: 5000,
-          timerProgressBar: true
+          timerProgressBar: true,
+          customClass: { popup: 'notif-toast' }
         });
       }, 1000 + (index * 1000)); // Stagger notifications
     });
@@ -709,7 +711,8 @@ const Dashboard = () => {
       position: 'top-end',
       showConfirmButton: false,
       timer: 5000,
-      timerProgressBar: true
+      timerProgressBar: true,
+      customClass: { popup: 'notif-toast' }
     });
     const openNow = viewComplaintRef.current;
     if (openNow && openNow._id === data.complaintId) {
@@ -784,7 +787,8 @@ const Dashboard = () => {
         toast: true,
         position: 'top-end',
         timer: 4500,
-        showConfirmButton: false
+        showConfirmButton: false,
+        customClass: { popup: 'notif-toast' }
       });
     }
   };
@@ -846,7 +850,8 @@ const Dashboard = () => {
             position: 'top-end',
             showConfirmButton: false,
             timer: 5000,
-            timerProgressBar: true
+            timerProgressBar: true,
+            customClass: { popup: 'notif-toast' }
           });
         }, idx * 1200);
       });
@@ -885,7 +890,8 @@ const Dashboard = () => {
               position: 'top-end',
               showConfirmButton: false,
               timer: 5000,
-              timerProgressBar: true
+              timerProgressBar: true,
+              customClass: { popup: 'notif-toast' }
             });
           }, idx * 1200);
           alertTimeouts.push(t);

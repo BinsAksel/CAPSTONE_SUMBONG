@@ -2584,4 +2584,35 @@
 
 /* Status badges already defined earlier; removed redundant empty block */
 
+/* Compact SweetAlert2 toast styling */
+.notif-toast.swal2-popup.swal2-toast {
+  padding: 10px 14px !important;
+  min-width: 260px;
+  width: auto;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.18) !important;
+  font-size: 0.85rem !important;
+}
+.notif-toast .swal2-title {
+  font-size: 0.9rem !important;
+  font-weight: 600;
+  margin: 0 0 2px 0 !important;
+}
+.notif-toast .swal2-html-container {
+  margin: 0 !important;
+  font-size: 0.78rem !important;
+  line-height: 1.25rem;
+  padding: 0 !important;
+}
+@media (max-width: 560px) {
+  .notif-toast.swal2-popup.swal2-toast {
+    min-width: 200px;
+    max-width: 70vw;
+    padding: 8px 12px !important;
+    font-size: 0.75rem !important;
+  }
+  .notif-toast .swal2-title { font-size: 0.8rem !important; }
+  .notif-toast .swal2-html-container { font-size: 0.7rem !important; }
+}
+
  
