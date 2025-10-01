@@ -265,13 +265,7 @@ const CompleteProfile = () => {
             <div ref={modalScrollRef} style={{ maxHeight:'55vh', overflowY:'auto', marginTop:16, paddingRight:8 }}>
               {renderMarkdown(policyContent)}
             </div>
-            {!scrolledToBottom && (
-              <div style={{ marginTop:12, fontSize:12, color:'#b45309', background:'#fff7ed', padding:'6px 10px', borderRadius:4 }}>
-                Scroll to the bottom to enable the Accept button.
-              </div>
-            )}
             <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end', alignItems:'center' }}>
-              <button onClick={()=>setShowPoliciesModal(false)} className="action-btn" style={{ background:'#6b7280', color:'#fff' }}>Close</button>
               {((activePolicy==='terms' && !acceptedTerms) || (activePolicy==='privacy' && !acceptedPrivacy)) && (
                 <button disabled={!scrolledToBottom} onClick={()=>{
                   if (activePolicy==='terms') setAcceptedTerms(true); else setAcceptedPrivacy(true);
