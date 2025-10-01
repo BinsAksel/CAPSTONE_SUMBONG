@@ -27,6 +27,13 @@ connectDB()
   });
 const { signup, login, handleUpload, googleSignup, adminLogin } = require('./controllers/authController');
 const sendEmail = require('./utils/sendEmail');
+const {
+  complaintStatusTemplate,
+  complaintFeedbackTemplate,
+  credentialApprovedTemplate,
+  credentialRejectedTemplate,
+  credentialResubmissionTemplate
+} = require('./utils/emailTemplates');
 const { generateToken } = require('./controllers/authController');
 const mongoose = require('mongoose');
 const fs = require('fs');
@@ -613,13 +620,11 @@ app.get('/api/admin/users', authenticateJWT, requireAdmin, async (req, res) => {
 // Verify a user
 app.patch('/api/admin/verify/:id', authenticateJWT, requireAdmin, async (req, res) => {
   const user = await User.findByIdAndUpdate(req.params.id, { approved: true }, { new: true });
-  // Send approval email
   if (user) {
-    await sendEmail({
-      to: user.email,
-      subject: 'Your account has been approved!',
-      html: `<p>Congratulations, ${user.firstName}! Your account is now approved. You can log in to the system.</p>`
-    });
+    try {
+      const { subject, html } = credentialApprovedTemplate({ firstName: user.firstName });
+      await sendEmail({ to: user.email, subject, html });
+    } catch (e) { console.warn('Email (simple verify) failed:', e.message); }
   }
   res.json({ success: true });
 });
@@ -627,13 +632,16 @@ app.patch('/api/admin/verify/:id', authenticateJWT, requireAdmin, async (req, re
 // Disapprove a user
 app.patch('/api/admin/disapprove/:id', authenticateJWT, requireAdmin, async (req, res) => {
   const user = await User.findByIdAndUpdate(req.params.id, { approved: false }, { new: true });
-  // Send disapproval email
   if (user) {
-    await sendEmail({
-      to: user.email,
-      subject: 'Your account was not approved',
-      html: `<p>Sorry, ${user.firstName}. Your account was not approved. Please check your credentials and try again.</p>`
-    });
+    try {
+      const { subject, html } = credentialRejectedTemplate({
+        firstName: user.firstName,
+        issueDetails: 'Your account was not approved.',
+        adminNotes: 'Please review and re-submit credentials.',
+        requiredActions: 'Update and upload proper documents.'
+      });
+      await sendEmail({ to: user.email, subject, html });
+    } catch (e) { console.warn('Email (simple disapprove) failed:', e.message); }
   }
   res.json({ success: true });
 });
@@ -935,14 +943,15 @@ app.patch('/api/complaints/:id', sanitizeBodyFields(['fullName','contact','locat
         newStatus: complaint.status,
         message: `Your complaint status has been updated from "${oldStatus}" to "${complaint.status}"`
       });
-      // Send email notification for status change
-      const user = await User.findById(complaint.user);
+      const user = await User.findById(complaint.user).select('email firstName');
       if (user) {
-        await sendEmail({
-          to: user.email,
-          subject: `Update on your complaint: ${complaint._id}`,
-          html: `<p>Your complaint status has been updated from <b>${oldStatus}</b> to <b>${complaint.status}</b>.</p>`
+        const { subject, html } = complaintStatusTemplate({
+          firstName: user.firstName,
+          complaintId: complaint._id,
+          oldStatus,
+          newStatus: complaint.status
         });
+        try { await sendEmail({ to: user.email, subject, html }); } catch (e) { console.warn('Status email failed:', e.message); }
       }
     }
     // If feedback was added/updated, send real-time update and email
@@ -953,14 +962,14 @@ app.patch('/api/complaints/:id', sanitizeBodyFields(['fullName','contact','locat
         feedback: req.body.feedback,
         message: 'Admin has added feedback to your complaint'
       });
-      // Send email notification for feedback
-      const user = await User.findById(complaint.user);
+      const user = await User.findById(complaint.user).select('email firstName');
       if (user) {
-        await sendEmail({
-          to: user.email,
-          subject: `Feedback on your complaint: ${complaint._id}`,
-          html: `<p>Admin has added feedback to your complaint:<br/>${req.body.feedback}</p>`
+        const { subject, html } = complaintFeedbackTemplate({
+          firstName: user.firstName,
+          complaintId: complaint._id,
+          message: req.body.feedback
         });
+        try { await sendEmail({ to: user.email, subject, html }); } catch (e) { console.warn('Feedback email failed:', e.message); }
       }
     }
     
@@ -1013,17 +1022,17 @@ app.post('/api/complaints/:id/feedback-entry', authenticateJWT, sanitizeBodyFiel
         console.warn('Failed to broadcast feedback thread update to admins:', e.message);
       }
     }
-    // Optional email notification for ADMIN -> USER feedback entries
-    const emailThreadEnabled = ['1','true','yes'].includes(String(process.env.ENABLE_EMAIL_THREAD||'').toLowerCase());
-    if (emailThreadEnabled && authorType === 'admin') {
+    // Always email user when an ADMIN posts a feedback entry
+    if (authorType === 'admin') {
       try {
         const user = await User.findById(complaint.user).select('email firstName');
         if (user && user.email) {
-          await sendEmail({
-            to: user.email,
-            subject: `New feedback on your complaint (${complaint._id})`,
-            html: `<p>Dear ${user.firstName || 'user'},</p><p>An administrator added a new message to your complaint:</p><blockquote>${entry.message.replace(/</g,'&lt;')}</blockquote><p>Log in to view the full thread.</p>`
+          const { subject, html } = complaintFeedbackTemplate({
+            firstName: user.firstName,
+            complaintId: complaint._id,
+            message: entry.message
           });
+          await sendEmail({ to: user.email, subject, html });
         }
       } catch (e) {
         console.warn('Email (feedback-entry) failed:', e.message);
@@ -1140,20 +1149,18 @@ app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, sanitizeB
         newStatus: status,
         message: `Your complaint status has been updated from "${oldStatus}" to "${status}"`
       });
-      // Optional email for status change (same flag controls)
-      const emailThreadEnabled = ['1','true','yes'].includes(String(process.env.ENABLE_EMAIL_THREAD||'').toLowerCase());
-      if (emailThreadEnabled) {
-        try {
-          const user = await User.findById(complaint.user).select('email firstName');
-          if (user && user.email) {
-            await sendEmail({
-              to: user.email,
-              subject: `Complaint status updated (${complaint._id})`,
-              html: `<p>Hi ${user.firstName || ''},</p><p>Your complaint status changed from <b>${oldStatus}</b> to <b>${status}</b>.</p><p>Log in for details.</p>`
-            });
-          }
-        } catch (e) { console.warn('Email (status change) failed:', e.message); }
-      }
+      try {
+        const user = await User.findById(complaint.user).select('email firstName');
+        if (user && user.email) {
+          const { subject, html } = complaintStatusTemplate({
+            firstName: user.firstName,
+            complaintId: complaint._id,
+            oldStatus,
+            newStatus: status
+          });
+          await sendEmail({ to: user.email, subject, html });
+        }
+      } catch (e) { console.warn('Email (status change) failed:', e.message); }
     }
     if (feedback && feedback.trim()) {
       const entry = complaint.feedbackEntries[complaint.feedbackEntries.length - 1];
@@ -1162,20 +1169,17 @@ app.patch('/api/complaints/:id/status', authenticateJWT, requireAdmin, sanitizeB
         complaintId: complaint._id,
         entry
       });
-      // Email for feedback provided via status endpoint (admin authored)
-      const emailThreadEnabled2 = ['1','true','yes'].includes(String(process.env.ENABLE_EMAIL_THREAD||'').toLowerCase());
-      if (emailThreadEnabled2) {
-        try {
-          const user = await User.findById(complaint.user).select('email firstName');
-          if (user && user.email) {
-            await sendEmail({
-              to: user.email,
-              subject: `New admin note on your complaint (${complaint._id})`,
-              html: `<p>Hi ${user.firstName || 'user'},</p><p>An admin added a note:</p><blockquote>${entry.message.replace(/</g,'&lt;')}</blockquote>`
-            });
-          }
-        } catch (e) { console.warn('Email (status feedback) failed:', e.message); }
-      }
+      try {
+        const user = await User.findById(complaint.user).select('email firstName');
+        if (user && user.email) {
+          const { subject, html } = complaintFeedbackTemplate({
+            firstName: user.firstName,
+            complaintId: complaint._id,
+            message: entry.message
+          });
+          await sendEmail({ to: user.email, subject, html });
+        }
+      } catch (e) { console.warn('Email (status feedback) failed:', e.message); }
     }
     res.json({ complaint });
   } catch (err) {
@@ -1237,10 +1241,16 @@ app.patch('/api/admin/approve-credentials/:userId', authenticateJWT, requireAdmi
       });
     }
     
-    res.json({ 
-      success: true, 
+    // Email notification
+    try {
+      const { subject, html } = credentialApprovedTemplate({ firstName: user.firstName });
+      await sendEmail({ to: user.email, subject, html });
+    } catch (e) { console.warn('Email (credential approved) failed:', e.message); }
+
+    res.json({
+      success: true,
       message: 'User credentials approved successfully',
-      user: updatedUser 
+      user: updatedUser
     });
   } catch (err) {
     console.error('Error in approve-credentials:', err);
@@ -1315,15 +1325,15 @@ app.patch('/api/admin/reject-credentials/:userId', authenticateJWT, requireAdmin
     }
     
     // Send email to user with all details
-    await sendEmail({
-      to: user.email,
-      subject: 'Credential Issues Found - Action Required',
-      html: `<h3>Credential Issues Found</h3>
-        <p><b>Issue Details:</b> ${issueDetails}</p>
-        <p><b>Admin Notes:</b> ${adminNotes || 'None'}</p>
-        <p><b>Required Actions:</b> ${requiredActions || 'Please upload corrected credentials.'}</p>
-        <p>Please log in to your account to address these issues.</p>`
-    });
+    try {
+      const { subject, html } = credentialRejectedTemplate({
+        firstName: user.firstName,
+        issueDetails,
+        adminNotes,
+        requiredActions
+      });
+      await sendEmail({ to: user.email, subject, html });
+    } catch (e) { console.warn('Email (credential rejected) failed:', e.message); }
     res.json({ 
       success: true, 
       message: 'User credentials rejected with issue details',
@@ -1413,14 +1423,14 @@ app.patch('/api/admin/request-resubmission/:userId', authenticateJWT, requireAdm
     }
     
     // Send email to user for resubmission request
-    await sendEmail({
-      to: user.email,
-      subject: 'Credential Resubmission Requested',
-      html: `<h3>Credential Resubmission Requested</h3>
-        <p><b>Reason:</b> ${reason || 'Please resubmit your credentials.'}</p>
-        <p><b>Deadline:</b> ${update.resubmissionDeadline ? new Date(update.resubmissionDeadline).toLocaleString() : 'N/A'}</p>
-        <p>Please log in to your account and upload the required documents before the deadline.</p>`
-    });
+    try {
+      const { subject, html } = credentialResubmissionTemplate({
+        firstName: user.firstName,
+        reason,
+        deadline: update.resubmissionDeadline
+      });
+      await sendEmail({ to: user.email, subject, html });
+    } catch (e) { console.warn('Email (credential resubmission) failed:', e.message); }
     res.json({ 
       success: true, 
       message: 'Resubmission requested successfully',
