@@ -1710,9 +1710,9 @@ const Dashboard = () => {
         <div className="dashboard-content-section">
           {/* Complaints List */}
           <div className="dashboard-complaints-table">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <h4 style={{ margin: 0 }}>{showHistory ? 'Your Complaints History' : 'Your Complaints'}</h4>
-              <div style={{ display: 'flex', gap: 12 }}>
+            <div className="complaints-header">
+              <h4>{showHistory ? 'Your Complaints History' : 'Your Complaints'}</h4>
+              <div className="complaints-header-actions">
                 <button
                   onClick={() => setShowComplaint(true)}
                   className="dashboard-add-complaint-btn"
@@ -1732,6 +1732,7 @@ const Dashboard = () => {
                 </button>
               </div>
             </div>
+            <div className="table-responsive-wrapper">
             <table>
               <thead>
                 <tr>
@@ -1806,6 +1807,7 @@ const Dashboard = () => {
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>
@@ -1918,12 +1920,9 @@ const Dashboard = () => {
                   />
                 </div>
               </div>
-              <div className="profile-actions">
+              <div className="profile-actions single-action">
                 <button type="submit" disabled={loading} className="profile-action-btn">
                   {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-                <button type="button" onClick={() => setShowEdit(false)} className="profile-action-btn">
-                  Cancel
                 </button>
               </div>
             </form>
@@ -1942,15 +1941,16 @@ const Dashboard = () => {
             >
             </button>
             <h3>Add Complaint</h3>
-            <form onSubmit={handleComplaintSubmit}>
+            <form onSubmit={handleComplaintSubmit} className="complaint-form">
               <div className="complaint-input-container">
                 <label className="complaint-label">Full Name and Contact Info:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="complaint-inline-pair">
                   <input
                     type="text"
                     name="fullName"
                     value={complaint.fullName}
-                    onChange={handleComplaintChange}
+                    readOnly
+                    className="readonly-field"
                     placeholder="Full Name"
                     required
                     style={{ flex: 1 }}
@@ -1959,7 +1959,8 @@ const Dashboard = () => {
                     type="email"
                     name="contact"
                     value={complaint.contact}
-                    onChange={handleComplaintChange}
+                    readOnly
+                    className="readonly-field"
                     placeholder="Contact Info"
                     required
                     style={{ flex: 1 }}
@@ -1968,14 +1969,14 @@ const Dashboard = () => {
               </div>
               <div className="complaint-input-container">
                 <label className="complaint-label">Date and Time of Incident:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="complaint-inline-pair">
                   <input type="date" name="date" value={complaint.date} onChange={handleComplaintChange} required style={{ flex: 1 }} />
                   <input type="time" name="time" value={complaint.time} onChange={handleComplaintChange} required style={{ flex: 1 }} />
                 </div>
               </div>
               <div className="complaint-input-container">
                 <label className="complaint-label">People/Group Involved and Location:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="complaint-inline-pair">
                   <input type="text" name="people" value={complaint.people} onChange={handleComplaintChange} placeholder="People or group involved" style={{ flex: 1 }} />
                   <input type="text" name="location" value={complaint.location} onChange={handleComplaintChange} placeholder="Location" required style={{ flex: 1 }} />
                 </div>
@@ -2011,7 +2012,6 @@ const Dashboard = () => {
               </div>
 
               <button type="submit" className="complaint-btn">Submit Complaint</button>
-              <button type="button" onClick={() => setShowComplaint(false)} className="complaint-btn">Cancel</button>
             </form>
           </div>
         </div>
@@ -2214,15 +2214,16 @@ const Dashboard = () => {
             >
             </button>
             <h3>Edit Complaint</h3>
-            <form onSubmit={handleEditComplaintSubmit}>
+            <form onSubmit={handleEditComplaintSubmit} className="complaint-form">
               <div className="complaint-input-container">
                 <label className="complaint-label">Full Name and Contact Info:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="complaint-inline-pair">
                   <input
                     type="text"
                     name="fullName"
                     value={editComplaintData.fullName}
-                    onChange={handleEditComplaintChange}
+                    readOnly
+                    className="readonly-field"
                     placeholder="Full Name"
                     required
                     style={{ flex: 1 }}
@@ -2231,7 +2232,8 @@ const Dashboard = () => {
                     type="email"
                     name="contact"
                     value={editComplaintData.contact}
-                    onChange={handleEditComplaintChange}
+                    readOnly
+                    className="readonly-field"
                     placeholder="Contact Info"
                     required
                     style={{ flex: 1 }}
@@ -2240,14 +2242,14 @@ const Dashboard = () => {
               </div>
               <div className="complaint-input-container">
                 <label className="complaint-label">Date and Time of Incident:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="complaint-inline-pair">
                   <input type="date" name="date" value={editComplaintData.date} onChange={handleEditComplaintChange} required style={{ flex: 1 }} />
                   <input type="time" name="time" value={editComplaintData.time} onChange={handleEditComplaintChange} required style={{ flex: 1 }} />
                 </div>
               </div>
               <div className="complaint-input-container">
                 <label className="complaint-label">People/Group Involved and Location:</label>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="complaint-inline-pair">
                   <input type="text" name="people" value={editComplaintData.people} onChange={handleEditComplaintChange} placeholder="People or group involved" style={{ flex: 1 }} />
                   <input type="text" name="location" value={editComplaintData.location} onChange={handleEditComplaintChange} placeholder="Location" required style={{ flex: 1 }} />
                 </div>
@@ -2285,7 +2287,6 @@ const Dashboard = () => {
                                <input type="text" name="resolution" value={editComplaintData.resolution} onChange={handleEditComplaintChange} placeholder="What do you want the authorities to do?" required />
               </div>
               <button type="submit" disabled={loading} className="complaint-btn">Save Changes</button>
-              <button type="button" onClick={() => { setEditComplaint(null); setEditComplaintData(null); }} className="complaint-btn">Cancel</button>
             </form>
           </div>
         </div>
@@ -2315,18 +2316,18 @@ const Dashboard = () => {
                 <div className="profile-details">
                   <h3>{user.firstName} {user.lastName}</h3>
                   <div className="profile-contact-info">
-                    <div className="contact-item">
+                    <div className="contact-item contact-email">
                       <span className="contact-label">Email:</span>
                                            <span className="contact-value">{user.email}</span>
                     </div>
                     {user.phoneNumber && (
-                      <div className="contact-item">
+                      <div className="contact-item contact-phone">
                         <span className="contact-label">Phone:</span>
                         <span className="contact-value">{user.phoneNumber}</span>
                       </div>
                     )}
                     {user.address && (
-                      <div className="contact-item">
+                      <div className="contact-item contact-address">
                         <span className="contact-label">Address:</span>
                         <span className="contact-value">{user.address}</span>
                       </div>
