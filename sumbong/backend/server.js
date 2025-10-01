@@ -1591,13 +1591,18 @@ bus.on('new_complaint', async ({ complaintId }) => {
   try {
     const c = await Complaint.findById(complaintId).populate('user','firstName lastName');
     if (!c) return;
-    await notifyAdmins(() => ({
-      type: 'new_complaint',
-      entityType: 'complaint',
-      entityId: c._id,
-      message: `New complaint submitted by ${c.user ? (c.user.firstName + ' ' + c.user.lastName) : 'Unknown User'}`,
-      meta: { status: c.status, type: c.type }
-    }));
+    await notifyAdmins(() => {
+      const actorFirst = c.user?.firstName || '';
+      const actorLast = c.user?.lastName || '';
+      const fullName = (actorFirst + ' ' + actorLast).trim() || 'Unknown User';
+      return {
+        type: 'new_complaint',
+        entityType: 'complaint',
+        entityId: c._id,
+        message: `New complaint submitted by ${fullName}`,
+        meta: { status: c.status, type: c.type, actorFirst, actorLast, actorFullName: fullName }
+      };
+    });
   } catch (e) { console.warn('new_complaint handler failed:', e.message); }
 });
 
@@ -1606,13 +1611,18 @@ bus.on('user_feedback_entry', async ({ complaintId, entryMessage }) => {
     console.log('[bus] user_feedback_entry received', { complaintId, preview: (entryMessage||'').slice(0,60) });
     const c = await Complaint.findById(complaintId).populate('user','firstName lastName');
     if (!c) return;
-    await notifyAdmins(() => ({
-      type: 'user_feedback',
-      entityType: 'complaint',
-      entityId: c._id,
-      message: `User replied on complaint ${c._id}`,
-      meta: { preview: entryMessage.slice(0,180) }
-    }));
+    await notifyAdmins(() => {
+      const actorFirst = c.user?.firstName || '';
+      const actorLast = c.user?.lastName || '';
+      const fullName = (actorFirst + ' ' + actorLast).trim() || 'User';
+      return {
+        type: 'user_feedback',
+        entityType: 'complaint',
+        entityId: c._id,
+        message: `${fullName} replied on complaint ${c._id}`,
+        meta: { preview: entryMessage.slice(0,180), actorFirst, actorLast, actorFullName: fullName }
+      };
+    });
     console.log('[bus] user_feedback_entry processed -> notifications created');
   } catch (e) { console.warn('user_feedback_entry handler failed:', e.message); }
 });
@@ -1752,6 +1762,58 @@ app.patch('/admin/notifications/read-all', authenticateJWT, requireAdmin, async 
     res.json({ success: true, fallback: true });
   } catch (e) {
     res.status(500).json({ message: 'Failed to mark all notifications read', error: e.message });
+  }
+});
+
+// Delete a single notification
+app.delete('/api/admin/notifications/:id', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const deleted = await Notification.findOneAndDelete({ _id: req.params.id, recipient: req.user.id });
+    if (!deleted) return res.status(404).json({ message: 'Notification not found' });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to delete notification', error: e.message });
+  }
+});
+app.delete('/admin/notifications/:id', authenticateJWT, requireAdmin, async (req, res) => {
+  console.log('[HTTP] DELETE /admin/notifications/:id (fallback)', req.params.id);
+  try {
+    const deleted = await Notification.findOneAndDelete({ _id: req.params.id, recipient: req.user.id });
+    if (!deleted) return res.status(404).json({ message: 'Notification not found' });
+    res.json({ success: true, fallback: true });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to delete notification', error: e.message });
+  }
+});
+
+// Clear all notifications for current admin
+app.delete('/api/admin/notifications', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const recipient = req.user.id;
+    const before = await Notification.countDocuments({ recipient });
+    console.log('[NOTIFICATIONS] Clear all request (API) user=', recipient, 'countBefore=', before);
+    const delResult = await Notification.deleteMany({ recipient });
+    const after = await Notification.countDocuments({ recipient });
+    console.log('[NOTIFICATIONS] Clear all completed (API) user=', recipient, 'deleted=', delResult.deletedCount, 'countAfter=', after);
+    res.json({ success: true, deleted: delResult.deletedCount, remaining: after });
+  } catch (e) {
+    console.error('[NOTIFICATIONS] Clear all failed (API):', e);
+    res.status(500).json({ message: 'Failed to clear notifications', error: e.message });
+  }
+});
+app.delete('/admin/notifications', authenticateJWT, requireAdmin, async (req, res) => {
+  console.log('[HTTP] DELETE /admin/notifications (fallback)');
+  try {
+    const recipient = req.user.id;
+    const before = await Notification.countDocuments({ recipient });
+    console.log('[NOTIFICATIONS] Clear all request (fallback) user=', recipient, 'countBefore=', before);
+    const delResult = await Notification.deleteMany({ recipient });
+    const after = await Notification.countDocuments({ recipient });
+    console.log('[NOTIFICATIONS] Clear all completed (fallback) user=', recipient, 'deleted=', delResult.deletedCount, 'countAfter=', after);
+    res.json({ success: true, fallback: true, deleted: delResult.deletedCount, remaining: after });
+  } catch (e) {
+    console.error('[NOTIFICATIONS] Clear all failed (fallback):', e);
+    res.status(500).json({ message: 'Failed to clear notifications', error: e.message });
   }
 });
 

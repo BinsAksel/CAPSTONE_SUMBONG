@@ -9,7 +9,7 @@ import Select from 'react-select';
 import { toAbsolute } from '../utils/url';
 import NotificationBell from '../components/NotificationBell';
 import NotificationDropdown from '../components/NotificationDropdown';
-import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notificationsApi';
+import { fetchNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } from '../api/notificationsApi';
 
 
 // Evidence modal state and renderer for fullscreen evidence viewing
@@ -80,6 +80,8 @@ const AdminDashboard = () => {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifLoading, setNotifLoading] = useState(false);
   const [notifLimit, setNotifLimit] = useState(30);
+  // Version counter to invalidate stale async notification fetch responses
+  const notifFetchVersion = useRef(0);
   const notifDropdownRef = useRef(null);
   const bellButtonRef = useRef(null);
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -250,11 +252,14 @@ const AdminDashboard = () => {
     // Initial notifications load
     const loadNotifs = async () => {
       setNotifLoading(true);
+      const currentVersion = ++notifFetchVersion.current;
       try {
         const list = await fetchNotifications({ limit: notifLimit });
-        setNotifications(list);
+        if (currentVersion === notifFetchVersion.current) {
+          setNotifications(list);
+        }
       } catch (e) { /* ignore */ }
-      setNotifLoading(false);
+      if (currentVersion === notifFetchVersion.current) setNotifLoading(false);
     };
     loadNotifs();
 
@@ -310,9 +315,10 @@ const AdminDashboard = () => {
             }
             if (data.entry.authorType === 'user') {
               try { console.log('[SSE:admin] user entry notification toast triggered'); } catch {}
+              const actor = viewComplaintRef.current && viewComplaintRef.current.fullName ? viewComplaintRef.current.fullName : 'User';
               const shortMsg = data.entry.message.length > 90 ? data.entry.message.slice(0,90)+'…' : data.entry.message;
               Swal.fire({
-                title: 'User Thread Reply',
+                title: `${actor} replied`,
                 text: shortMsg,
                 icon: 'info',
                 toast: true,
@@ -346,13 +352,14 @@ const AdminDashboard = () => {
 
     // Fallback notification polling (SSE reconciliation)
     const notifPoll = setInterval(async () => {
+      const currentVersion = ++notifFetchVersion.current;
       try {
         const latest = await fetchNotifications({ limit: notifLimit });
+        if (currentVersion !== notifFetchVersion.current) return; // stale
         setNotifications(prev => {
-          // If counts differ or new ids, replace
-            const prevIds = new Set(prev.map(p=>p._id));
-            const changed = latest.some(n=>!prevIds.has(n._id)) || prev.length !== latest.length;
-            return changed ? latest : prev;
+          const prevIds = new Set(prev.map(p=>p._id));
+          const changed = latest.some(n=>!prevIds.has(n._id)) || prev.length !== latest.length;
+          return changed ? latest : prev;
         });
       } catch { /* ignore */ }
     }, 20000);
@@ -521,12 +528,50 @@ const AdminDashboard = () => {
     try { await markNotificationRead(id); } catch { /* ignore */ }
   };
 
+  const handleDeleteNotification = async (id) => {
+    // Optimistic remove
+    setNotifications(prev => prev.filter(n => n._id !== id));
+    try { await deleteNotification(id); } catch { /* ignore */ }
+  };
+
+  const handleClearAll = async () => {
+    if (!notifications.length) return;
+    const result = await Swal.fire({
+      title: 'Clear all notifications?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Yes, clear',
+      cancelButtonText: 'Cancel',
+      toast: false
+    });
+    if (!result.isConfirmed) return;
+    const backup = notifications; // fallback if API call fails
+    // Invalidate in-flight fetches so stale responses can't repopulate list
+    notifFetchVersion.current++;
+    setNotifications([]);
+    try {
+      const resp = await clearAllNotifications();
+      if (!resp || resp.remaining > 0) {
+        // Some still remain – refetch to stay accurate
+        notifFetchVersion.current++;
+        const list = await fetchNotifications({ limit: notifLimit });
+        setNotifications(list);
+        Swal.fire({ icon: 'warning', title: 'Some notifications could not be cleared' });
+      }
+    } catch (e) {
+      setNotifications(backup);
+      const msg = e?.response?.data?.message || 'Failed to clear notifications';
+      Swal.fire({ icon: 'error', title: msg });
+    }
+  };
+
   const handleLoadMore = async () => {
     const newLimit = notifLimit + 30;
     setNotifLimit(newLimit);
+    const currentVersion = ++notifFetchVersion.current;
     try {
       const list = await fetchNotifications({ limit: newLimit });
-      setNotifications(list);
+      if (currentVersion === notifFetchVersion.current) setNotifications(list);
     } catch { /* ignore */ }
   };
 
@@ -806,6 +851,8 @@ const AdminDashboard = () => {
               onSelect={handleSelectNotification}
               onMarkAll={handleMarkAll}
               onMarkSingle={handleMarkSingle}
+              onDelete={handleDeleteNotification}
+              onClearAll={handleClearAll}
               onLoadMore={handleLoadMore}
               hasMore={notifications.length >= notifLimit}
             />

@@ -21,6 +21,7 @@ async function tryEndpoints(method, paths, data) {
       console.log('[notificationsApi] trying', method.toUpperCase(), p);
       if (method === 'get') return await adminApi.get(p);
       if (method === 'patch') return await adminApi.patch(p, data);
+      if (method === 'delete') return await adminApi.delete(p);
     } catch (e) {
       if (e.response && e.response.status === 404) {
         // eslint-disable-next-line no-console
@@ -70,4 +71,16 @@ export const markAllNotificationsRead = async () => {
   if (circuitOpen && Date.now() - circuitOpenedAt < CIRCUIT_TIMEOUT) return false;
   await tryEndpoints('patch', ['/api/admin/notifications/read-all', '/admin/notifications/read-all']);
   return true;
+};
+
+export const deleteNotification = async (id) => {
+  if (circuitOpen && Date.now() - circuitOpenedAt < CIRCUIT_TIMEOUT) return false;
+  await tryEndpoints('delete', [`/api/admin/notifications/${id}`, `/admin/notifications/${id}`]);
+  return true;
+};
+
+export const clearAllNotifications = async () => {
+  if (circuitOpen && Date.now() - circuitOpenedAt < CIRCUIT_TIMEOUT) return false;
+  const res = await tryEndpoints('delete', ['/api/admin/notifications', '/admin/notifications']);
+  return res?.data || { success: true };
 };
