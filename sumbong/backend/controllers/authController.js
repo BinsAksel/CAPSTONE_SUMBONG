@@ -35,9 +35,13 @@ const googleSignup = async (req, res) => {
         message: 'User already exists'
       });
     }
-    // Get credential URLs
-    const credentialUrls = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
-    if (credentialUrls.length === 0) {
+    // Build credential objects (schema now expects objects)
+    const credentialObjs = (req.files || []).map(file => ({
+      url: `uploads/${file.filename}`,
+      publicId: null,
+      uploadedAt: new Date()
+    }));
+    if (credentialObjs.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Please upload credentials for verification'
@@ -53,7 +57,7 @@ const googleSignup = async (req, res) => {
       phoneNumber,
       address,
       password: randomPassword,
-      credentials: credentialUrls,
+      credentials: credentialObjs,
       profilePicture: req.body.profilePicture || null,
       approved: false
     });
@@ -191,11 +195,14 @@ const signup = async (req, res) => {
         });
       }
 
-      // Get credential URLs
-      const credentialUrls = req.files ? req.files.map(file => `uploads/${file.filename}`) : [];
+      // Build credential objects for new schema
+      const credentialObjs = (req.files || []).map(file => ({
+        url: `uploads/${file.filename}`,
+        publicId: null,
+        uploadedAt: new Date()
+      }));
 
-      // Validate that credentials were uploaded
-      if (credentialUrls.length === 0) {
+      if (credentialObjs.length === 0) {
         return res.status(400).json({
           success: false,
           message: 'Please upload credentials for verification'
@@ -210,7 +217,7 @@ const signup = async (req, res) => {
         phoneNumber,
         address: req.body.address || '',
         password,
-        credentials: credentialUrls,
+        credentials: credentialObjs,
         profilePicture: null, // Profile picture will be added later
         approved: false // User must be approved by admin
       });
