@@ -445,12 +445,37 @@ app.get('/api/admin/users', authenticateJWT, requireAdmin, async (req, res) => {
   
   try {
   const users = await User.find().sort({ createdAt: -1 });
-    // Add full path to credentials and profile pictures
-    const usersWithImagePaths = users.map(user => ({
-      ...user.toObject(),
-      credentials: user.credentials ? user.credentials.map(img => img.startsWith('uploads/') ? img : `uploads/${img}`) : [],
-      profilePicture: user.profilePicture ? (user.profilePicture.startsWith('uploads/') ? user.profilePicture : `uploads/${user.profilePicture}`) : null
-    }));
+    // Normalize credential entries (now stored as objects) + backward compatibility for legacy string entries
+    const usersWithImagePaths = users.map(user => {
+      const rawCreds = Array.isArray(user.credentials) ? user.credentials : [];
+      const normalizedCreds = rawCreds.map(entry => {
+        if (!entry) return null;
+        // Legacy string form
+        if (typeof entry === 'string') {
+          const isAbsolute = /^https?:\/\//.test(entry);
+          const url = isAbsolute ? entry : (entry.startsWith('uploads/') ? entry : `uploads/${entry}`);
+          return { url, publicId: (typeof extractCloudinaryPublicId === 'function') ? extractCloudinaryPublicId(url) : null };
+        }
+        // Object form { url, publicId, uploadedAt? }
+        if (typeof entry === 'object') {
+          // Ensure url is present; if a legacy key name was used, attempt to derive (unlikely but defensive)
+          if (!entry.url && entry.path) entry.url = entry.path;
+          return entry;
+        }
+        return null;
+      }).filter(Boolean);
+      // Profile picture normalization (respect absolute Cloudinary URL)
+      const profilePicture = user.profilePicture
+        ? (/^https?:\/\//.test(user.profilePicture)
+            ? user.profilePicture
+            : (user.profilePicture.startsWith('uploads/') ? user.profilePicture : `uploads/${user.profilePicture}`))
+        : null;
+      return {
+        ...user.toObject(),
+        credentials: normalizedCreds,
+        profilePicture
+      };
+    });
     res.json({ users: usersWithImagePaths });
   } catch (err) {
     console.error('Error fetching users:', err);
