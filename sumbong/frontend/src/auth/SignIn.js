@@ -8,6 +8,13 @@ import Swal from 'sweetalert2';
 
 const SignIn = () => {
   const navigate = useNavigate();
+
+  // Lock background scroll when SignIn (modal) is mounted
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
   // Google sign up handler
   const handleGoogleSignUp = () => {
     window.location.href = 'https://capstone-sumbong.onrender.com/api/auth/google';
@@ -30,9 +37,11 @@ const SignIn = () => {
   const [activePolicy, setActivePolicy] = useState('terms');
   const [policyContent, setPolicyContent] = useState('');
   const POLICIES_VERSION = '1.0.0';
+  // No persistence key (acceptance resets per visit)
 
   const modalScrollRef = useRef(null);
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
+  const [pendingSubmit, setPendingSubmit] = useState(false);
 
   const fetchPolicy = async (name) => {
     try {
@@ -105,13 +114,7 @@ const SignIn = () => {
     return ()=> el.removeEventListener('scroll', onScroll);
   },[showPoliciesModal]);
 
-  // Restore prior acceptance (if user navigates back or refreshes)
-  useEffect(()=>{
-    try {
-      if (localStorage.getItem('policy_accept_terms')) setAcceptedTerms(true);
-      if (localStorage.getItem('policy_accept_privacy')) setAcceptedPrivacy(true);
-    } catch {}
-  },[]);
+  // Acceptance intentionally NOT persisted; always reset on load.
 
   const handleChange = (e) => {
     setFormData({
@@ -142,10 +145,7 @@ const SignIn = () => {
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccess('');
+  const performSignup = async () => {
     setLoading(true);
 
     // Phone number validation (Philippines: 10-13 digits, numbers only)
@@ -209,21 +209,32 @@ const SignIn = () => {
       });
     } finally {
       setLoading(false);
+      setPendingSubmit(false);
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!(acceptedTerms && acceptedPrivacy)) {
+      // start acceptance flow
+      setPendingSubmit(true);
+      if (!acceptedTerms) fetchPolicy('terms'); else fetchPolicy('privacy');
+      return;
+    }
+    performSignup();
+  };
+
   return (
-    <div className="signin-container">
-      <div className="signin-content">
-        <div className="signin-illustration">
-          <img src={loginImage} alt="Sign Up Illustration" />
-        </div>
-        <div className="signin-form-container">
-          <div className="signin-form-box">
-            <h2>Create Account</h2>
-            <GoogleButton text="Sign up with Google" onClick={handleGoogleSignUp} />
-            {/* SweetAlert handles all success and error messages, so no inline messages here */}
-            <form onSubmit={handleSubmit} className="signin-form">
+    <div className="signin-layout">
+      <div className="signin-illustration-panel" aria-hidden="true">
+        <img src={loginImage} alt="Illustration" />
+      </div>
+      <div className="signin-form-region" role="presentation">
+        <div className="signin-form-box" role="dialog" aria-modal="true" aria-labelledby="signin-modal-title">
+          <h2 id="signin-modal-title">Create Account</h2>
+          <GoogleButton text="Sign up with Google" onClick={handleGoogleSignUp} />
+          {/* SweetAlert handles all success and error messages */}
+          <form onSubmit={handleSubmit} className="signin-form">
           <div className="form-group">
             <input
               type="text"
@@ -302,35 +313,18 @@ const SignIn = () => {
               Accepted formats: Images (JPG, PNG, GIF), PDF, Word documents. You can add a profile picture later after logging in.
             </small>
           </div>
-          <div className="form-group" style={{ marginTop: 8, display:'flex', flexDirection:'column', gap:4 }}>
-            <div style={{ fontSize:14, lineHeight:'18px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-              <span style={{ whiteSpace:'nowrap' }}>I agree to the</span>
-              <button type="button" onClick={() => fetchPolicy('terms')} style={{ background:'none', border:'none', color:'#1d4ed8', cursor:'pointer', padding:0, fontWeight:500 }}>Terms & Conditions</button>
-              {acceptedTerms ? (
-                <span style={{ background:'#dcfce7', color:'#166534', fontSize:11, padding:'2px 6px', borderRadius:12, fontWeight:600 }}>ACCEPTED ✓</span>
-              ) : (
-                <span style={{ background:'#fef3c7', color:'#92400e', fontSize:11, padding:'2px 6px', borderRadius:12, fontWeight:600 }}>PENDING</span>
-              )}
-            </div>
-            <div style={{ fontSize:14, lineHeight:'18px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-              <span style={{ whiteSpace:'nowrap' }}>I agree to the</span>
-              <button type="button" onClick={() => fetchPolicy('privacy')} style={{ background:'none', border:'none', color:'#1d4ed8', cursor:'pointer', padding:0, fontWeight:500 }}>Privacy Policy</button>
-              {acceptedPrivacy ? (
-                <span style={{ background:'#dcfce7', color:'#166534', fontSize:11, padding:'2px 6px', borderRadius:12, fontWeight:600 }}>ACCEPTED ✓</span>
-              ) : (
-                <span style={{ background:'#fef3c7', color:'#92400e', fontSize:11, padding:'2px 6px', borderRadius:12, fontWeight:600 }}>PENDING</span>
-              )}
-            </div>
-            <small style={{ color:'#6b7280', marginTop:4 }}>Both must be accepted in the modal dialogs. Version {POLICIES_VERSION}</small>
-          </div>
-          <button type="submit" disabled={loading || !(acceptedTerms && acceptedPrivacy)}>
-            {loading ? 'Signing up...' : 'Sign Up'}
+          <p className="policy-disclaimer">
+            By signing up, you agree to our{' '}
+            <button type="button" onClick={()=>fetchPolicy('terms')}>Terms & Conditions</button>
+            {acceptedTerms && <span style={{ color:'#059669', fontSize:11, marginLeft:4 }}>(accepted)</span>}{' '}and{' '}
+            <button type="button" onClick={()=>fetchPolicy('privacy')}>Privacy Policy</button>
+            {acceptedPrivacy && <span style={{ color:'#059669', fontSize:11, marginLeft:4 }}>(accepted)</span>}. Version {POLICIES_VERSION}
+          </p>
+          <button type="submit" disabled={loading}>
+            {loading ? 'Signing up...' : (acceptedTerms && acceptedPrivacy ? 'Sign Up' : 'Continue & Accept Policies')}
           </button>
         </form>
-        <p className="login-link">
-          Already have an account? <Link to="/login">Login</Link>
-        </p>
-          </div>
+        <p className="login-link">Already have an account? <Link to="/login">Login</Link></p>
         </div>
       </div>
       {showPoliciesModal && (
@@ -351,16 +345,29 @@ const SignIn = () => {
             <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end', alignItems:'center' }}>
               <button onClick={()=>setShowPoliciesModal(false)} className="action-btn" style={{ background:'#6b7280', color:'#fff' }}>Close</button>
               {((activePolicy==='terms' && !acceptedTerms) || (activePolicy==='privacy' && !acceptedPrivacy)) && (
-                <button disabled={!scrolledToBottom} onClick={()=>{
-                  if (activePolicy==='terms') setAcceptedTerms(true); else setAcceptedPrivacy(true);
-                  try { const now=new Date().toISOString(); localStorage.setItem(`policy_accept_${activePolicy}`, now); } catch {}
-                  setShowPoliciesModal(false);
-                }} className="action-btn" style={{ background: scrolledToBottom? '#1d4ed8':'#93c5fd', color:'#fff', cursor: scrolledToBottom? 'pointer':'not-allowed' }}>
-                  Accept {activePolicy === 'terms' ? 'Terms' : 'Privacy'}
+                <button
+                  disabled={!scrolledToBottom}
+                  onClick={()=>{
+                    if (activePolicy==='terms') setAcceptedTerms(true); else setAcceptedPrivacy(true);
+                    setShowPoliciesModal(false);
+                    // decide next step after state update
+                    setTimeout(()=>{
+                      const termsAccepted = activePolicy==='terms' ? true : acceptedTerms;
+                      const privacyAccepted = activePolicy==='privacy' ? true : acceptedPrivacy;
+                      if (pendingSubmit) {
+                        if (!termsAccepted) { fetchPolicy('terms'); return; }
+                        if (!privacyAccepted) { fetchPolicy('privacy'); return; }
+                        performSignup();
+                      }
+                    }, 30);
+                  }}
+                  className="action-btn"
+                  style={{ background: scrolledToBottom? '#1d4ed8':'#93c5fd', color:'#fff', cursor: scrolledToBottom? 'pointer':'not-allowed' }}>
+                  Accept & Continue
                 </button>
               )}
               {((activePolicy==='terms' && acceptedTerms) || (activePolicy==='privacy' && acceptedPrivacy)) && (
-                <span style={{ background:'#dcfce7', color:'#166534', fontSize:12, padding:'6px 10px', borderRadius:8, fontWeight:600 }}>Already Accepted</span>
+                <span style={{ background:'#dcfce7', color:'#166534', fontSize:12, padding:'6px 10px', borderRadius:8, fontWeight:600 }}>Accepted</span>
               )}
             </div>
           </div>

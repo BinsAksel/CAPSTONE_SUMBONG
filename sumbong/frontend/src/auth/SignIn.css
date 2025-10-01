@@ -1,74 +1,71 @@
-.signin-container {
+/* =========================
+   Layout
+========================= */
+.signin-layout {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  background: white !important;
-  padding: 0;
-  margin: 0;
-  width: 100vw;
-  overflow: hidden;
-  position: fixed;
-  top: 0;
-  left: 0;
-}
-
-.signin-content {
-  display: flex;
+  min-height: 100vh;
   width: 100%;
-  height: 100vh;
-  background: white !important;
-  margin: 0;
-  padding: 0;
+  background: radial-gradient(circle at 25% 35%, #f2f8fd, #e6f1fa 55%, #deecf8);
   overflow: hidden;
-  max-width: 100vw;
-  max-height: 100vh;
 }
 
-.signin-illustration {
-  flex: 1;
+.signin-illustration-panel {
+  flex: 1 1 52%;
   display: flex;
-  align-items: center;
   justify-content: center;
-  padding: 40px;
-  background: white !important;
-  height: 100vh;
-  overflow: hidden;
+  align-items: center;
+  padding: 56px 72px 56px 80px;
 }
-
-.signin-illustration img {
-  max-width: 90%;
-  max-height: 70vh;
-  width: auto;
+.signin-illustration-panel img {
+  width: 100%;
+  max-width: 640px;
   height: auto;
   object-fit: contain;
+  filter: drop-shadow(0 10px 34px rgba(0,0,0,0.10));
+  animation: illoFade 600ms ease;
+}
+@keyframes illoFade { from { opacity:0; transform: translateY(14px);} to { opacity:1; transform: translateY(0);} }
+
+.signin-form-region {
+  flex: 1 1 48%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 80px 84px 120px;
+  overflow-y: auto; /* only right side scrolls */
+  background: linear-gradient(145deg,#fbfdff 10%, #f3f9fe 55%, #eef6fd);
 }
 
-.signin-form-container {
-  flex: 1;
+@keyframes cardIn { from { opacity:0; transform: translateY(10px);} to { opacity:1; transform: translateY(0);} }
+.signin-form-box {
+  background: #e8f4fd;
+  padding: 38px 44px 46px;
+  border-radius: 26px;
+  width: 100%;
+  max-width: 500px;
+  max-height: 80vh; /* shorten so it never spans full height */
+  box-shadow: 0 4px 18px rgba(0,42,92,0.14), 0 10px 34px rgba(0,42,92,0.12);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  background: white !important;
-  height: 100vh;
+  flex-direction: column;
+  gap: 16px;
+  animation: cardIn 380ms ease;
+  position: relative;
   overflow: hidden;
 }
 
-.signin-form-box {
-  background: #e8f4fd;
-  padding: 40px;
-  border-radius: 12px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+.signin-form-box .signin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 6px;
 }
+.signin-form-box .signin-form::-webkit-scrollbar { width: 6px; }
+.signin-form-box .signin-form::-webkit-scrollbar-track { background: transparent; }
+.signin-form-box .signin-form::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:3px; }
+.signin-form-box .signin-form::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
 
-.signin-form-container h2 {
-  text-align: center;
-  color: #333;
-  margin-bottom: 1.5rem;
-}
+.signin-form-box h2 { text-align:center; color:#1e293b; margin:0 0 1rem; font-size:1.65rem; }
 
 .form-group {
   margin-bottom: 1rem;
@@ -145,8 +142,56 @@ button:disabled {
   text-decoration: underline;
 }
 
+/* Policy Disclaimer */
+.policy-disclaimer {
+  font-size: 12px;
+  color: #4b5563;
+  margin: 4px 0 12px;
+  line-height: 1.45;
+}
+.policy-disclaimer button,
+.policy-disclaimer a {
+  color: #1d4ed8;
+  font-weight: 500;
+  text-decoration: none;
+}
+.policy-disclaimer button:hover,
+.policy-disclaimer a:hover { text-decoration: underline; }
+.policy-disclaimer button { padding:0; background:none; border:none; cursor:pointer; }
+
+/* Modal policy content refinement */
+.credential-modal h1,.credential-modal h2,.credential-modal h3 { font-weight:600; color:#1f2937; }
+.credential-modal p { color:#374151; }
+.credential-modal ul { list-style: disc; }
+.credential-modal code { background:#f3f4f6; padding:2px 4px; border-radius:4px; font-size:12px; }
+
+/* Utility */
+.text-muted { color:#6b7280; }
+.flex { display:flex; }
+.justify-between { justify-content:space-between; }
+.items-center { align-items:center; }
+.gap-2 { gap:8px; }
+
+@media (max-width: 1200px) {
+  .signin-form-region { padding: 80px 72px 110px; }
+  .signin-illustration-panel { padding: 56px 60px; }
+}
+@media (max-width: 1040px) {
+  .signin-form-region { padding: 72px 56px 100px; }
+  .signin-form-box { max-width: 480px; }
+}
+@media (max-width: 980px) {
+  .signin-layout { flex-direction: column; }
+  .signin-illustration-panel { padding: 44px 50px 4px; }
+  .signin-form-region { padding: 44px 40px 72px; }
+  .signin-form-box { padding: 34px 36px 44px; border-radius:24px; max-width:560px; max-height:78vh; }
+}
+@media (max-width: 640px) {
+  .signin-illustration-panel { padding: 32px 28px 0; }
+  .signin-form-region { padding: 32px 24px 72px; }
+  .signin-form-box { padding: 30px 26px 40px; border-radius:20px; max-width:100%; max-height:76vh; }
+}
 @media (max-width: 480px) {
-  .signin-form-container {
-    padding: 1.5rem;
-  }
-} 
+  .signin-form-region { padding: 30px 18px 64px; }
+  .signin-form-box { padding: 26px 20px 38px; border-radius:18px; max-height:74vh; }
+}

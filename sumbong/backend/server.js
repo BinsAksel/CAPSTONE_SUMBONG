@@ -41,31 +41,76 @@ const jwt = require('jsonwebtoken');
 
 // Initialize express app before any app.use/app.get/app.post
 const app = express();
+// In hosted environments (Render, Netlify functions, etc.) a reverse proxy sets X-Forwarded-* headers.
+// express-rate-limit now validates presence of X-Forwarded-For unless trust proxy is enabled.
+// Setting 'trust proxy' lets Express use the left-most entry (client IP) for rate limiting & logging.
+// Use a conservative value of 1 (one proxy hop). Can be overridden by TRUST_PROXY env if needed.
+const trustProxy = process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY : '1';
+app.set('trust proxy', trustProxy);
+if (['1','true','yes'].includes(String(process.env.CORS_DEBUG||'').toLowerCase())) {
+  console.log(`[INIT] trust proxy set to: ${trustProxy}`);
+}
 
-// --- Global Security Middleware ---
-app.use(helmet({
-  contentSecurityPolicy: false // We may serve mixed user-uploaded content; full CSP can be added separately.
+// --- CORS MUST RUN EARLY (before rate limiters) so even errors/preflight get headers ---
+const corsEnv = process.env.CORS_ORIGINS;
+const defaultOrigins = ['https://sumbongsystem.netlify.app', 'http://localhost:3000'];
+function buildOriginMatchers(list) {
+  return list.map(raw => {
+    const origin = raw.trim().replace(/\/$/, '');
+    if (!origin) return null;
+    if (origin.includes('*')) {
+      const esc = origin
+        .replace(/[-/\\^$+?.()|[\]{}]/g, r => `\\${r}`)
+        .replace(/\\\*/g, '([^.]+\\.)?');
+      return { type: 'regex', value: new RegExp(`^${esc}$`, 'i'), display: origin };
+    }
+    return { type: 'exact', value: origin, display: origin };
+  }).filter(Boolean);
+}
+const originList = corsEnv ? corsEnv.split(',') : defaultOrigins;
+const originMatchers = buildOriginMatchers(originList);
+const corsDebug = ['1','true','yes'].includes(String(process.env.CORS_DEBUG || '').toLowerCase());
+app.use(cors({
+  origin: function(origin, callback) {
+    if (corsDebug) console.log('[CORS] Incoming origin:', origin || '(none)');
+    if (!origin) return callback(null, true);
+    const normalized = origin.replace(/\/$/, '');
+    const allowed = originMatchers.some(m => (m.type === 'exact' ? m.value === normalized : m.value.test(normalized)));
+    if (allowed) {
+      if (corsDebug) console.log('[CORS] Allowed:', normalized);
+      return callback(null, true);
+    }
+    if (corsDebug) console.warn('[CORS] Rejected origin:', normalized, 'Allowed list:', originMatchers.map(m => m.display));
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With'],
+  exposedHeaders: ['Content-Type','Authorization']
 }));
-// Custom selective CSP header (light) - allow self + cloudinary
-app.use((req,res,next)=>{
+if (corsDebug) {
+  app.get('/__cors_debug', (req,res) => {
+    res.json({ configured: originMatchers.map(m => m.display), receivedOrigin: req.headers.origin || null });
+  });
+}
+
+// --- Global Security Middleware (after CORS) ---
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use((req,res,next)=>{ // custom CSP
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' https://res.cloudinary.com data:; media-src 'self' https://res.cloudinary.com data:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('Permissions-Policy','geolocation=(), microphone=(), camera=()');
   next();
 });
-// Rate limiter (general) and stricter auth limiter
+// Rate limiters (now after CORS so blocked responses still have CORS headers)
 const generalLimiter = rateLimit({ windowMs: 15*60*1000, limit: 100, standardHeaders: true, legacyHeaders: false });
 const authLimiter = rateLimit({ windowMs: 15*60*1000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { message: 'Too many auth attempts, please try again later.' }});
 app.use('/api/', generalLimiter);
 app.use('/api/auth/', authLimiter);
-// Mongo sanitize to strip $ and . operators
+// Sanitization
 app.use(mongoSanitize());
-// Basic body sanitization wrapper for selected text fields
-const sanitizeBodyFields = (fields=[]) => (req,res,next)=>{
-  fields.forEach(f=>{ if (req.body && typeof req.body[f] === 'string') { req.body[f] = sanitizeHtml(req.body[f], { allowedTags: [], allowedAttributes: {} }); }});
-  next();
-};
+const sanitizeBodyFields = (fields=[]) => (req,res,next)=>{ fields.forEach(f=>{ if (req.body && typeof req.body[f] === 'string') { req.body[f] = sanitizeHtml(req.body[f], { allowedTags: [], allowedAttributes: {} }); }}); next(); };
 
 // After DB connection attempt, log a warning if no admin users exist (no auto-create logic)
 setTimeout(async () => {
@@ -79,72 +124,6 @@ setTimeout(async () => {
   }
 }, 5000);
 
-// --- CORS middleware (must be before routes) ---
-// Supports multiple origins via env CORS_ORIGINS (comma-separated) and optional wildcard subdomains.
-// Examples:
-//   CORS_ORIGINS=https://sumbongsystem.netlify.app,https://admin.example.com,http://localhost:3000
-//   CORS_ORIGINS=https://*.example.org,http://localhost:5173
-// If not set, falls back to legacy defaults.
-function buildOriginMatchers(list) {
-  return list.map(raw => {
-    const origin = raw.trim().replace(/\/$/, ''); // trim trailing slash
-    if (!origin) return null;
-    if (origin.includes('*')) {
-      // Convert wildcard to regex (only support wildcard in hostname part)
-      // e.g. https://*.example.com -> /^https:\/\/([^.]+\.)?example\.com$/i
-      const esc = origin
-        .replace(/[-/\\^$+?.()|[\]{}]/g, r => `\\${r}`)
-        .replace(/\\\*/g, '([^.]+\\.)?');
-      return { type: 'regex', value: new RegExp(`^${esc}$`, 'i'), display: origin };
-    }
-    return { type: 'exact', value: origin, display: origin };
-  }).filter(Boolean);
-}
-
-const corsEnv = process.env.CORS_ORIGINS;
-const defaultOrigins = ['https://sumbongsystem.netlify.app', 'http://localhost:3000'];
-const originList = corsEnv ? corsEnv.split(',') : defaultOrigins;
-const originMatchers = buildOriginMatchers(originList);
-const corsDebug = ['1','true','yes'].includes(String(process.env.CORS_DEBUG || '').toLowerCase());
-
-app.use(cors({
-  origin: function(origin, callback) {
-    if (corsDebug) {
-      console.log('[CORS] Incoming origin:', origin || '(none)');
-    }
-    // Allow requests with no origin (mobile apps, curl, same-origin fetch in some contexts)
-    if (!origin) return callback(null, true);
-    const normalized = origin.replace(/\/$/, '');
-    const allowed = originMatchers.some(m => {
-      if (m.type === 'exact') return m.value === normalized;
-      if (m.type === 'regex') return m.value.test(normalized);
-      return false;
-    });
-    if (allowed) {
-      if (corsDebug) console.log('[CORS] Allowed:', normalized);
-      return callback(null, true);
-    }
-    if (corsDebug) {
-      console.warn('[CORS] Rejected origin:', normalized, 'Allowed list:', originMatchers.map(m => m.display));
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With'],
-  exposedHeaders: ['Content-Type','Authorization']
-}));
-
-// Optional helpful endpoint to inspect server-side allowed origins (disable in prod if not needed)
-if (corsDebug) {
-  app.get('/__cors_debug', (req,res) => {
-    res.json({
-      configured: originMatchers.map(m => m.display),
-      receivedOrigin: req.headers.origin || null,
-      note: 'Disable by unsetting CORS_DEBUG env variable.'
-    });
-  });
-}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

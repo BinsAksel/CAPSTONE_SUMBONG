@@ -92,3 +92,22 @@ button[type="submit"]:hover {
   font-size: 1rem;
   text-align: center;
 }
+
+/* Policy disclaimer (shared style) */
+.policy-disclaimer {
+  font-size: 12px;
+  color: #4b5563;
+  margin: 4px 0 12px;
+  line-height: 1.45;
+}
+.policy-disclaimer button,
+.policy-disclaimer a { color:#1d4ed8; font-weight:500; text-decoration:none; }
+.policy-disclaimer button:hover,
+.policy-disclaimer a:hover { text-decoration:underline; }
+.policy-disclaimer button { background:none; border:none; padding:0; cursor:pointer; }
+
+/* Modal typography enhancements */
+.credential-modal h1,.credential-modal h2,.credential-modal h3 { font-weight:600; color:#1f2937; }
+.credential-modal p { color:#374151; }
+.credential-modal ul { list-style:disc; margin-left:1.2rem; }
+.credential-modal code { background:#f3f4f6; padding:2px 4px; border-radius:4px; font-size:12px; }
