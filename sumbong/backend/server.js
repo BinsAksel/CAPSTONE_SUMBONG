@@ -315,6 +315,33 @@ const complaintUpload = multer({
   }
 });
 
+// In-memory storage for credentials (converted to base64 for Cloudinary upload)
+const credentialUploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: TEN_MB } });
+
+// Generic helper to extract full Cloudinary publicId from secure URL
+function extractCloudinaryPublicId(fullUrl) {
+  if (!fullUrl) return null;
+  try {
+    const m = fullUrl.match(/\/upload\/v\d+\/([^\.]+)(?=\.)/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
+async function deleteCloudinaryPublicIds(publicIds = []) {
+  for (const pid of publicIds) {
+    if (!pid) continue;
+    try {
+      await cloudinary.uploader.destroy(pid, { resource_type: 'image' });
+    } catch (e) {
+      // Attempt video fallback if image failed and looks like we stored a video
+      if (/\.(mp4|webm|ogg|mov|avi|mkv)$/i.test(pid)) {
+        try { await cloudinary.uploader.destroy(pid, { resource_type: 'video' }); } catch {}
+      }
+      console.warn('Cloudinary destroy failed for', pid, e.message);
+    }
+  }
+}
+
 // Test route to verify database connection
 app.get('/api/test', async (req, res) => {
   try {
@@ -463,7 +490,7 @@ app.patch('/api/admin/disapprove/:id', authenticateJWT, requireAdmin, async (req
 app.delete('/api/admin/delete/:id', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const targetId = req.params.id;
-    const targetUser = await User.findById(targetId).select('_id email isAdmin');
+    const targetUser = await User.findById(targetId).select('_id email isAdmin credentials profilePicture profilePicturePublicId');
     if (!targetUser) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -479,6 +506,25 @@ app.delete('/api/admin/delete/:id', authenticateJWT, requireAdmin, async (req, r
       }
       return res.status(403).json({ success: false, message: 'Deletion of admin accounts is not allowed via this endpoint' });
     }
+    // Collect credential publicIds for cleanup
+    const credentialPublicIds = [];
+    if (Array.isArray(targetUser.credentials)) {
+      targetUser.credentials.forEach(c => {
+        if (c && typeof c === 'object') {
+          if (c.publicId) credentialPublicIds.push(c.publicId);
+          else if (c.url) {
+            const pid = extractCloudinaryPublicId(c.url);
+            if (pid) credentialPublicIds.push(pid);
+          }
+        } else if (typeof c === 'string') {
+          const pid = extractCloudinaryPublicId(c);
+            if (pid) credentialPublicIds.push(pid);
+        }
+      });
+    }
+    if (targetUser.profilePicturePublicId) credentialPublicIds.push(targetUser.profilePicturePublicId);
+    // Best-effort deletion
+    await deleteCloudinaryPublicIds(credentialPublicIds);
     await User.findByIdAndDelete(targetId);
     res.json({ success: true });
   } catch (err) {
@@ -1187,6 +1233,55 @@ app.patch('/api/admin/request-resubmission/:userId', authenticateJWT, requireAdm
   } catch (err) {
     console.error('Error in request-resubmission:', err);
     res.status(500).json({ message: 'Failed to request resubmission', error: err.message });
+  }
+});
+
+// Upload user credential images (max 5) -> Cloudinary folder per user
+app.post('/api/user/credentials', authenticateJWT, credentialUploadMemory.array('credentials', 5), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No credential files uploaded' });
+    }
+    const user = await User.findById(req.user.id).select('credentials');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const folder = `sumbong/credentials/${req.user.id}`;
+    const uploaded = [];
+    for (const f of req.files) {
+      const b64 = `data:${f.mimetype};base64,${f.buffer.toString('base64')}`;
+      const up = await cloudinary.uploader.upload(b64, {
+        folder,
+        resource_type: 'image',
+        use_filename: true,
+        unique_filename: true,
+        overwrite: false
+      });
+      uploaded.push({ url: up.secure_url, publicId: up.public_id, uploadedAt: new Date() });
+    }
+    user.credentials = user.credentials.concat(uploaded);
+    await user.save();
+    res.json({ success: true, credentials: user.credentials });
+  } catch (e) {
+    console.error('Credential upload error:', e);
+    res.status(500).json({ message: 'Failed to upload credentials', error: e.message });
+  }
+});
+
+// Delete a single credential by publicId
+app.delete('/api/user/credentials/:publicId', authenticateJWT, async (req, res) => {
+  try {
+    const encoded = req.params.publicId;
+    const decoded = decodeURIComponent(encoded);
+    const user = await User.findById(req.user.id).select('credentials');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    const match = user.credentials.find(c => (c.publicId === decoded) || extractCloudinaryPublicId(c.url) === decoded);
+    if (!match) return res.status(404).json({ message: 'Credential not found' });
+    await deleteCloudinaryPublicIds([match.publicId || extractCloudinaryPublicId(match.url)]);
+    user.credentials = user.credentials.filter(c => c !== match);
+    await user.save();
+    res.json({ success: true, credentials: user.credentials });
+  } catch (e) {
+    console.error('Credential delete error:', e);
+    res.status(500).json({ message: 'Failed to delete credential', error: e.message });
   }
 });
 

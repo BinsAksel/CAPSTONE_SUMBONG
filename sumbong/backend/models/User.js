@@ -33,10 +33,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  // Credentials for verification (ID, documents proving residency)
+  // Credentials for verification (each now stored as object with url + publicId)
   credentials: [{
-    type: String, // URLs to stored credential images
-    required: true
+    url: { type: String, required: true },
+    publicId: { type: String, default: null },
+    uploadedAt: { type: Date, default: Date.now }
   }],
   // Profile picture (can be added later)
   profilePicture: {
@@ -106,7 +107,20 @@ const userSchema = new mongoose.Schema({
   }
 });
 
-// Hash password before saving
+// Backward compatibility: if credentials is an array of strings, convert to objects
+userSchema.pre('save', function convertLegacyCredentials(next) {
+  try {
+    if (Array.isArray(this.credentials) && this.credentials.length > 0) {
+      this.credentials = this.credentials.map(c => {
+        if (typeof c === 'string') return { url: c, publicId: null, uploadedAt: new Date() };
+        return c;
+      });
+    }
+  } catch {}
+  next();
+});
+
+// Hash password before saving (after legacy conversion)
 userSchema.pre('save', async function(next) {
   // Only hash if the password field is newly set or modified
   if (!this.isModified('password')) {
