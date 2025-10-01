@@ -77,6 +77,10 @@ const googleSignup = async (req, res) => {
       acceptedPoliciesAt: new Date()
     });
     if (user) {
+      try {
+        const bus = require('../events/bus');
+        bus.emit('new_user', { userId: user._id.toString() });
+      } catch (e) { console.warn('Emit new_user (googleSignup) failed:', e.message); }
       res.status(201).json({
         success: true,
         token: generateToken(user._id),
@@ -239,6 +243,10 @@ const signup = async (req, res) => {
       });
 
       if (user) {
+        try {
+          const bus = require('../events/bus');
+          bus.emit('new_user', { userId: user._id.toString() });
+        } catch (e) { console.warn('Emit new_user (signup) failed:', e.message); }
         res.status(201).json({
           success: true,
           token: generateToken(user._id),

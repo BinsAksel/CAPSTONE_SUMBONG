@@ -43,6 +43,8 @@ const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('./config/cloudinary');
 const Complaint = require('./models/Complaint');
 const jwt = require('jsonwebtoken');
+const Notification = require('./models/Notification');
+const bus = require('./events/bus');
 
 
 
@@ -827,8 +829,9 @@ app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','con
         if (!complaintData.contact) complaintData.contact = u.email;
       }
     }
-    const complaint = await Complaint.create(complaintData);
-    res.json({ complaint });
+  const complaint = await Complaint.create(complaintData);
+  try { bus.emit('new_complaint', { complaintId: complaint._id.toString() }); } catch (e) { console.warn('Emit new_complaint failed:', e.message); }
+  res.json({ complaint });
   } catch (err) {
     console.error('Submit complaint error:', err);
     res.status(500).json({ message: 'Failed to submit complaint', error: err.message });
@@ -1009,6 +1012,7 @@ app.post('/api/complaints/:id/feedback-entry', authenticateJWT, sanitizeBodyFiel
     if (authorType === 'user') {
       try {
         const adminIds = await User.find({ isAdmin: true }).select('_id');
+        console.log('[feedback-entry] user post -> broadcasting to admins', { complaintId: complaint._id.toString(), adminCount: adminIds.length });
         adminIds.forEach(a => {
           // Avoid duplicate notify if somehow user is also admin (edge case)
           if (a._id.toString() === complaint.user.toString()) return;
@@ -1018,6 +1022,10 @@ app.post('/api/complaints/:id/feedback-entry', authenticateJWT, sanitizeBodyFiel
             entry
           });
         });
+        try {
+          bus.emit('user_feedback_entry', { complaintId: complaint._id.toString(), entryMessage: entry.message });
+          console.log('[feedback-entry] emitted user_feedback_entry', { complaintId: complaint._id.toString(), preview: entry.message.slice(0,60) });
+        } catch (e2) { console.warn('Emit user_feedback_entry failed:', e2.message); }
       } catch (e) {
         console.warn('Failed to broadcast feedback thread update to admins:', e.message);
       }
@@ -1531,6 +1539,7 @@ const sendRealTimeUpdate = (userId, data) => {
   const client = connectedClients.get(userId);
   if (client) {
     try {
+      console.log('[SSE push]', { userId, type: data.type });
       client.write(`data: ${JSON.stringify(data)}\n\n`);
     } catch (error) {
       console.error('Error sending real-time update:', error);
@@ -1538,6 +1547,75 @@ const sendRealTimeUpdate = (userId, data) => {
     }
   }
 };
+
+// Helper: create notifications for all admins
+async function notifyAdmins(payloadBuilder) {
+  try {
+    const admins = await User.find({ isAdmin: true }).select('_id');
+    if (!admins.length) return;
+    const notifications = [];
+    for (const a of admins) {
+      const nPayload = payloadBuilder(a._id);
+      notifications.push({ ...nPayload, recipient: a._id });
+    }
+    if (notifications.length) {
+      console.log('[notifyAdmins] inserting notifications', notifications.length, notifications[0]?.type);
+      const created = await Notification.insertMany(notifications);
+      // Broadcast via SSE
+      created.forEach(n => {
+        sendRealTimeUpdate(n.recipient.toString(), { type: 'admin_notification', notification: n });
+      });
+      console.log('[notifyAdmins] broadcast complete');
+    }
+  } catch (e) {
+    console.warn('notifyAdmins failed:', e.message);
+  }
+}
+
+// Event subscriptions
+bus.on('new_user', async ({ userId }) => {
+  try {
+    const user = await User.findById(userId).select('firstName lastName email');
+    if (!user) return;
+    await notifyAdmins(() => ({
+      type: 'new_user',
+      entityType: 'user',
+      entityId: user._id,
+      message: `New user registered: ${user.firstName} ${user.lastName}`,
+      meta: { email: user.email }
+    }));
+  } catch (e) { console.warn('new_user handler failed:', e.message); }
+});
+
+bus.on('new_complaint', async ({ complaintId }) => {
+  try {
+    const c = await Complaint.findById(complaintId).populate('user','firstName lastName');
+    if (!c) return;
+    await notifyAdmins(() => ({
+      type: 'new_complaint',
+      entityType: 'complaint',
+      entityId: c._id,
+      message: `New complaint submitted by ${c.user ? (c.user.firstName + ' ' + c.user.lastName) : 'Unknown User'}`,
+      meta: { status: c.status, type: c.type }
+    }));
+  } catch (e) { console.warn('new_complaint handler failed:', e.message); }
+});
+
+bus.on('user_feedback_entry', async ({ complaintId, entryMessage }) => {
+  try {
+    console.log('[bus] user_feedback_entry received', { complaintId, preview: (entryMessage||'').slice(0,60) });
+    const c = await Complaint.findById(complaintId).populate('user','firstName lastName');
+    if (!c) return;
+    await notifyAdmins(() => ({
+      type: 'user_feedback',
+      entityType: 'complaint',
+      entityId: c._id,
+      message: `User replied on complaint ${c._id}`,
+      meta: { preview: entryMessage.slice(0,180) }
+    }));
+    console.log('[bus] user_feedback_entry processed -> notifications created');
+  } catch (e) { console.warn('user_feedback_entry handler failed:', e.message); }
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -1587,6 +1665,93 @@ app.delete('/api/user/profile-picture', authenticateJWT, async (req, res) => {
   } catch (err) {
     console.error('Remove profile picture error:', err);
     res.status(500).json({ message: 'Failed to remove profile picture', error: err.message });
+  }
+});
+
+// --- Admin Notifications Endpoints ---
+// List notifications (supports query ?unread=1 & ?limit=50)
+app.get('/api/admin/notifications', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const filter = { recipient: req.user.id };
+    if (['1','true','yes'].includes(String(req.query.unread||'').toLowerCase())) filter.read = false;
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const notifications = await Notification.find(filter).sort({ createdAt: -1 }).limit(limit);
+    res.json({ notifications });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to fetch notifications', error: e.message });
+  }
+});
+// Fallback without /api prefix (deployed path variance safeguard)
+// (Early fallback mount) Admin notifications (non /api) for hosting environments that strip /api
+app.get('/admin/notifications', authenticateJWT, requireAdmin, async (req, res) => {
+  console.log('[HTTP] GET /admin/notifications (fallback)');
+  try {
+    const filter = { recipient: req.user.id };
+    if (['1','true','yes'].includes(String(req.query.unread||'').toLowerCase())) filter.read = false;
+    const limit = Math.min(parseInt(req.query.limit || '50', 10), 200);
+    const notifications = await Notification.find(filter).sort({ createdAt: -1 }).limit(limit);
+    res.json({ notifications, fallback: true });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to fetch notifications', error: e.message });
+  }
+});
+
+// Diagnostic: force-create a test notification for current admin (remove in production)
+app.post('/admin/notifications/test', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const n = await Notification.create({
+      recipient: req.user.id,
+      type: 'diagnostic',
+      entityType: 'system',
+      entityId: req.user.id,
+      message: 'Test notification ' + new Date().toISOString(),
+      meta: { source: 'diagnostic-endpoint' }
+    });
+    // SSE push
+    sendRealTimeUpdate(req.user.id, { type: 'admin_notification', notification: n });
+    res.json({ created: n });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to create test notification', error: e.message });
+  }
+});
+
+// Mark single notification as read
+app.patch('/api/admin/notifications/:id/read', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const notif = await Notification.findOneAndUpdate({ _id: req.params.id, recipient: req.user.id }, { read: true }, { new: true });
+    if (!notif) return res.status(404).json({ message: 'Notification not found' });
+    res.json({ notification: notif });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to mark notification read', error: e.message });
+  }
+});
+app.patch('/admin/notifications/:id/read', authenticateJWT, requireAdmin, async (req, res) => {
+  console.log('[HTTP] PATCH /admin/notifications/:id/read (fallback)', req.params.id);
+  try {
+    const notif = await Notification.findOneAndUpdate({ _id: req.params.id, recipient: req.user.id }, { read: true }, { new: true });
+    if (!notif) return res.status(404).json({ message: 'Notification not found' });
+    res.json({ notification: notif, fallback: true });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to mark notification read', error: e.message });
+  }
+});
+
+// Mark all notifications as read
+app.patch('/api/admin/notifications/read-all', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    await Notification.updateMany({ recipient: req.user.id, read: false }, { $set: { read: true } });
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to mark all notifications read', error: e.message });
+  }
+});
+app.patch('/admin/notifications/read-all', authenticateJWT, requireAdmin, async (req, res) => {
+  console.log('[HTTP] PATCH /admin/notifications/read-all (fallback)');
+  try {
+    await Notification.updateMany({ recipient: req.user.id, read: false }, { $set: { read: true } });
+    res.json({ success: true, fallback: true });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to mark all notifications read', error: e.message });
   }
 });
 

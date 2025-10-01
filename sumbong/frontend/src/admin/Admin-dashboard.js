@@ -7,6 +7,9 @@ import { useNavigate } from 'react-router-dom';
 import './Admin-dashboard.css';
 import Select from 'react-select';
 import { toAbsolute } from '../utils/url';
+import NotificationBell from '../components/NotificationBell';
+import NotificationDropdown from '../components/NotificationDropdown';
+import { fetchNotifications, markNotificationRead, markAllNotificationsRead } from '../api/notificationsApi';
 
 
 // Evidence modal state and renderer for fullscreen evidence viewing
@@ -72,6 +75,14 @@ const AdminDashboard = () => {
   const [showVerificationHistory, setShowVerificationHistory] = useState(false);
   const [currentUserId, setCurrentUserId] = useState(null);
   const [selectedUserCredentials, setSelectedUserCredentials] = useState(null);
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifLimit, setNotifLimit] = useState(30);
+  const notifDropdownRef = useRef(null);
+  const bellButtonRef = useRef(null);
+  const unreadCount = notifications.filter(n => !n.read).length;
   // Credential image modal state and renderer
   const [credentialImageModal, setCredentialImageModal] = useState({ open: false, index: 0 });
   // Helper: safely extract a raw URL from mixed credential representations (string or {url,...})
@@ -236,7 +247,18 @@ const AdminDashboard = () => {
       prevComplaintsCount.current = complaintsRes.data.complaints.length;
     };
     initFetch();
-    // Establish SSE for admin to receive updates (re-using user channel - admin sees user updates by refetch or optionally all)
+    // Initial notifications load
+    const loadNotifs = async () => {
+      setNotifLoading(true);
+      try {
+        const list = await fetchNotifications({ limit: notifLimit });
+        setNotifications(list);
+      } catch (e) { /* ignore */ }
+      setNotifLoading(false);
+    };
+    loadNotifs();
+
+    // Establish SSE for admin to receive updates (re-using user channel - plus admin_notification events)
     if (adminUser && adminUser._id && !eventSourceRef.current) {
       const es = new EventSource(`https://capstone-sumbong.onrender.com/api/realtime/${adminUser._id}`);
       eventSourceRef.current = es;
@@ -244,6 +266,7 @@ const AdminDashboard = () => {
         try {
           const data = JSON.parse(ev.data);
           if (!data || !data.type) return;
+          try { console.log('[Admin SSE]', data.type, data); } catch {}
           if (data.type === 'status_update') {
             // Light refetch for status changes
             fetchComplaints();
@@ -300,6 +323,14 @@ const AdminDashboard = () => {
               });
             }
           }
+          if (data.type === 'admin_notification' && data.notification) {
+            try { console.log('[Admin SSE] admin_notification received', data.notification); } catch {}
+            setNotifications(prev => {
+              const exists = prev.some(n => n._id === data.notification._id);
+              if (exists) return prev;
+              return [data.notification, ...prev].sort((a,b)=> new Date(b.createdAt)-new Date(a.createdAt)).slice(0,300);
+            });
+          }
         } catch (e) { /* ignore malformed event */ }
       };
       es.onerror = () => {
@@ -312,6 +343,19 @@ const AdminDashboard = () => {
       fetchUsers();
       fetchComplaints();
     }, 10000);
+
+    // Fallback notification polling (SSE reconciliation)
+    const notifPoll = setInterval(async () => {
+      try {
+        const latest = await fetchNotifications({ limit: notifLimit });
+        setNotifications(prev => {
+          // If counts differ or new ids, replace
+            const prevIds = new Set(prev.map(p=>p._id));
+            const changed = latest.some(n=>!prevIds.has(n._id)) || prev.length !== latest.length;
+            return changed ? latest : prev;
+        });
+      } catch { /* ignore */ }
+    }, 20000);
     return () => clearInterval(intervalId);
   }, [navigate]);
 
@@ -424,6 +468,66 @@ const AdminDashboard = () => {
     Swal.fire({ icon: 'success', title: 'Logged out!' }).then(() => {
       navigate('/admin');
     });
+  };
+
+  // Notification interactions
+  const toggleNotifications = () => setNotifOpen(o => !o);
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (!notifOpen) return;
+      const dropdown = notifDropdownRef.current;
+      const bell = bellButtonRef.current;
+      if (dropdown && !dropdown.contains(e.target) && bell && !bell.contains(e.target)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [notifOpen]);
+
+  const handleSelectNotification = async (n) => {
+    // Mark read locally + server
+    if (!n.read) {
+      setNotifications(prev => prev.map(x => x._id === n._id ? { ...x, read: true } : x));
+      try { await markNotificationRead(n._id); } catch { /* ignore */ }
+    }
+    // Navigate based on entityType
+    if (n.entityType === 'complaint') {
+      // Attempt to open complaint modal if already in complaints tab
+      setActiveTab('complaints');
+      // Lazy fetch if not loaded yet
+      if (!complaints.length) await fetchComplaints();
+      const found = complaints.find(c => c._id === n.entityId);
+      if (found) setViewComplaint(found);
+      else {
+        // fallback full refetch then open
+        await fetchComplaints();
+        const again = complaints.find(c => c._id === n.entityId);
+        if (again) setViewComplaint(again);
+      }
+    } else if (n.entityType === 'user') {
+      setActiveTab('users');
+      // highlight? For simplicity, maybe filter or scroll later.
+    }
+  };
+
+  const handleMarkAll = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    try { await markAllNotificationsRead(); } catch { /* ignore */ }
+  };
+
+  const handleMarkSingle = async (id) => {
+    setNotifications(prev => prev.map(n => n._id === id ? { ...n, read: true } : n));
+    try { await markNotificationRead(id); } catch { /* ignore */ }
+  };
+
+  const handleLoadMore = async () => {
+    const newLimit = notifLimit + 30;
+    setNotifLimit(newLimit);
+    try {
+      const list = await fetchNotifications({ limit: newLimit });
+      setNotifications(list);
+    } catch { /* ignore */ }
   };
 
   const handleStatusChange = async (complaintId, status) => {
@@ -691,6 +795,23 @@ const AdminDashboard = () => {
 
   return (
     <div className="admin-root" style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
+      {/* Floating Notification Bell (moved from sidebar to top-right) */}
+      <div className="admin-bell-floating" ref={bellButtonRef}>
+        <NotificationBell count={unreadCount} onClick={toggleNotifications} open={notifOpen} />
+        {notifOpen && (
+          <div ref={notifDropdownRef}>
+            <NotificationDropdown
+              notifications={notifications}
+              loading={notifLoading}
+              onSelect={handleSelectNotification}
+              onMarkAll={handleMarkAll}
+              onMarkSingle={handleMarkSingle}
+              onLoadMore={handleLoadMore}
+              hasMore={notifications.length >= notifLimit}
+            />
+          </div>
+        )}
+      </div>
       {/* Sidebar */}
       <div className="admin-sidebar">
         <div className="admin-sidebar-content">
