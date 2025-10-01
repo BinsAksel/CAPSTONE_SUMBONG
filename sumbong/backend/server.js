@@ -103,11 +103,72 @@ app.use((req,res,next)=>{ // custom CSP
   res.setHeader('Permissions-Policy','geolocation=(), microphone=(), camera=()');
   next();
 });
-// Rate limiters (now after CORS so blocked responses still have CORS headers)
-const generalLimiter = rateLimit({ windowMs: 15*60*1000, limit: 100, standardHeaders: true, legacyHeaders: false });
-const authLimiter = rateLimit({ windowMs: 15*60*1000, limit: 20, standardHeaders: true, legacyHeaders: false, message: { message: 'Too many auth attempts, please try again later.' }});
+// --- Rate limiting (configurable & user-aware) ---
+// Environment variables (all optional):
+// RATE_LIMIT_WINDOW_MS (default 900000 = 15 min)
+// RATE_LIMIT_GENERAL (requests per window for general API, default 600)
+// RATE_LIMIT_AUTH (requests per window for auth endpoints, default 50)
+// RATE_LIMIT_DEBUG=1 to log 429 decisions
+function envInt(name, def) { const v = parseInt(process.env[name] || ''); return Number.isFinite(v) && v > 0 ? v : def; }
+const RL_WINDOW = envInt('RATE_LIMIT_WINDOW_MS', 15*60*1000);
+const RL_GENERAL = envInt('RATE_LIMIT_GENERAL', 600);
+const RL_AUTH = envInt('RATE_LIMIT_AUTH', 50);
+const rlDebug = ['1','true','yes'].includes(String(process.env.RATE_LIMIT_DEBUG||'').toLowerCase());
+
+// Key generator prefers user id embedded in JWT to avoid all users behind one NAT IP sharing a bucket.
+const rateKeyGenerator = (req) => {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) {
+    try {
+      const decoded = jwt.decode(auth.split(' ')[1]);
+      if (decoded && decoded.id) return `user:${decoded.id}`;
+    } catch {/* ignore decode issues */}
+  }
+  // Fallback to IP (Express considers trust proxy earlier set)
+  return `ip:${req.ip}`;
+};
+
+// Skip health checks, realtime (SSE) channel, policy file loads, OPTIONS preflight.
+const rateSkip = (req) => {
+  if (req.method === 'OPTIONS') return true;
+  const p = req.path;
+  return p.startsWith('/api/health') || p.startsWith('/api/test') || p.startsWith('/api/realtime') || p.startsWith('/api/policies/');
+};
+
+const build429Handler = (name) => (req, res, _next, options) => {
+  if (rlDebug) {
+    console.warn(`[RATE_LIMIT] 429 for key=${rateKeyGenerator(req)} route=${req.originalUrl} limiter=${name}`);
+  }
+  res.status(options.statusCode).json({
+    message: options.message && options.message.message ? options.message.message : 'Too many requests, please slow down.',
+    limiter: name,
+    windowMs: RL_WINDOW,
+    limit: options.limit,
+    retryAfterSeconds: Math.ceil((options.windowMs || RL_WINDOW)/1000)
+  });
+};
+
+const generalLimiter = rateLimit({
+  windowMs: RL_WINDOW,
+  limit: RL_GENERAL,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateKeyGenerator,
+  skip: rateSkip,
+  handler: build429Handler('general')
+});
+const authLimiter = rateLimit({
+  windowMs: RL_WINDOW,
+  limit: RL_AUTH,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: rateKeyGenerator,
+  skip: rateSkip,
+  message: { message: 'Too many auth attempts, please try again later.' },
+  handler: build429Handler('auth')
+});
+app.use('/api/auth/', authLimiter); // auth first (stricter)
 app.use('/api/', generalLimiter);
-app.use('/api/auth/', authLimiter);
 // Sanitization
 app.use(mongoSanitize());
 const sanitizeBodyFields = (fields=[]) => (req,res,next)=>{ fields.forEach(f=>{ if (req.body && typeof req.body[f] === 'string') { req.body[f] = sanitizeHtml(req.body[f], { allowedTags: [], allowedAttributes: {} }); }}); next(); };
@@ -459,8 +520,10 @@ app.get('/api/health', (req, res) => {
 
 
 // Routes
+// Auth routes (signup/login/admin login) grouped together
 app.post('/api/auth/signup', handleUpload, signup);
 app.post('/api/auth/login', login);
+app.post('/api/auth/admin/login', adminLogin);
 
 // Get all users
 app.get('/api/admin/users', authenticateJWT, requireAdmin, async (req, res) => {
@@ -1473,7 +1536,4 @@ app.delete('/api/user/profile-picture', authenticateJWT, async (req, res) => {
   }
 });
 
-// Auth routes (existing user login/signup)
-app.post('/api/auth/login', login);
-app.post('/api/auth/signup', handleUpload, signup);
-app.post('/api/auth/admin/login', adminLogin);
+// (Duplicate auth route declarations removed above to prevent stacking handlers.)
