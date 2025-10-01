@@ -74,6 +74,13 @@ const AdminDashboard = () => {
   const [selectedUserCredentials, setSelectedUserCredentials] = useState(null);
   // Credential image modal state and renderer
   const [credentialImageModal, setCredentialImageModal] = useState({ open: false, index: 0 });
+  // Helper: safely extract a raw URL from mixed credential representations (string or {url,...})
+  const extractCredentialUrl = (cred) => {
+    if (!cred) return '';
+    if (typeof cred === 'string') return cred;
+    if (cred.url) return cred.url;
+    return '';
+  };
 
   function renderCredentialImageModal() {
   if (!selectedUserCredentials || !credentialImageModal.open) return null;
@@ -1252,27 +1259,32 @@ const AdminDashboard = () => {
               </div>
 
               <div className="credential-display">
-                {selectedUserCredentials.credentials && selectedUserCredentials.credentials.length > 0 && (
-                  <img
-                    src={toAbsolute(selectedUserCredentials.credentials[currentCredentialIndex])}
-                    alt={`Credential ${currentCredentialIndex + 1}`}
-                    style={{
-                      maxWidth: '100%',
-                      maxHeight: '500px',
-                      objectFit: 'contain',
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-                      cursor: 'pointer'
-                    }}
-                    onClick={e => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setCredentialImageModal({ open: true, index: currentCredentialIndex });
-                    }}
-                    title="Click to view full screen"
-                  />
-                )}
+                {selectedUserCredentials.credentials && selectedUserCredentials.credentials.length > 0 && (() => {
+                  const rawCred = selectedUserCredentials.credentials[currentCredentialIndex];
+                  const rawUrl = extractCredentialUrl(rawCred);
+                  if (!rawUrl) return <div style={{padding:20,color:'#b91c1c'}}>Unable to display credential (missing URL)</div>;
+                  return (
+                    <img
+                      src={toAbsolute(rawUrl)}
+                      alt={`Credential ${currentCredentialIndex + 1}`}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '500px',
+                        objectFit: 'contain',
+                        border: '1px solid #ddd',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                        cursor: 'pointer'
+                      }}
+                      onClick={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCredentialImageModal({ open: true, index: currentCredentialIndex });
+                      }}
+                      title="Click to view full screen"
+                    />
+                  );
+                })()}
               </div>
 
               <div className="credential-actions">
