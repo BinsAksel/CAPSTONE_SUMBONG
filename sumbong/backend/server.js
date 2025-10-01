@@ -50,25 +50,72 @@ setTimeout(async () => {
   }
 }, 5000);
 
-// --- CORS middleware at the very top ---
-// IMPORTANT: CORS must be registered BEFORE any routes so that all responses
-// (including /api/user/me) include the proper Access-Control-* headers.
-const allowedOrigins = [
-  'https://sumbongsystem.netlify.app/',
-  'http://localhost:3000'
-];
+// --- CORS middleware (must be before routes) ---
+// Supports multiple origins via env CORS_ORIGINS (comma-separated) and optional wildcard subdomains.
+// Examples:
+//   CORS_ORIGINS=https://sumbongsystem.netlify.app,https://admin.example.com,http://localhost:3000
+//   CORS_ORIGINS=https://*.example.org,http://localhost:5173
+// If not set, falls back to legacy defaults.
+function buildOriginMatchers(list) {
+  return list.map(raw => {
+    const origin = raw.trim().replace(/\/$/, ''); // trim trailing slash
+    if (!origin) return null;
+    if (origin.includes('*')) {
+      // Convert wildcard to regex (only support wildcard in hostname part)
+      // e.g. https://*.example.com -> /^https:\/\/([^.]+\.)?example\.com$/i
+      const esc = origin
+        .replace(/[-/\\^$+?.()|[\]{}]/g, r => `\\${r}`)
+        .replace(/\\\*/g, '([^.]+\\.)?');
+      return { type: 'regex', value: new RegExp(`^${esc}$`, 'i'), display: origin };
+    }
+    return { type: 'exact', value: origin, display: origin };
+  }).filter(Boolean);
+}
+
+const corsEnv = process.env.CORS_ORIGINS;
+const defaultOrigins = ['https://sumbongsystem.netlify.app', 'http://localhost:3000'];
+const originList = corsEnv ? corsEnv.split(',') : defaultOrigins;
+const originMatchers = buildOriginMatchers(originList);
+const corsDebug = ['1','true','yes'].includes(String(process.env.CORS_DEBUG || '').toLowerCase());
+
 app.use(cors({
   origin: function(origin, callback) {
-    // allow requests with no origin (like mobile apps, curl, etc.)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
+    if (corsDebug) {
+      console.log('[CORS] Incoming origin:', origin || '(none)');
     }
+    // Allow requests with no origin (mobile apps, curl, same-origin fetch in some contexts)
+    if (!origin) return callback(null, true);
+    const normalized = origin.replace(/\/$/, '');
+    const allowed = originMatchers.some(m => {
+      if (m.type === 'exact') return m.value === normalized;
+      if (m.type === 'regex') return m.value.test(normalized);
+      return false;
+    });
+    if (allowed) {
+      if (corsDebug) console.log('[CORS] Allowed:', normalized);
+      return callback(null, true);
+    }
+    if (corsDebug) {
+      console.warn('[CORS] Rejected origin:', normalized, 'Allowed list:', originMatchers.map(m => m.display));
+    }
+    return callback(new Error('Not allowed by CORS'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With'],
+  exposedHeaders: ['Content-Type','Authorization']
 }));
+
+// Optional helpful endpoint to inspect server-side allowed origins (disable in prod if not needed)
+if (corsDebug) {
+  app.get('/__cors_debug', (req,res) => {
+    res.json({
+      configured: originMatchers.map(m => m.display),
+      receivedOrigin: req.headers.origin || null,
+      note: 'Disable by unsetting CORS_DEBUG env variable.'
+    });
+  });
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -133,10 +180,14 @@ app.get('/api/user/me', authenticateJWT, async (req, res) => {
 // PATCH /api/user with profile picture upload support
 
 // Passport config
+// Resolve dynamic callback URL (prefers env override)
+const GOOGLE_CALLBACK = process.env.GOOGLE_CALLBACK_URL || `${process.env.BACKEND_BASE_URL || 'https://capstone-sumbong.onrender.com'}/api/auth/google/callback`;
+const FRONTEND_BASE = (process.env.FRONTEND_ORIGIN || 'https://sumbongsystem.netlify.app').replace(/\/$/, '');
+
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  callbackURL: 'https://capstone-sumbong.onrender.com/api/auth/google/callback',
+  callbackURL: GOOGLE_CALLBACK,
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     console.log('Google profile:', profile);
@@ -228,15 +279,15 @@ app.get('/api/auth/google/callback', passport.authenticate('google', {
         email: user.email || (user.emails && user.emails[0] && user.emails[0].value) || '',
         profilePicture: user.profilePicture || (user.photos && user.photos[0] && user.photos[0].value) || ''
       }).toString();
-      return res.redirect(`https://sumbongsystem.netlify.app/complete-profile?${params}`);
+      return res.redirect(`${FRONTEND_BASE}/complete-profile?${params}`);
     }
     // Existing users: only allow login if approved
     if (!user.approved) {
       // Optionally, you can redirect to a custom pending page or show a message
-      return res.redirect('https://sumbongsystem.netlify.app/login?pending=1');
+      return res.redirect(`${FRONTEND_BASE}/login?pending=1`);
     }
     const token = generateToken(user._id);
-    return res.redirect(`https://sumbongsystem.netlify.app/dashboard?token=${token}`);
+    return res.redirect(`${FRONTEND_BASE}/dashboard?token=${token}`);
   } catch (err) {
     console.error('Error in Google OAuth callback:', err);
     res.status(500).json({ success: false, message: 'Internal server error', error: err.message });
