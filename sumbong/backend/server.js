@@ -521,9 +521,12 @@ app.get('/api/admin/users', authenticateJWT, requireAdmin, async (req, res) => {
             ? user.profilePicture
             : (user.profilePicture.startsWith('uploads/') ? user.profilePicture : `uploads/${user.profilePicture}`))
         : null;
+      // Backward compatibility: flat array of URLs for older frontend code
+      const credentialUrls = normalizedCreds.map(c => c.url).filter(Boolean);
       return {
         ...user.toObject(),
         credentials: normalizedCreds,
+        credentialUrls,
         profilePicture
       };
     });

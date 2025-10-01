@@ -35,12 +35,19 @@ const googleSignup = async (req, res) => {
         message: 'User already exists'
       });
     }
-    // Build credential objects (schema now expects objects)
-    const credentialObjs = (req.files || []).map(file => ({
-      url: `uploads/${file.filename}`,
-      publicId: null,
-      uploadedAt: new Date()
-    }));
+    // Upload credentials to Cloudinary (temporary folder until full user provisioning logic)
+    const credentialObjs = [];
+    for (const f of (req.files || [])) {
+      const b64 = `data:${f.mimetype};base64,${f.buffer.toString('base64')}`;
+      const up = await cloudinary.uploader.upload(b64, {
+        folder: 'sumbong/credentials/google_temp',
+        resource_type: 'image',
+        use_filename: true,
+        unique_filename: true,
+        overwrite: false
+      });
+      credentialObjs.push({ url: up.secure_url, publicId: up.public_id, uploadedAt: new Date() });
+    }
     if (credentialObjs.length === 0) {
       return res.status(400).json({
         success: false,
@@ -96,28 +103,14 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Configure multer for credential upload
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Memory storage -> direct Cloudinary upload
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: function(req, file, cb) { checkFileType(file, cb); }
+}).array('credentials', 5);
 
-const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10000000 }, // 10MB limit for documents
-  fileFilter: function (req, file, cb) {
-    checkFileType(file, cb);
-  }
-}).array('credentials', 5); // Allow up to 5 credential files
+const cloudinary = require('../config/cloudinary');
 
 // Create a middleware that handles both cases - with and without files
 const handleUpload = (req, res, next) => {
@@ -195,12 +188,19 @@ const signup = async (req, res) => {
         });
       }
 
-      // Build credential objects for new schema
-      const credentialObjs = (req.files || []).map(file => ({
-        url: `uploads/${file.filename}`,
-        publicId: null,
-        uploadedAt: new Date()
-      }));
+      // Upload credential files to Cloudinary
+      const credentialObjs = [];
+      for (const f of (req.files || [])) {
+        const b64 = `data:${f.mimetype};base64,${f.buffer.toString('base64')}`;
+        const up = await cloudinary.uploader.upload(b64, {
+          folder: 'sumbong/credentials/signup',
+          resource_type: 'image',
+          use_filename: true,
+          unique_filename: true,
+          overwrite: false
+        });
+        credentialObjs.push({ url: up.secure_url, publicId: up.public_id, uploadedAt: new Date() });
+      }
 
       if (credentialObjs.length === 0) {
         return res.status(400).json({
