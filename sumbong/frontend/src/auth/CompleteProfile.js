@@ -7,6 +7,7 @@ import { API_BASE } from '../config/apiBase';
 
 const CompleteProfile = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const query = new URLSearchParams(location.search);
   const userId = query.get('userId');
   // Get Google info from query params if present

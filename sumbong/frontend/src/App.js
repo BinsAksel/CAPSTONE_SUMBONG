@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import routes from './routes';
 import GoogleTokenHandler from './auth/GoogleTokenHandler';
 import './App.css';
+import './responsive-overrides.css';
 import InstallPWAButton from './components/InstallPWAButton';
 
 
