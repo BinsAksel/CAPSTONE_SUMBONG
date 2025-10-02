@@ -1130,6 +1130,51 @@ body.modal-open {
   /* Make whole add/edit complaint modal scroll instead of just the form */
   .dashboard-modal.add-complaint-modal,
   .dashboard-modal.edit-complaint-modal { overflow-y:auto !important; }
+
+/* === Edit Profile modal: progressively smaller profile image on narrow screens === */
+@media (max-width: 560px) {
+  .edit-profile-modal .profile-pic-large { width: 220px; height: 220px; }
+}
+@media (max-width: 480px) {
+  .edit-profile-modal .profile-pic-large { width: 200px; height: 200px; }
+}
+@media (max-width: 420px) {
+  .edit-profile-modal .profile-pic-large { width: 180px; height: 180px; }
+}
+@media (max-width: 360px) {
+  .edit-profile-modal .profile-pic-large { width: 160px; height: 160px; }
+}
+
+/* === Override: Keep Edit Profile modal non-scrollable on small screens (content shrinks instead) === */
+@media (max-width: 520px) {
+  .edit-profile-modal.edit-profile-modal { /* higher specificity */
+    height: auto !important;
+    max-height: none !important;
+    width: 94vw !important; /* keep side breathing room */
+    padding: 16px 16px 22px !important;
+    overflow: visible !important; /* no scroll inside */
+    border-radius: 10px !important;
+  }
+  .edit-profile-modal > h3 { margin-top: 4px; margin-bottom: 14px; font-size: 1.05rem; }
+  .edit-profile-modal form { display:flex; flex-direction:column; gap:14px; overflow:visible !important; }
+  .edit-profile-modal .profile-pic-container { margin-top: 4px; margin-bottom: 10px; }
+  .edit-profile-modal .profile-pic-large { margin: 0 auto 6px; }
+  .edit-profile-modal .photo-hint { font-size: 9px; line-height: 1.15; }
+  .edit-profile-modal .input-wrapper label.field-label { font-size: 12px; }
+  .edit-profile-modal input[type="text"],
+  .edit-profile-modal input[type="tel"] { padding: 9px 10px; font-size: 14px; }
+  .edit-profile-modal button[type="submit"],
+  .edit-profile-modal .complaint-btn,
+  .edit-profile-modal .profile-action-btn { margin-top: 4px; padding: 11px 0; font-size: .9rem; }
+}
+@media (max-width: 400px) {
+  .edit-profile-modal.edit-profile-modal { width: 96vw !important; padding: 14px 14px 20px !important; }
+  .edit-profile-modal .profile-pic-large { width: 150px; height:150px; }
+}
+@media (max-width: 340px) {
+  .edit-profile-modal .profile-pic-large { width: 140px; height:140px; }
+  .edit-profile-modal input[type="text"], .edit-profile-modal input[type="tel"] { font-size: 13px; }
+}
   .dashboard-modal.add-complaint-modal form,
   .dashboard-modal.edit-complaint-modal form {
     overflow: visible !important; /* remove inner scroll */
@@ -2123,6 +2168,7 @@ body.modal-open {
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  margin-top: -30px;
 }
 
 .edit-profile-btn:hover {
@@ -2612,6 +2658,7 @@ body.modal-open {
   .profile-picture-large {
     width: 100px;
     height: 100px;
+    margin-top: 10px;
   }
   
   .contact-item {
@@ -3139,6 +3186,55 @@ body.modal-open {
 @media (min-width: 901px) {
   .profile-modal { padding-bottom: 28px; }
   .profile-modal .modal-footer { margin-bottom: 4px; }
+}
+
+/* === Unified centered titles for user modals (add/edit complaint & edit profile) === */
+.add-complaint-modal > h3,
+.edit-complaint-modal > h3,
+.edit-profile-modal > h3 {
+  text-align: center;
+  font-weight: 600;
+  margin: 0 0 18px 0;
+  padding-top: 4px;
+  position: relative;
+  font-size: 1.15rem;
+  letter-spacing: .3px;
+}
+/* Reserve space on right for floating/absolute close buttons when present */
+.add-complaint-modal > h3,
+.edit-complaint-modal > h3 { padding-right: 70px; }
+.edit-profile-modal > h3 { padding-right: 58px; }
+@media (max-width: 520px){
+  .add-complaint-modal > h3,
+  .edit-complaint-modal > h3,
+  .edit-profile-modal > h3 { font-size: 1.05rem; margin-bottom: 14px; padding-right: 60px; }
+}
+/* Ensure form below doesn’t add unexpected top margin pushing title off-balance */
+.add-complaint-modal form,
+.edit-complaint-modal form,
+.edit-profile-modal form { margin-top: 0; }
+
+/* === Override: revert modal titles to left alignment (user preference) === */
+.add-complaint-modal > h3,
+.edit-complaint-modal > h3,
+.edit-profile-modal > h3 {
+  text-align: left !important;
+  padding-left: 4px;
+}
+@media (max-width:520px){
+  .add-complaint-modal > h3,
+  .edit-complaint-modal > h3,
+  .edit-profile-modal > h3 { padding-left: 2px; }
+}
+
+/* Extend same left-alignment treatment to the View Complaint modal header */
+.complaint-details-modal .complaint-header h3 {
+  text-align: left !important;
+  padding-left: 4px;
+  padding-right: 70px; /* reserve space for close button similar to other modals */
+}
+@media (max-width:520px){
+  .complaint-details-modal .complaint-header h3 { padding-left: 2px; padding-right: 60px; }
 }
 
 /* === Fix: Prevent close (X) button overlapping Edit Profile modal header content === */
