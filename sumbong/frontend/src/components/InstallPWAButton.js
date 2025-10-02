@@ -8,6 +8,7 @@ export default function InstallPWAButton() {
   const [showHelp, setShowHelp] = useState(false);
   const [installed, setInstalled] = useState(false);
   const helpTimerRef = useRef(null);
+  const dismissedRef = useRef(false); // track if user manually closed this session
 
   const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -16,6 +17,7 @@ export default function InstallPWAButton() {
     if (isStandalone()) { setInstalled(true); return; }
 
     const handleBeforeInstallPrompt = (e) => {
+      if (dismissedRef.current) return; // user already dismissed; don't show again this load
       e.preventDefault();
       setDeferredPrompt(e);
       setShowBubble(true);
@@ -30,11 +32,13 @@ export default function InstallPWAButton() {
 
     // Fallback: after 2.5s (instead of 6s) if no event, show bubble (covers iOS & cases where event won't fire)
     helpTimerRef.current = setTimeout(() => {
+      if (dismissedRef.current) return;
       if (!deferredPrompt && !installed) setShowBubble(true);
     }, 2500);
 
     // If user switches away and returns, attempt again (helps when SW finishes activating in background)
     const handleVisibility = () => {
+      if (dismissedRef.current) return;
       if (document.visibilityState === 'visible' && !installed && !showBubble && !deferredPrompt) {
         setShowBubble(true);
       }
@@ -49,7 +53,7 @@ export default function InstallPWAButton() {
     };
   }, [deferredPrompt, installed, showBubble]);
 
-  if (installed || !showBubble) return null;
+  if (installed || !showBubble || dismissedRef.current) return null;
 
   const performInstall = async () => {
     if (!deferredPrompt) {
@@ -70,6 +74,7 @@ export default function InstallPWAButton() {
   };
 
   const dismissCompletely = () => {
+    dismissedRef.current = true;
     setShowBubble(false);
     setShowHelp(false);
   };
@@ -99,7 +104,7 @@ export default function InstallPWAButton() {
           }}
         />
         <span className="pwa-bubble-fallback" aria-hidden="true">S</span>
-        <span className="pwa-bubble-label">Install SUMBONG</span>
+  <span className="pwa-bubble-label">{deferredPrompt ? 'Install SUMBONG' : 'How to Install'}</span>
         <span
           className="pwa-bubble-close top-right"
           role="button"
