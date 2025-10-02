@@ -6,6 +6,8 @@ import { Link } from 'react-router-dom';
 import loginImage from '../assets/login.png';
 import Swal from 'sweetalert2';
 import './Login.css';
+import { API_BASE } from '../config/apiBase';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 
 const Login = () => {
@@ -14,11 +16,12 @@ const Login = () => {
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
   // Google login handler
   const handleGoogleLogin = () => {
-    window.location.href = 'https://capstone-sumbong.onrender.com/api/auth/google';
+  window.location.href = `${API_BASE}/api/auth/google`;
   };
 
   const handleChange = (e) => {
@@ -27,8 +30,10 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    setLoading(true);
     try {
-      const response = await axios.post('https://capstone-sumbong.onrender.com/api/auth/login', formData);
+  const response = await axios.post(`${API_BASE}/api/auth/login`, formData);
       if (response.data.success) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
@@ -52,6 +57,8 @@ const Login = () => {
           confirmButtonColor: '#1a365d'
         });
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -95,7 +102,14 @@ const Login = () => {
                 />
               </div>
             </div>
-            <button type="submit" className="signin-button">Sign in</button>
+            <button type="submit" className="signin-button" disabled={loading} style={{ position:'relative', minHeight:48 }}>
+              {loading ? (
+                <>
+                  <LoadingSpinner inline size={20} text="" />
+                  <span style={{ fontSize:14, fontWeight:600 }}>Signing in…</span>
+                </>
+              ) : 'Sign in'}
+            </button>
             <div className="login-options">
               <div className="remember-me">
                 <input

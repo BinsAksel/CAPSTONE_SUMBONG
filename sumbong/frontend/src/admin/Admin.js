@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import loginImage from '../assets/login.png';
 import '../auth/Login.css'; // reuse same styling as user login
 import { API_BASE } from '../config/apiBase';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const Admin = () => {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -114,8 +115,13 @@ const Admin = () => {
                 autoComplete="current-password"
               />
             </div>
-            <button type="submit" className="signin-button" disabled={loading}>
-              {loading ? 'Signing in…' : 'Sign in'}
+            <button type="submit" className="signin-button" disabled={loading} style={{ position:'relative', minHeight:48 }}>
+              {loading ? (
+                <>
+                  <LoadingSpinner inline size={20} text="" />
+                  <span style={{ fontSize:14, fontWeight:600 }}>Signing in…</span>
+                </>
+              ) : 'Sign in'}
             </button>
             <div style={{ textAlign: 'center', fontSize: 12, color: '#4b5563', marginTop: 12 }}>
               Authorized personnel only.

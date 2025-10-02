@@ -6,6 +6,9 @@ import api from '../api/client';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
 import { toAbsolute, withCacheBust } from '../utils/url';
+import SmartImage from '../components/SmartImage';
+import LoadingOverlay from '../components/LoadingOverlay';
+import { API_BASE } from '../config/apiBase';
 
 // Removed static default avatar image; we will render an initial-letter fallback avatar dynamically
 
@@ -16,7 +19,7 @@ const complaintTypes = [
 const Dashboard = () => {
   const navigate = useNavigate();
   // Base API URL constant (single source of truth)
-  const API_BASE = 'https://capstone-sumbong.onrender.com';
+  // API_BASE imported from centralized config
 
   // 1. Bootstrap token from URL (Google OAuth redirect) BEFORE any data fetching
   useEffect(() => {
@@ -481,7 +484,7 @@ const Dashboard = () => {
       eventSourceRef.current.close();
     }
 
-    const eventSource = new EventSource(`https://capstone-sumbong.onrender.com/api/realtime/${user._id}`);
+  const eventSource = new EventSource(`${API_BASE}/api/realtime/${user._id}`);
     eventSourceRef.current = eventSource;
 
     eventSource.onopen = () => {
@@ -1638,8 +1641,12 @@ const Dashboard = () => {
   // Complaint history view toggle
   const [showHistory, setShowHistory] = useState(false);
 
+  // Show a global loading overlay while initial user + complaints load (first mount)
+  const initialLoading = !user || !complaints || (complaints.length === 0 && !Array.isArray(complaints));
+
   return (
-    <div className="dashboard-container">
+    <div className="dashboard-container" style={{ position:'relative' }}>
+      <LoadingOverlay show={loading} text="Processing..." />
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-actions">
@@ -1656,11 +1663,23 @@ const Dashboard = () => {
               </button>
           <button className="profile-btn" onClick={() => setShowProfile(true)}>
             {profilePic ? (
-              <img src={profilePic} alt="Profile" />
+              <SmartImage
+                src={profilePic}
+                type="profile"
+                alt="Profile"
+                className="profile-inline-avatar"
+                size={40}
+                userNameForAvatar={user.firstName || user.email || 'User'}
+              />
             ) : (
-              <div className="avatar-fallback" style={{ background: avatarBg }} aria-label="User avatar fallback" title="Profile">
-                {userInitial}
-              </div>
+              <SmartImage
+                src="" // force fallback
+                type="profile"
+                alt="Profile"
+                className="profile-inline-avatar"
+                size={40}
+                userNameForAvatar={user.firstName || user.email || 'User'}
+              />
             )}
           </button>
         </div>
@@ -1838,11 +1857,23 @@ const Dashboard = () => {
                     title="Click to change photo"
                   >
                     {editPreviewSrc ? (
-                      <img src={editPreviewSrc} alt="Profile" className="profile-pic-large" />
+                      <SmartImage
+                        src={editPreviewSrc}
+                        type="profile"
+                        alt="Profile"
+                        className="profile-pic-large"
+                        size={120}
+                        userNameForAvatar={user.firstName || user.email || 'User'}
+                      />
                     ) : (
-                      <div className="avatar-fallback-edit" style={{ background: avatarBg }}>
-                        {userInitial}
-                      </div>
+                      <SmartImage
+                        src=""
+                        type="profile"
+                        alt="Profile"
+                        className="profile-pic-large"
+                        size={120}
+                        userNameForAvatar={user.firstName || user.email || 'User'}
+                      />
                     )}
                     <div className="profile-photo-overlay">
                       <span>Change Photo</span>
@@ -2083,53 +2114,51 @@ const Dashboard = () => {
                       if (!fileUrl) return null;
                       const url = toAbsolute(fileUrl);
                       const ext = fileUrl.split('.').pop().toLowerCase();
-                      // Stop propagation so background modal does not close
                       const handleEvidenceClick = (e) => {
                         e.stopPropagation();
                         setEvidenceModal({ open: true, index: idx });
                       };
                       if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "jfif"].includes(ext)) {
                         return (
-                          <div key={idx} className="evidence-item">
-                            <img
+                          <div key={idx} className="evidence-item" title="Click to view full size">
+                            <SmartImage
                               src={url}
+                              type="evidence"
                               alt={`evidence-${idx}`}
                               onClick={handleEvidenceClick}
-                              title="Click to view full size"
+                              className="evidence-thumb"
+                              size={96}
                             />
                             <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
                           </div>
                         );
                       } else if (["mp4", "webm", "ogg"].includes(ext)) {
                         return (
-                          <div key={idx} className="evidence-item">
+                          <div key={idx} className="evidence-item" title="Click to view full size" onClick={handleEvidenceClick}>
                             <video
-                              controls
-                              onClick={handleEvidenceClick}
-                              title="Click to view full size"
+                              className="evidence-thumb"
+                              muted
+                              preload="metadata"
+                              style={{ background:'#000', width:'100%', height:'100%', objectFit:'cover', borderRadius:6 }}
                             >
                               <source src={url} type={`video/${ext}`} />
-                              Your browser does not support the video tag.
                             </video>
                             <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
                           </div>
                         );
                       } else if (ext === 'pdf') {
                         return (
-                          <div key={idx} className="evidence-item">
-                            <embed
-                              src={url}
-                              type="application/pdf"
-                              onClick={handleEvidenceClick}
-                              title="Click to view full size"
-                            />
+                          <div key={idx} className="evidence-item" onClick={handleEvidenceClick} title="Click to view full size">
+                            <div className="pdf-thumb" style={{display:'flex',alignItems:'center',justifyContent:'center',background:'#eef2f7',border:'1px solid #cbd5e1',borderRadius:6,fontSize:32,fontWeight:600,color:'#475569'}}>
+                              PDF
+                            </div>
                             <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
                           </div>
                         );
                       } else {
                         return (
-                          <div key={idx} className="evidence-item">
-                            <div className="file-placeholder" onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }}>
+                          <div key={idx} className="evidence-item" onClick={handleEvidenceClick} title="Click to view full size">
+                            <div className="file-placeholder" style={{ cursor: 'zoom-in' }}>
                               {ext.toUpperCase()}
                             </div>
                             <small className="evidence-filename">{fileUrl.split('/').pop()}</small>
@@ -2310,13 +2339,14 @@ const Dashboard = () => {
               {/* Profile Picture and Basic Info */}
               <div className="profile-basic-info">
                 <div className="profile-picture-section">
-                  {user.profilePicture ? (
-                    <img src={toAbsolute(user.profilePicture)} alt="Profile" className="profile-picture-large" />
-                  ) : (
-                    <div className="avatar-fallback-large" style={{ background: avatarBg }} aria-label="User avatar">
-                      {userInitial}
-                    </div>
-                  )}
+                  <SmartImage
+                    src={user.profilePicture ? toAbsolute(user.profilePicture) : ''}
+                    type="profile"
+                    alt="Profile"
+                    className="profile-picture-large"
+                    size={140}
+                    userNameForAvatar={user.firstName || user.email || 'User'}
+                  />
                 </div>
                 
                 <div className="profile-details">
@@ -2392,6 +2422,44 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
+              {/* Uploaded Credentials Preview */}
+              {user.credentials && user.credentials.length > 0 && (
+                <div className="credentials-preview-section">
+                  <h4>Your Uploaded Credentials</h4>
+                  <div className="credentials-grid">
+                    {user.credentials.map((cred, idx) => {
+                      const credUrl = typeof cred === 'string' ? cred : cred.url;
+                      if (!credUrl) return null;
+                      const ext = credUrl.split('?')[0].split('.').pop().toLowerCase();
+                      if (["jpg","jpeg","png","gif","bmp","webp","jfif","avif"].includes(ext)) {
+                        return (
+                          <div key={idx} className="credential-item" title="Credential image">
+                            <SmartImage
+                              src={credUrl}
+                              type="credential"
+                              alt={`credential-${idx}`}
+                              className="credential-thumb"
+                              size={110}
+                            />
+                          </div>
+                        );
+                      } else if (ext === 'pdf') {
+                        return (
+                          <div key={idx} className="credential-item pdf" title="PDF credential">
+                            <a href={credUrl} target="_blank" rel="noopener noreferrer" className="pdf-credential-link">PDF</a>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div key={idx} className="credential-item other" title={ext.toUpperCase()}>
+                            <a href={credUrl} target="_blank" rel="noopener noreferrer" className="other-credential-link">{ext.toUpperCase()}</a>
+                          </div>
+                        );
+                      }
+                    })}
+                  </div>
+                </div>
+              )}
               
               {/* Notification History */}
               <div className="notification-history-section">

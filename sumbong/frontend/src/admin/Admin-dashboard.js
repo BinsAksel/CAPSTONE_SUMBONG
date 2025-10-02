@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import './Admin-dashboard.css';
 import Select from 'react-select';
 import { toAbsolute } from '../utils/url';
+import { API_BASE } from '../config/apiBase';
+import LoadingOverlay from '../components/LoadingOverlay';
 import NotificationBell from '../components/NotificationBell';
 import NotificationDropdown from '../components/NotificationDropdown';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } from '../api/notificationsApi';
@@ -22,6 +24,7 @@ import { fetchNotifications, markNotificationRead, markAllNotificationsRead, del
 const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [complaints, setComplaints] = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
     // Refs to track previous counts for notifications
     const prevUsersCount = useRef(0);
     const prevComplaintsCount = useRef(0);
@@ -217,6 +220,14 @@ const AdminDashboard = () => {
   }
   const navigate = useNavigate();
 
+  if (dataLoading) {
+    return (
+      <div className="admin-dashboard-container" style={{ position:'relative', minHeight:'100vh' }}>
+        <LoadingOverlay show text="Loading admin data..." />
+      </div>
+    );
+  }
+
   const statusOptions = [
     { value: 'pending', label: 'Pending', color: '#ffeaea', textColor: '#e53935' },
     { value: 'in progress', label: 'In Progress', color: '#fffbe6', textColor: '#eab308' },
@@ -265,7 +276,7 @@ const AdminDashboard = () => {
 
     // Establish SSE for admin to receive updates (re-using user channel - plus admin_notification events)
     if (adminUser && adminUser._id && !eventSourceRef.current) {
-      const es = new EventSource(`https://capstone-sumbong.onrender.com/api/realtime/${adminUser._id}`);
+  const es = new EventSource(`${API_BASE}/api/realtime/${adminUser._id}`);
       eventSourceRef.current = es;
       es.onmessage = (ev) => {
         try {
@@ -682,7 +693,7 @@ const AdminDashboard = () => {
     setPostingThreadMsg(true);
     try {
       const token = localStorage.getItem('token');
-      const resp = await fetch(`https://capstone-sumbong.onrender.com/api/complaints/${viewComplaint._id}/feedback-entry`, {
+  const resp = await fetch(`${API_BASE}/api/complaints/${viewComplaint._id}/feedback-entry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ message: threadMessage.trim() })
@@ -1002,6 +1013,29 @@ const AdminDashboard = () => {
     const handler = (e) => { if (e.key === 'Escape') closeSidebar(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Fetch users & complaints initial
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchInitial() {
+      try {
+        setDataLoading(true);
+        const [usersRes, complaintsRes] = await Promise.all([
+          adminApi.get('/api/admin/users'),
+          adminApi.get('/api/admin/complaints')
+        ]);
+        if (cancelled) return;
+        setUsers(usersRes.data.users || usersRes.data || []);
+        setComplaints(complaintsRes.data.complaints || complaintsRes.data || []);
+      } catch (e) {
+        if (!cancelled) Swal.fire('Error', 'Failed to load initial data', 'error');
+      } finally {
+        if (!cancelled) setDataLoading(false);
+      }
+    }
+    fetchInitial();
+    return () => { cancelled = true; };
   }, []);
 
   return (

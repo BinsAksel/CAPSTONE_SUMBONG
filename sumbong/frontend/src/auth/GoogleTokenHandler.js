@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { API_BASE } from '../config/apiBase';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import Swal from 'sweetalert2';
@@ -26,7 +27,7 @@ export default function GoogleTokenHandler() {
     if (token) {
       localStorage.setItem('token', token);
       // Fetch user info and store in localStorage
-      fetch('https://capstone-sumbong.onrender.com/api/user/me', {
+       fetch(`${API_BASE}/api/user/me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => res.json())

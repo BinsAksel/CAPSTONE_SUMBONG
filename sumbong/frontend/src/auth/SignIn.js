@@ -5,6 +5,8 @@ import axios from 'axios';
 import loginImage from '../assets/login.png';
 import './SignIn.css';
 import Swal from 'sweetalert2';
+import { API_BASE } from '../config/apiBase';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -14,7 +16,7 @@ const SignIn = () => {
   useEffect(() => {}, []);
   // Google sign up handler
   const handleGoogleSignUp = () => {
-    window.location.href = 'https://capstone-sumbong.onrender.com/api/auth/google';
+  window.location.href = `${API_BASE}/api/auth/google`;
   };
   const [formData, setFormData] = useState({
     firstName: '',
@@ -42,7 +44,7 @@ const SignIn = () => {
 
   const fetchPolicy = async (name) => {
     try {
-      const res = await fetch(`https://capstone-sumbong.onrender.com/api/policies/${name}`);
+  const res = await fetch(`${API_BASE}/api/policies/${name}`);
       if (!res.ok) throw new Error('Failed to load policy');
       const txt = await res.text();
       setPolicyContent(txt);
@@ -174,7 +176,7 @@ const SignIn = () => {
           formDataToSend.append('credentials', image);
         });
       }
-      const response = await axios.post('https://capstone-sumbong.onrender.com/api/auth/signup', formDataToSend, {
+  const response = await axios.post(`${API_BASE}/api/auth/signup`, formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -310,8 +312,15 @@ const SignIn = () => {
               Accepted formats: Images (JPG, PNG, GIF), PDF, Word documents. You can add a profile picture later after logging in.
             </small>
           </div>
-          <button type="submit" disabled={loading} className="signin-submit-btn">
-            {loading ? 'Signing up...' : (acceptedTerms && acceptedPrivacy ? 'Sign Up' : 'Continue & Accept Policies')}
+          <button type="submit" disabled={loading} className="signin-submit-btn" style={{ position:'relative', minHeight:48 }}>
+            {loading ? (
+              <>
+                <LoadingSpinner inline size={20} text="" />
+                <span style={{ fontSize:14, fontWeight:600 }}>Signing up…</span>
+              </>
+            ) : (
+              (acceptedTerms && acceptedPrivacy ? 'Sign Up' : 'Continue & Accept Policies')
+            )}
           </button>
           <p className="policy-disclaimer full-line">
             By signing up, you agree to our <button type="button" onClick={()=>fetchPolicy('terms')} className="inline-policy-link">Terms &amp; Conditions</button> and <button type="button" onClick={()=>fetchPolicy('privacy')} className="inline-policy-link">Privacy Policy</button>. <span className="policy-version">Version {POLICIES_VERSION}</span>

@@ -3,10 +3,10 @@ import axios from 'axios';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import './CompleteProfile.css';
+import { API_BASE } from '../config/apiBase';
 
 const CompleteProfile = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const query = new URLSearchParams(location.search);
   const userId = query.get('userId');
   // Get Google info from query params if present
@@ -39,7 +39,7 @@ const CompleteProfile = () => {
 
   const fetchPolicy = async (name) => {
     try {
-      const res = await fetch(`https://capstone-sumbong.onrender.com/api/policies/${name}`);
+      const res = await fetch(`${API_BASE}/api/policies/${name}`);
       if (!res.ok) throw new Error('Failed to load policy');
       const txt = await res.text();
       setPolicyContent(txt);
@@ -134,7 +134,7 @@ const CompleteProfile = () => {
       formDataToSend.append('acceptedPrivacy', acceptedPrivacy ? 'true' : 'false');
       formDataToSend.append('policiesVersion', POLICIES_VERSION);
       const token = localStorage.getItem('token');
-      const response = await axios.post('https://capstone-sumbong.onrender.com/api/auth/google-signup', formDataToSend, {
+  const response = await axios.post(`${API_BASE}/api/auth/google-signup`, formDataToSend, {
         headers: { 'Content-Type': 'multipart/form-data', ...(token ? { Authorization: `Bearer ${token}` } : {}) }
       });
       if (response.data.user) {

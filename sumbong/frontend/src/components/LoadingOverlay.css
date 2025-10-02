@@ -1,0 +1,3 @@
+.loading-overlay.fullscreen { position:fixed; inset:0; background:rgba(255,255,255,0.68); backdrop-filter:blur(2px); z-index:9999; display:flex; align-items:center; justify-content:center; }
+.loading-overlay { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(255,255,255,0.6); display:flex; align-items:center; justify-content:center; }
+.loading-overlay-box { background:#ffffffdd; border:1px solid #e2e8f0; padding:28px 36px; border-radius:14px; box-shadow:0 4px 24px -4px rgba(0,0,0,0.12); }
