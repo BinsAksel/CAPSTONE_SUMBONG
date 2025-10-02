@@ -50,10 +50,7 @@ const bus = require('./events/bus');
 
 // Initialize express app before any app.use/app.get/app.post
 const app = express();
-// In hosted environments (Render, Netlify functions, etc.) a reverse proxy sets X-Forwarded-* headers.
-// express-rate-limit now validates presence of X-Forwarded-For unless trust proxy is enabled.
-// Setting 'trust proxy' lets Express use the left-most entry (client IP) for rate limiting & logging.
-// Use a conservative value of 1 (one proxy hop). Can be overridden by TRUST_PROXY env if needed.
+
 const trustProxy = process.env.TRUST_PROXY !== undefined ? process.env.TRUST_PROXY : '1';
 app.set('trust proxy', trustProxy);
 if (['1','true','yes'].includes(String(process.env.CORS_DEBUG||'').toLowerCase())) {

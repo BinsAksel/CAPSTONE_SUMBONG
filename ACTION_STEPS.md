@@ -1,19 +1,29 @@
-# Post-Hardening Action Steps (Remove "Dangerous" Warning)
+# Post-Hardening Action Steps (Remove / Prevent Warnings)
 
-Follow this exact sequence. Check each box as you go.
+Follow this sequence. Updated for Vercel deployment; legacy Netlify notes retained where useful.
 
-## 1. Clean Build & Deploy
-- [ ] Commit latest changes (including `_headers`, accessibility updates, and docs).
-- [ ] Trigger a fresh Netlify deploy (UI: Deploys → Trigger deploy → Clear cache and deploy site). Clearing cache ensures the new `_headers` file is respected.
+## 1. Clean Build & Deploy (Vercel)
+- [ ] Commit latest changes (security headers live in `vercel.json`).
+- [ ] Push to `main` (Vercel auto deploys production).
+- [ ] If a service worker or CSP header changed, optionally bump a trivial comment in `public/manifest.json` to force clients to re-fetch.
+
+### (Legacy Netlify – only if still active)
+- [ ] Trigger redeploy: Deploys → Trigger deploy → Clear cache and deploy site.
 
 ## 2. Verify Headers Live
-After deploy finishes, run (replace YOUR_DOMAIN):
-PowerShell examples:
+PowerShell (replace YOUR_DOMAIN):
 ```
 curl -I https://YOUR_DOMAIN/ | findstr /C:"Content-Security-Policy"
 curl -I https://YOUR_DOMAIN/ | findstr /C:"Strict-Transport-Security"
+curl -I https://YOUR_DOMAIN/ | findstr /C:"Permissions-Policy"
 ```
-Confirm all six headers appear (CSP, HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
+Confirm these exist:
+1. Content-Security-Policy (with frame-ancestors 'none')
+2. Strict-Transport-Security
+3. X-Content-Type-Options: nosniff
+4. Referrer-Policy
+5. Permissions-Policy
+6. (Optional) X-Frame-Options if you add it later (redundant with frame-ancestors)
 
 ## 3. Browser Console Audit
 - [ ] Open site in Chrome incognito.
@@ -21,38 +31,58 @@ Confirm all six headers appear (CSP, HSTS, X-Frame-Options, nosniff, Referrer-Po
 - [ ] Application tab → Service Workers: Click "Update" then hard reload (Ctrl+Shift+R).
 
 ## 4. Safe Browsing Status Check
-- [ ] Visit https://transparencyreport.google.com/safe-browsing/search and input your domain.
-- If already marked safe, you are done. If flagged:
-  - Proceed to step 5.
+- [ ] Visit https://transparencyreport.google.com/safe-browsing/search and input the new production domain.
+- If safe: still proceed to Search Console (Step 5) for monitoring.
+- If flagged: continue through Step 6 review request.
 
-## 5. Google Search Console Review Request
-- [ ] Add & verify property (Domain property preferred) if not present.
+## 5. Google Search Console – Add & Verify (New Deployment)
+Choose ONE primary method:
+* Domain Property (best, needs DNS for a custom domain)
+* URL Prefix (fallback for Vercel default domain)
+
+### 5.1 Domain Property (custom domain recommended)
+- [ ] Add domain in Search Console → copy TXT record.
+- [ ] Add DNS TXT at your domain registrar.
+- [ ] Wait for DNS propagation (often < 5 min, can be longer) → Verify.
+
+### 5.2 URL Prefix (Vercel default domain)
+- [ ] Enter full URL (https://capstone-sumbong.vercel.app/).
+- Pick ONE verification method:
+  1. HTML file: download `googleXXXX.html`, place in `frontend/public/`, commit, deploy, visit the file URL, then Verify.
+  2. Meta tag: add `<meta name="google-site-verification" content="TOKEN" />` inside `<head>` in `public/index.html` → deploy → Verify.
+  3. (Optional) GA / GTM if already configured.
+
+### 5.3 After Verification
+- [ ] (Later) Add Domain Property when you attach a custom domain for broader coverage.
+- [ ] Enable email notifications in Search Console settings.
+
+## 6. If Flagged – Request Review
 - [ ] Open Security & Manual Actions → Security Issues.
-- [ ] Click the flagged issue → Request Review.
-- [ ] Use this template:
+- [ ] Open each issue → Request Review with this template:
 ```
-We resolved prior configuration issues. Implemented strict security headers (CSP, HSTS, X-Frame-Options, Referrer-Policy, Permissions-Policy, nosniff), corrected PWA manifest start_url, and removed any potentially unsafe inline scripts/assets. OAuth uses only official Google domains (accounts.google.com, apis.google.com). No deceptive or malicious content is hosted. Please re-scan and remove the warning.
+We resolved prior issues: implemented strict CSP (with frame-ancestors 'none'), HSTS, Referrer-Policy, Permissions-Policy, X-Content-Type-Options, removed unsafe inline code, corrected manifest (start_url & icons). OAuth restricted to Google domains only. No deceptive or malicious content is hosted. Please re-scan and clear the warning.
 ```
-- [ ] Submit.
+- [ ] Submit and monitor status.
 
-## 6. Microsoft / Other Engines (Only if still flagged)
-- [ ] Submit URL for review: https://www.microsoft.com/en-us/wdsi/support/report-unsafe-site
+## 7. Microsoft / Other Engines (Only if still flagged)
+- [ ] Submit URL: https://www.microsoft.com/en-us/wdsi/support/report-unsafe-site
 - [ ] Provide same remediation summary.
 
-## 7. Monitoring
-- [ ] Re-test daily (or set a calendar reminder) until warning disappears.
-- Optional: Add a lightweight uptime monitor that also stores headers (e.g. Better Stack or Cron job + curl) so you retain proof of continuous protection.
+## 8. Monitoring
+- [ ] Daily re-check (or calendar reminder) until any warning is gone.
+- [ ] Optional: add header monitor (Better Stack, cron + curl) archiving CSP/HSTS.
+- [ ] Enable Search Console email alerts.
 
-## 8. After Clearance
-- [ ] Add `frame-ancestors 'none'` to CSP (optional modernization).
-- [ ] Consider CSP reporting endpoint for early detection of future issues.
-- [ ] Begin refactoring remaining inline HTML style attributes → CSS classes.
+## 9. After Clearance
+- [ ] (Optional) Add CSP report endpoint (`report-to` / `report-uri`).
+- [ ] Refactor remaining inline styles → CSS.
+- [ ] Run dependency audit: `npm audit --production`.
 
-## 9. Rollback Plan (If Something Breaks)
+## 10. Rollback Plan (If Something Breaks)
 If users report blocked content:
-1. Check DevTools Console for CSP messages.
-2. Temporarily add the needed domain to the correct directive OR host locally.
-3. Redeploy and keep policy principle of least privilege.
+1. DevTools Console → look for CSP violation lines.
+2. Add minimal domain to the correct directive OR self-host the asset.
+3. Redeploy (principle of least privilege maintained).
 
 ---
 Keep this checklist versioned with each security iteration.
