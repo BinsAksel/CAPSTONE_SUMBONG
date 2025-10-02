@@ -31,8 +31,8 @@
 .google-btn:focus-visible { outline: 3px solid #93c5fd; outline-offset: 2px; }
 
 .google-icon-wrapper { display:flex; align-items:center; justify-content:center; width:24px; height:24px; }
-.google-icon { width:24px; height:24px; display:block; }
-.google-icon path { transition: opacity .25s ease; }
+.google-icon { width:24px; height:24px; display:block; image-rendering:-webkit-optimize-contrast; }
+/* Removed SVG path transition (no longer needed for raster image) */
 
 /* High-contrast / dark gradient variant if needed */
 .google-btn.primary {
