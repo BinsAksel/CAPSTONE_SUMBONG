@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/service-worker.js", "headers": { "Cache-Control": "no-cache" } },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://accounts.google.com https://apis.google.com; connect-src 'self' https://capstone-sumbong.onrender.com https://accounts.google.com; img-src 'self' data: https: https://res.cloudinary.com; media-src 'self' https: https://res.cloudinary.com; style-src 'self'; font-src 'self' data:; frame-src https://accounts.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Permissions-Policy", "value": "geolocation=(), camera=(), microphone=(), payment=()" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" }
+      ]
+    }
+  ]
+}
