@@ -35,15 +35,23 @@ export default function SmartImage({
   const didUnmount = useRef(false);
 
   // Normalize to absolute
-  useEffect(() => {
-    setResolvedSrc(src ? toAbsolute(src) : '');
-  }, [src]);
+    useEffect(() => {
+      if (!src) { setResolvedSrc(''); return; }
+      // Do NOT convert blob: or data: URLs
+      if (/^(blob:|data:)/i.test(src)) {
+        setResolvedSrc(src);
+        return;
+      }
+      setResolvedSrc(toAbsolute(src));
+    }, [src]);
 
   useEffect(() => {
     if (!resolvedSrc) { setLoading(false); return; }
-    const ext = getExtensionFromUrl(resolvedSrc);
-    // Only prefetch images; let browser handle others (video/pdf)
-    if (!isImageExtension(ext)) { setLoading(false); return; }
+  // Skip prefetch for blob/data URLs (they are already local)
+  if (/^(blob:|data:)/i.test(resolvedSrc)) { setLoading(false); return; }
+  const ext = getExtensionFromUrl(resolvedSrc);
+  // Only prefetch images; let browser handle others (video/pdf)
+  if (!isImageExtension(ext)) { setLoading(false); return; }
     setLoading(true);
     setError(false);
     const img = new Image();
@@ -93,8 +101,23 @@ export default function SmartImage({
     if (type === 'profile') {
       const label = fallbackLabel || extractInitials(userNameForAvatar || 'User');
       const bg = colorFromString(userNameForAvatar || 'User');
+  // Dynamically scale font size relative to avatar size (approx 50% of diameter)
+  // Clamp between 24px and 120px for larger modals
+  const dynamicFontSize = Math.round(Math.min(Math.max(size * 0.5, 24), 120));
       return (
-        <div className={`smartimage-avatar-fallback ${className}`} style={{ width: size, height: size, lineHeight: `${size}px`, background: bg, ...style }} onClick={onClick} aria-label={alt || 'Avatar'}>
+        <div
+          className={`smartimage-avatar-fallback ${className}`}
+          style={{
+            width: size,
+            height: size,
+            lineHeight: `${size}px`,
+            fontSize: dynamicFontSize,
+            background: bg,
+            ...style
+          }}
+          onClick={onClick}
+          aria-label={alt || 'Avatar'}
+        >
           {label}
         </div>
       );
@@ -108,29 +131,38 @@ export default function SmartImage({
   };
 
   const ext = getExtensionFromUrl(resolvedSrc);
-  const isImage = isImageExtension(ext);
+  const isStandardImage = isImageExtension(ext);
+  const isBlobImage = resolvedSrc.startsWith('blob:');
+  const isImage = isStandardImage || isBlobImage;
   const showRetryBadge = retried && showRetryIndicator && !loading && !error;
 
   if (!resolvedSrc || error) return renderFallback();
   if (!isImage) {
-    // For non-image types, just render normal element letting parent style
+    // Non-image (e.g., pdf/video) keep previous behavior
     return (
       <div className={`smartimage-wrapper ${className}`} style={style} onClick={onClick}>
         {showRetryBadge && <span className="smartimage-retry-badge" title="Retried">R</span>}
-        {/* Let parent handle actual tag (video/pdf) - we simply provide a link preview */}
-        <img src={resolvedSrc} alt={alt} style={{ objectFit: 'cover', width: '100%', height: '100%' }} onError={() => setError(true)} />
+        <img
+          src={resolvedSrc}
+          alt={alt}
+          className={className}
+          style={{ objectFit: 'cover', width: '100%', height: '100%' }}
+          onError={() => setError(true)}
+        />
       </div>
     );
   }
+  // Image (including blob preview)
   return (
     <div className={`smartimage-wrapper ${className}`} style={style} onClick={onClick}>
-      {loading && (
+      {loading && isStandardImage && (
         <div className="smartimage-skeleton" aria-label="Loading image" />
       )}
       <img
         src={resolvedSrc}
         alt={alt}
-        style={{ opacity: loading ? 0 : 1, transition: 'opacity 0.35s ease' }}
+        className={className}
+        style={{ opacity: loading && isStandardImage ? 0 : 1, transition: isStandardImage ? 'opacity 0.35s ease' : 'none' }}
         onLoad={() => setLoading(false)}
         onError={() => setError(true)}
         draggable={false}

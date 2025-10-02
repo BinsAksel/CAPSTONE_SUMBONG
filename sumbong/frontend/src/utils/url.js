@@ -5,6 +5,8 @@ export const API_BASE = 'https://capstone-sumbong.onrender.com';
 // If it's already an absolute http(s) URL (like a Cloudinary secure URL), return as-is.
 export function toAbsolute(path) {
   if (!path) return '';
+  // Leave local object/data URLs untouched (used for immediate client-side previews)
+  if (/^(blob:|data:)/i.test(path)) return path;
   if (/^https?:\/\//i.test(path)) return path; // already absolute
   return `${API_BASE}/${path.replace(/^\/+/, '')}`; // strip leading slashes then prefix
 }

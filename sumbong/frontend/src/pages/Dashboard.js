@@ -1246,7 +1246,26 @@ const Dashboard = () => {
       return;
     }
     if (name === 'profilePic' && files && files[0]) {
-      setEditData({ ...editData, file: files[0], profilePic: URL.createObjectURL(files[0]) });
+      const file = files[0];
+      // Basic validation: allow jpg/jpeg/png only and <= ~10MB
+      const isValidType = /image\/(jpeg|jpg|png)/i.test(file.type);
+      const isValidSize = file.size <= 10 * 1024 * 1024;
+      if (!isValidType || !isValidSize) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Invalid Image',
+          text: !isValidType ? 'Please select a JPG or PNG image.' : 'Image must be 10MB or smaller.',
+          timer: 3200,
+          showConfirmButton: false
+        });
+        return;
+      }
+      // Revoke previous blob URL if any to avoid memory leaks
+      if (editData.profilePic && editData.profilePic.startsWith('blob:')) {
+        try { URL.revokeObjectURL(editData.profilePic); } catch {}
+      }
+      const objectUrl = URL.createObjectURL(file);
+      setEditData({ ...editData, file, profilePic: objectUrl });
     } else {
       setEditData({ ...editData, [name]: value });
     }
@@ -1307,6 +1326,14 @@ const Dashboard = () => {
       Swal.fire('Error', 'Failed to update profile.', 'error');
     }
     setLoading(false);
+  };
+
+  // Close Edit Profile modal and cleanup blob preview URL to prevent memory leaks
+  const handleCloseEditModal = () => {
+    if (editData && editData.profilePic && editData.profilePic.startsWith('blob:')) {
+      try { URL.revokeObjectURL(editData.profilePic); } catch {}
+    }
+    setShowEdit(false);
   };
 
   // Remove profile picture handler
@@ -1646,7 +1673,7 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container" style={{ position:'relative' }}>
-      <LoadingOverlay show={loading} text="Processing..." />
+  <LoadingOverlay show={loading} text="Processing..." iconSize={44} large={false} minimal />
       {/* Header */}
       <header className="dashboard-header">
         <div className="header-actions">
@@ -1838,11 +1865,11 @@ const Dashboard = () => {
       </div>
       {/* Edit Profile Modal */}
       {showEdit && (
-        <div className="dashboard-modal-bg" onClick={() => setShowEdit(false)}>
-          <div className="dashboard-modal" onClick={e => e.stopPropagation()}>
+  <div className="dashboard-modal-bg" onClick={handleCloseEditModal}>
+    <div className="dashboard-modal edit-profile-modal" onClick={e => e.stopPropagation()}>
             <button 
               className="modal-close-x" 
-              onClick={() => setShowEdit(false)}
+              onClick={handleCloseEditModal}
               type="button"
               aria-label="Close modal"
             >
@@ -1862,7 +1889,7 @@ const Dashboard = () => {
                         type="profile"
                         alt="Profile"
                         className="profile-pic-large"
-                        size={120}
+                        size={260}
                         userNameForAvatar={user.firstName || user.email || 'User'}
                       />
                     ) : (
@@ -1871,7 +1898,7 @@ const Dashboard = () => {
                         type="profile"
                         alt="Profile"
                         className="profile-pic-large"
-                        size={120}
+                        size={260}
                         userNameForAvatar={user.firstName || user.email || 'User'}
                       />
                     )}
@@ -1887,9 +1914,7 @@ const Dashboard = () => {
                     onChange={handleEditChange}
                     style={{ display: 'none' }}
                   />
-                  {editData.file && (
-                    <div className="selected-file-name" title={editData.file.name}>{editData.file.name}</div>
-                  )}
+                  {/* Removed file name and badge per user request; immediate image preview only */}
                   {(user.profilePicture || editData.profilePic) && (
                     <button
                       type="button"
@@ -2439,7 +2464,7 @@ const Dashboard = () => {
                               type="credential"
                               alt={`credential-${idx}`}
                               className="credential-thumb"
-                              size={110}
+                              size={120}
                             />
                           </div>
                         );

@@ -9,6 +9,7 @@ import Select from 'react-select';
 import { toAbsolute } from '../utils/url';
 import { API_BASE } from '../config/apiBase';
 import LoadingOverlay from '../components/LoadingOverlay';
+import InlineButtonSpinner from '../components/InlineButtonSpinner';
 import NotificationBell from '../components/NotificationBell';
 import NotificationDropdown from '../components/NotificationDropdown';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } from '../api/notificationsApi';
@@ -1016,7 +1017,8 @@ const AdminDashboard = () => {
         setDataLoading(true);
         const [usersRes, complaintsRes] = await Promise.all([
           adminApi.get('/api/admin/users'),
-          adminApi.get('/api/admin/complaints')
+          // Corrected endpoint: complaints are fetched from /api/complaints (non-admin prefix)
+          adminApi.get('/api/complaints')
         ]);
         if (cancelled) return;
         setUsers(usersRes.data.users || usersRes.data || []);
@@ -1035,7 +1037,7 @@ const AdminDashboard = () => {
     <div className={`admin-root ${sidebarOpen ? 'sidebar-open' : ''}`} style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
       {dataLoading && (
         <div className="admin-dashboard-container" style={{ position:'fixed', inset:0, zIndex:2000 }}>
-          <LoadingOverlay show text="Loading admin data..." />
+          <LoadingOverlay show text="Loading admin data..." minimal iconSize={44} large={false} />
         </div>
       )}
       {/* Mobile Hamburger Button */}
@@ -1684,11 +1686,11 @@ const AdminDashboard = () => {
 
               <div className="credential-actions">
                 <button 
-                  className="action-btn approve-btn"
+                  className={`action-btn approve-btn ${verificationLoading ? 'button-loading loading-text-hidden' : ''}`}
                   onClick={() => handleApproveCredentials(selectedUserCredentials._id)}
                   disabled={verificationLoading}
                 >
-                  {verificationLoading ? 'Processing...' : 'Credential Looks Valid'}
+                  {verificationLoading ? <InlineButtonSpinner show>Credential Looks Valid</InlineButtonSpinner> : 'Credential Looks Valid'}
                 </button>
                 <button 
                   className="action-btn disapprove-btn"
@@ -1701,12 +1703,11 @@ const AdminDashboard = () => {
                   Credential Issues Found
                 </button>
               </div>
+              {renderCredentialImageModal()}
             </div>
-            {renderCredentialImageModal()}
           </div>
         </div>
       )}
-
       {/* Credential View Modal */}
       {credentialModalOpen && selectedCredential && (
         <div className="modal-overlay" onClick={closeCredentialModal}>
@@ -1741,11 +1742,11 @@ const AdminDashboard = () => {
               </div>
               <div className="credential-actions">
                 <button 
-                  className="action-btn approve-btn"
+                  className={`action-btn approve-btn ${verificationLoading ? 'button-loading loading-text-hidden' : ''}`}
                   onClick={() => handleApproveCredentials(selectedCredential.userId)}
                   disabled={verificationLoading}
                 >
-                  {verificationLoading ? 'Processing...' : 'Credential Looks Valid'}
+                  {verificationLoading ? <InlineButtonSpinner show>Credential Looks Valid</InlineButtonSpinner> : 'Credential Looks Valid'}
                 </button>
                 <button 
                   className="action-btn disapprove-btn"
@@ -1810,19 +1811,19 @@ const AdminDashboard = () => {
               </div>
               <div className="credential-issues-actions">
                 <button 
-                  className="action-btn reject-credentials-btn"
+                  className={`action-btn reject-credentials-btn ${verificationLoading ? 'button-loading loading-text-hidden' : ''}`}
                   onClick={() => handleRejectCredentials(currentUserId)}
                   disabled={verificationLoading || !issueDetails.trim()}
                 >
-                  {verificationLoading ? 'Processing...' : 'Reject Credentials'}
+                  {verificationLoading ? <InlineButtonSpinner show>Reject Credentials</InlineButtonSpinner> : 'Reject Credentials'}
                 </button>
                 <button 
-                  className="action-btn"
+                  className={`action-btn ${verificationLoading ? 'button-loading loading-text-hidden' : ''}`}
                   onClick={() => handleRequestResubmission(currentUserId)}
                   disabled={verificationLoading || !issueDetails.trim()}
                   style={{ backgroundColor: '#f59e0b', color: 'white' }}
                 >
-                  {verificationLoading ? 'Processing...' : 'Request Resubmission'}
+                  {verificationLoading ? <InlineButtonSpinner show>Request Resubmission</InlineButtonSpinner> : 'Request Resubmission'}
                 </button>
                 <button 
                   className="action-btn"

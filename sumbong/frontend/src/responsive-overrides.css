@@ -22,14 +22,22 @@
 
 /* Generic app modals (relying on classes used across project) */
 @media (max-width: 760px) {
-  .dashboard-modal, .complaint-details-modal, .credential-modal, .profile-modal, .login-form-box, .signin-form-box {
+  /* Keep generic modals nearly full width, but allow profile & edit profile to retain their own max-width (not edge-to-edge) */
+  .dashboard-modal, .complaint-details-modal, .credential-modal, .login-form-box, .signin-form-box {
     width: 95vw !important;
     max-width: 95vw !important;
-    left: 50%;
-    transform: translateX(-50%);
-    margin: 0 auto;
+    margin: 0 auto !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important; /* rely on flex centering of overlay */
   }
-  .dashboard-modal, .complaint-details-modal, .credential-modal, .profile-modal {
+  /* Explicitly override for profile & edit profile modals: a bit narrower for breathing room */
+  .profile-modal, .edit-profile-modal {
+    width: 90vw !important;
+    max-width: 540px !important; /* matches custom breakpoint sizing */
+    margin: 0 auto !important;
+  }
+  .dashboard-modal, .complaint-details-modal, .credential-modal, .profile-modal, .edit-profile-modal {
     max-height: 88vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -37,9 +45,18 @@
 }
 
 @media (max-width: 480px) {
-  .dashboard-modal, .complaint-details-modal, .credential-modal, .profile-modal {
+  .dashboard-modal, .complaint-details-modal, .credential-modal { /* leave these full */
     padding: 16px 14px !important;
     border-radius: 14px !important;
+  }
+  /* Profile view & edit: slightly more inset so not touching edges */
+  .profile-modal, .edit-profile-modal {
+    width: 90vw !important;          /* add breathing room */
+    max-width: 470px !important;     /* cap so it never grows past phone logical width */
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding: 18px 18px 24px !important;
+    border-radius: 18px !important;
   }
   .dashboard-modal h3, .profile-modal h2, .login-form-box h2, .signin-form-box h2 {
     font-size: 1.05rem !important;
