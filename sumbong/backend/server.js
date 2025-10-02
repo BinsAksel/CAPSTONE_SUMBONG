@@ -62,7 +62,7 @@ if (['1','true','yes'].includes(String(process.env.CORS_DEBUG||'').toLowerCase()
 
 // --- CORS MUST RUN EARLY (before rate limiters) so even errors/preflight get headers ---
 const corsEnv = process.env.CORS_ORIGINS;
-const defaultOrigins = ['https://sumbongsystem.netlify.app', 'http://localhost:3000'];
+const defaultOrigins = ['https://capstone-sumbong.vercel.app/', 'http://localhost:3000'];
 function buildOriginMatchers(list) {
   return list.map(raw => {
     const origin = raw.trim().replace(/\/$/, '');
@@ -260,7 +260,7 @@ app.get('/api/user/me', authenticateJWT, async (req, res) => {
 // Passport config
 // Resolve dynamic callback URL (prefers env override)
 const GOOGLE_CALLBACK = process.env.GOOGLE_CALLBACK_URL || `${process.env.BACKEND_BASE_URL || 'https://capstone-sumbong.onrender.com'}/api/auth/google/callback`;
-const FRONTEND_BASE = (process.env.FRONTEND_ORIGIN || 'https://sumbongsystem.netlify.app').replace(/\/$/, '');
+const FRONTEND_BASE = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app/').replace(/\/$/, '');
 
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
