@@ -1,103 +1,117 @@
-/* New professional install card */
-.pwa-install-card {
+/* Compact top-right bubble installer */
+.pwa-bubble-wrapper {
   position: fixed;
-  bottom: 16px;
-  right: 16px;
-  width: 280px;
-  background: #ffffff;
-  border-radius: 18px;
-  box-shadow: 0 8px 28px -4px rgba(0,0,0,0.25), 0 2px 6px rgba(0,0,0,0.08);
-  padding: 16px 16px 14px;
-  font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  top: 14px;
+  right: 14px;
   z-index: 3000;
-  animation: pwaSlideIn .35s ease-out;
-  border: 1px solid #e5e7eb;
+  font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 6px;
 }
 
-@keyframes pwaSlideIn { from { opacity: 0; transform: translateY(12px) scale(.98);} to { opacity:1; transform:translateY(0) scale(1);} }
-
-.pwa-install-dismiss {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  background: transparent;
-  border: none;
-  color: #6b7280;
-  font-size: 18px;
-  line-height: 1;
-  padding: 4px 6px;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: background .15s, color .15s;
-}
-.pwa-install-dismiss:hover { background:#f3f4f6; color:#374151; }
-
-.pwa-install-header { display: flex; align-items: center; gap: 12px; }
-.pwa-install-icon {
-  width: 46px;
-  height: 46px;
-  background: linear-gradient(135deg,#1d4ed8,#2563eb);
-  display:flex;
+.pwa-bubble {
+  display:inline-flex;
   align-items:center;
-  justify-content:center;
-  font-size:22px;
-  border-radius: 14px;
-  color:#fff;
-  box-shadow: 0 2px 6px rgba(37,99,235,0.35), 0 1px 2px rgba(0,0,0,0.15);
-}
-.pwa-install-text-group { flex:1; min-width:0; }
-.pwa-install-title { font-size:15px; font-weight:700; color:#111827; letter-spacing:.3px; }
-.pwa-install-sub { font-size:12.5px; color:#4b5563; margin-top:2px; line-height:1.25; }
-
-.pwa-install-actions { display:flex; gap:8px; margin-top:2px; }
-.pwa-install-primary, .pwa-install-secondary {
-  flex:1;
-  font-weight:600;
-  font-size:13px;
-  letter-spacing:.4px;
-  padding:10px 14px;
-  border-radius:10px;
-  border:none;
+  gap:10px;
+  background:#fff;
+  border:1px solid #e5e7eb;
+  box-shadow:0 4px 18px -4px rgba(0,0,0,0.25),0 1px 3px rgba(0,0,0,0.15);
+  padding:8px 30px 8px 10px; /* tightened right padding */
+  border-radius: 999px;
   cursor:pointer;
-  transition: background .2s, box-shadow .2s, transform .15s;
-  display:inline-flex; align-items:center; justify-content:center;
+  font-size:13px;
+  font-weight:600;
+  color:#1e3a8a;
+  letter-spacing:.3px;
+  transition: background .2s, box-shadow .25s, transform .15s;
+  position: relative;
+  overflow:hidden;
 }
-.pwa-install-primary {
-  background: linear-gradient(135deg,#1d4ed8,#1e40af);
+.pwa-bubble:hover { background:#f1f5f9; }
+.pwa-bubble:active { transform: translateY(1px); }
+
+
+
+.pwa-bubble-icon {
+  width:28px; height:28px;
+  border-radius:8px;
+  background:#fff;
+  padding:0;
+  box-shadow:0 0 0 1px rgba(0,0,0,0.06),0 2px 4px rgba(0,0,0,0.18);
+  object-fit:cover;
+}
+
+.pwa-bubble-fallback {
+  position:relative;
+  width:28px; height:28px;
+  border-radius:8px;
+  background:linear-gradient(135deg,#1d4ed8,#2563eb);
+  display:none;
+  align-items:center; justify-content:center;
+  font-weight:600;
   color:#fff;
-  box-shadow: 0 3px 10px -2px rgba(29,78,216,0.5), 0 1px 3px rgba(0,0,0,.25);
+  font-size:15px;
+  box-shadow:0 2px 6px rgba(29,78,216,0.45),0 1px 2px rgba(0,0,0,0.18);
 }
-.pwa-install-primary:hover { filter: brightness(1.07); }
-.pwa-install-primary:active { transform: translateY(1px); }
+.pwa-bubble-fallback.show { display:flex; }
 
-.pwa-install-secondary { background:#f3f4f6; color:#374151; }
-.pwa-install-secondary:hover { background:#e5e7eb; }
-.pwa-install-secondary:active { transform: translateY(1px); }
+.pwa-bubble-label { white-space:nowrap; }
 
-.pwa-install-fallback {
-  background:#f9fafb;
-  border: 1px solid #e5e7eb;
-  padding: 8px 10px 8px;
-  border-radius: 10px;
+.pwa-bubble-close.top-right {
+  position:absolute;
+  top:4px; right:6px;
+  width:20px; height:20px;
+  border-radius:6px;
+  background:transparent;
+  color:#64748b;
+  font-size:14px;
+  cursor:pointer;
+  line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  padding:0;
+  transition: background .18s, color .18s, transform .18s;
+  user-select:none;
+}
+.pwa-bubble-close.top-right:hover { background:rgba(0,0,0,0.08); color:#1e293b; }
+.pwa-bubble-close.top-right:active { transform:scale(.85); }
+
+.pwa-bubble-popover {
+  position:absolute;
+  top:54px;
+  right:0;
+  width:240px;
+  background:#ffffff;
+  border:1px solid #e2e8f0;
+  border-radius:14px;
+  padding:12px 14px 14px;
   font-size:12.5px;
-  color:#374151;
-  line-height:1.35;
+  color:#334155;
+  box-shadow:0 10px 32px -6px rgba(0,0,0,0.3),0 2px 6px rgba(0,0,0,0.12);
+  animation:pwaFadeSlide .25s ease;
 }
-.pwa-install-fallback ol { margin:6px 0 0 18px; padding:0; }
-.pwa-install-fallback li { margin-bottom:4px; }
 
-@media (max-width:480px) {
-  .pwa-install-card {
-    width: calc(100% - 24px);
-    right: 12px;
-    bottom: 12px;
-    padding: 14px 14px 12px;
-  }
-  .pwa-install-icon { width:44px; height:44px; font-size:21px; }
-  .pwa-install-title { font-size:14px; }
-  .pwa-install-sub { font-size:12px; }
-  .pwa-install-primary, .pwa-install-secondary { padding:9px 12px; font-size:12.5px; }
+.pwa-bubble-popover ol { margin:4px 0 0 18px; padding:0; }
+.pwa-bubble-popover li { margin-bottom:4px; }
+.pwa-bubble-tip {
+  position:absolute;
+  top:-8px; right:26px;
+  width:16px; height:16px;
+  background:#ffffff;
+  border-left:1px solid #e2e8f0;
+  border-top:1px solid #e2e8f0;
+  transform:rotate(45deg);
+}
+
+@keyframes pwaFadeSlide { from { opacity:0; transform: translateY(-6px) scale(.98);} to { opacity:1; transform: translateY(0) scale(1);} }
+
+@media (max-width:640px) {
+  .pwa-bubble-wrapper { top:10px; right:10px; }
+  /* Slightly more compact on mobile while keeping safe gap */
+  .pwa-bubble { padding:7px 32px 7px 9px; font-size:12.5px; }
+  .pwa-bubble-label { margin-right:2px; }
+  .pwa-bubble-close.top-right { top:3px; right:6px; }
+  .pwa-bubble-icon, .pwa-bubble-fallback { width:26px; height:26px; }
+  .pwa-bubble-popover { width:220px; }
+  .pwa-bubble-tip { right:24px; }
 }
