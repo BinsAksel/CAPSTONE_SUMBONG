@@ -2021,7 +2021,7 @@ const Dashboard = () => {
               </div>
               <div className="profile-actions single-action">
                 <button type="submit" disabled={loading} className="profile-action-btn">
-                  {loading ? 'Saving...' : 'Save Changes'}
+                  Save Changes
                 </button>
               </div>
             </form>

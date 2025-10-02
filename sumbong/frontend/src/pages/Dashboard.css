@@ -281,6 +281,15 @@ body.modal-open {
   border: none;
   transition: all 0.3s ease;
 }
+/* Prevent nav avatar from compressing when parent flex container gets tight */
+.profile-btn, .profile-btn img, .profile-btn .avatar-fallback {
+  flex-shrink: 0;
+  aspect-ratio: 1/1;
+}
+/* Safety: if any global font-size or line-height collapses nav height, enforce min-size */
+.profile-btn { min-width:48px; min-height:48px; }
+/* Optional crispness on high DPI */
+.profile-btn img { image-rendering:auto; }
 /* Header fallback avatar (initial) */
 .profile-btn .avatar-fallback {
   width: 48px;
@@ -2843,6 +2852,10 @@ body.modal-open {
 @media (max-width: 600px){
   .evidence-strip .evidence-item { flex:0 0 calc((100% - 16px)/2); max-width:calc((100% - 16px)/2); }
 }
+/* Center a single evidence item */
+.evidence-strip:has(.evidence-item:first-child:last-child) {
+  justify-content: center;
+}
 /* Tighten gap above Messages section in complaint view on small screens */
 @media (max-width: 520px){
   .complaint-details-modal .feedback-thread-wrapper { margin-top: 0 !important; }
@@ -3125,6 +3138,10 @@ body.modal-open {
 .credentials-strip .credential-item { flex:0 0 calc((100% - 32px)/3); max-width:calc((100% - 32px)/3); scroll-snap-align:start; }
 @media (max-width: 600px){
   .credentials-strip .credential-item { flex:0 0 calc((100% - 16px)/2); max-width:calc((100% - 16px)/2); }
+}
+/* Center a single credential item */
+.credentials-strip:has(.credential-item:first-child:last-child) {
+  justify-content: center;
 }
 
 /* Re-use credential card styling if existing grid styles rely on .credentials-grid selectors */
