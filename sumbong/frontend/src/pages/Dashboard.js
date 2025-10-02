@@ -1081,13 +1081,19 @@ const Dashboard = () => {
 
   const handleLogout = async () => {
     const result = await Swal.fire({
-      title: 'Are you sure you want to log out?',
-      icon: 'warning',
+      title: 'Sign out of your account?',
+      icon: 'question',
       showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#d33',
-      confirmButtonText: 'Yes, log out',
-      cancelButtonText: 'Cancel',
+      reverseButtons: true,
+      focusCancel: true,
+      confirmButtonText: 'Log out',
+      cancelButtonText: 'Stay',
+      buttonsStyling: true,
+      customClass: {
+        popup: 'swal-logout-popup',
+        confirmButton: 'swal-btn-confirm',
+        cancelButton: 'swal-btn-cancel'
+      }
     });
     if (result.isConfirmed) {
       // Store current complaints before logout for future comparison
@@ -1113,7 +1119,19 @@ const Dashboard = () => {
       setJustLoggedIn(false);
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      // Subtle success toast after state clear
       navigate('/login');
+      setTimeout(() => {
+        Swal.fire({
+          icon: 'success',
+          title: 'Signed out',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 1300,
+          timerProgressBar: true
+        });
+      }, 150);
     }
   };
 
