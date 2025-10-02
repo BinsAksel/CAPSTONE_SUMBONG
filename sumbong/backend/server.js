@@ -62,7 +62,15 @@ if (['1','true','yes'].includes(String(process.env.CORS_DEBUG||'').toLowerCase()
 
 // --- CORS MUST RUN EARLY (before rate limiters) so even errors/preflight get headers ---
 const corsEnv = process.env.CORS_ORIGINS;
-const defaultOrigins = ['https://capstone-sumbong.vercel.app/', 'http://localhost:3000'];
+// Default origins include production domain, all Vercel preview domains via wildcard, and localhost.
+// Wildcard pattern "https://capstone-sumbong-*.vercel.app" will match preview URLs like
+// https://capstone-sumbong-git-main-<hash>.vercel.app or other branch deployments.
+// NOTE: If you want to tighten later, set CORS_ORIGINS env var explicitly (comma separated) without the wildcard.
+const defaultOrigins = [
+  'https://capstone-sumbong.vercel.app',
+  'https://capstone-sumbong-*.vercel.app',
+  'http://localhost:3000'
+];
 function buildOriginMatchers(list) {
   return list.map(raw => {
     const origin = raw.trim().replace(/\/$/, '');
@@ -97,6 +105,18 @@ app.use(cors({
   allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With'],
   exposedHeaders: ['Content-Type','Authorization']
 }));
+// Friendly CORS error handler (must have 4 params) placed immediately after cors middleware.
+// Without this, the generic error handler would typically convert it into a 500 for browsers.
+app.use((err, req, res, next) => {
+  if (err && err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      message: 'CORS blocked: origin not allowed',
+      origin: req.headers.origin || null,
+      allowed: originMatchers.map(m => m.display)
+    });
+  }
+  return next(err);
+});
 if (corsDebug) {
   app.get('/__cors_debug', (req,res) => {
     res.json({ configured: originMatchers.map(m => m.display), receivedOrigin: req.headers.origin || null });
