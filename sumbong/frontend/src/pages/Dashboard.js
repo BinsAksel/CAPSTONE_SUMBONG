@@ -1671,6 +1671,43 @@ const Dashboard = () => {
   // Show a global loading overlay while initial user + complaints load (first mount)
   const initialLoading = !user || !complaints || (complaints.length === 0 && !Array.isArray(complaints));
 
+
+  // ===== Scroll Lock for Open Modals (prevent background page scroll) =====
+  useEffect(() => {
+    const anyModalOpen = showProfile || showEdit || showComplaint || !!viewComplaint || !!editComplaint || showNotifications || !!editComplaintData;
+    const body = document.body;
+    if (anyModalOpen) {
+      // Preserve current scroll position
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      body.dataset.prevScrollY = String(scrollY);
+      body.classList.add('modal-open');
+      body.style.top = `-${scrollY}px`;
+      body.style.position = 'fixed';
+      body.style.left = '0';
+      body.style.right = '0';
+      body.style.width = '100%';
+    } else {
+      if (body.classList.contains('modal-open')) {
+        const prev = parseInt(body.dataset.prevScrollY || '0', 10);
+        body.classList.remove('modal-open');
+        body.style.position = '';
+        body.style.top = '';
+        body.style.left = '';
+        body.style.right = '';
+        body.style.width = '';
+        window.scrollTo(0, prev);
+      }
+    }
+    return () => { /* cleanup on unmount */
+      body.classList.remove('modal-open');
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.right = '';
+      body.style.width = '';
+    };
+  }, [showProfile, showEdit, showComplaint, viewComplaint, editComplaint, showNotifications, editComplaintData]);
+
   return (
     <div className="dashboard-container" style={{ position:'relative' }}>
   <LoadingOverlay show={loading} text="Processing..." iconSize={44} large={false} minimal />
@@ -1994,7 +2031,7 @@ const Dashboard = () => {
       {/* Add Complaint Modal */}
       {showComplaint && (
         <div className="dashboard-modal-bg" onClick={() => setShowComplaint(false)}>
-          <div className="dashboard-modal" onClick={e => e.stopPropagation()}>
+          <div className="dashboard-modal add-complaint-modal" onClick={e => e.stopPropagation()}>
             <button 
               className="modal-close-x" 
               onClick={() => setShowComplaint(false)}
@@ -2002,7 +2039,9 @@ const Dashboard = () => {
               aria-label="Close modal"
             >
             </button>
-            <h3>Add Complaint</h3>
+            <div className="complaint-header">
+              <h3>Add Complaint</h3>
+            </div>
             <form onSubmit={handleComplaintSubmit} className="complaint-form">
               <div className="complaint-input-container">
                 <label className="complaint-label">Full Name and Contact Info:</label>
@@ -2098,7 +2137,9 @@ const Dashboard = () => {
               </div>
             </div>
             
-            <div className="complaint-content">
+            {/* Scroll body wrapper combines details + thread so entire body scrolls inside fullscreen modal */}
+            <div className="complaint-scroll-body">
+              <div className="complaint-content">
               <div className="complaint-info-grid">
                 <div className="info-item">
                   <label>Date & Time</label>
@@ -2133,16 +2174,14 @@ const Dashboard = () => {
               <div className="complaint-evidence">
                 <label>Evidence</label>
                 {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
-                  <div className="evidence-grid">
-                    {viewComplaint.evidence.map((file, idx) => {
+                  <div className="evidence-strip-wrapper">
+                    <div className="evidence-strip" onWheel={(e)=>{ if(Math.abs(e.deltaY)>Math.abs(e.deltaX)) { e.currentTarget.scrollLeft += e.deltaY; } }}>
+                    {viewComplaint.evidence.map((file, idx)=>{
                       const fileUrl = (typeof file === 'string') ? file : (file?.url || '');
-                      if (!fileUrl) return null;
+                      if(!fileUrl) return null;
                       const url = toAbsolute(fileUrl);
                       const ext = fileUrl.split('.').pop().toLowerCase();
-                      const handleEvidenceClick = (e) => {
-                        e.stopPropagation();
-                        setEvidenceModal({ open: true, index: idx });
-                      };
+                      const handleEvidenceClick = (e) => { e.stopPropagation(); setEvidenceModal({ open:true, index: idx }); };
                       if (["jpg", "jpeg", "png", "gif", "bmp", "webp", "jfif"].includes(ext)) {
                         return (
                           <div key={idx} className="evidence-item" title="Click to view full size">
@@ -2191,22 +2230,23 @@ const Dashboard = () => {
                         );
                       }
                     })}
+                    </div>
                   </div>
                 ) : (
                   <div className="no-evidence">No Evidence Uploaded</div>
                 )}
                 {renderEvidenceModal()}
               </div>
-            </div>
-            {/* Legacy single Admin Feedback removed; only thread messages below */}
-            {/* Threaded Feedback Section (two-way) */}
-            <div className="feedback-thread-wrapper">
+              </div>{/* end complaint-content */}
+              {/* Legacy single Admin Feedback removed; only thread messages below */}
+              {/* Threaded Feedback Section (two-way) */}
+              <div className="feedback-thread-wrapper">
               <b>Messages</b>
               <div
                 ref={threadListRef}
                 className="feedback-thread-list"
                 style={{
-                  maxHeight: 200,
+                  maxHeight: 240,
                   overflowY: 'auto',
                   border: '1px solid #e5e7eb',
                   borderRadius: 6,
@@ -2258,14 +2298,15 @@ const Dashboard = () => {
                   {postingUserThread ? 'Sending...' : 'Send Message'}
                 </button>
               </div>
-            </div>
+              </div>
+            </div>{/* end complaint-scroll-body */}
           </div>
         </div>
       )}
       {/* Edit Complaint Modal */}
       {editComplaint && editComplaintData && (
         <div className="dashboard-modal-bg" onClick={() => { setEditComplaint(null); setEditComplaintData(null); }}>
-          <div className="dashboard-modal" onClick={e => e.stopPropagation()}>
+          <div className="dashboard-modal edit-complaint-modal" onClick={e => e.stopPropagation()}>
             <button 
               className="modal-close-x" 
               onClick={() => { setEditComplaint(null); setEditComplaintData(null); }}
@@ -2273,7 +2314,9 @@ const Dashboard = () => {
               aria-label="Close modal"
             >
             </button>
-            <h3>Edit Complaint</h3>
+            <div className="complaint-header">
+              <h3>Edit Complaint</h3>
+            </div>
             <form onSubmit={handleEditComplaintSubmit} className="complaint-form">
               <div className="complaint-input-container">
                 <label className="complaint-label">Full Name and Contact Info:</label>
@@ -2451,14 +2494,15 @@ const Dashboard = () => {
               {user.credentials && user.credentials.length > 0 && (
                 <div className="credentials-preview-section">
                   <h4>Your Uploaded Credentials</h4>
-                  <div className="credentials-grid">
+                  <div className="credentials-strip-wrapper">
+                    <div className="credentials-strip" role="list" aria-label="Uploaded credentials horizontal list">
                     {user.credentials.map((cred, idx) => {
                       const credUrl = typeof cred === 'string' ? cred : cred.url;
                       if (!credUrl) return null;
                       const ext = credUrl.split('?')[0].split('.').pop().toLowerCase();
                       if (["jpg","jpeg","png","gif","bmp","webp","jfif","avif"].includes(ext)) {
                         return (
-                          <div key={idx} className="credential-item" title="Credential image">
+                          <div key={idx} className="credential-item" role="listitem" title="Credential image">
                             <SmartImage
                               src={credUrl}
                               type="credential"
@@ -2470,18 +2514,19 @@ const Dashboard = () => {
                         );
                       } else if (ext === 'pdf') {
                         return (
-                          <div key={idx} className="credential-item pdf" title="PDF credential">
+                          <div key={idx} className="credential-item pdf" role="listitem" title="PDF credential">
                             <a href={credUrl} target="_blank" rel="noopener noreferrer" className="pdf-credential-link">PDF</a>
                           </div>
                         );
                       } else {
                         return (
-                          <div key={idx} className="credential-item other" title={ext.toUpperCase()}>
+                          <div key={idx} className="credential-item other" role="listitem" title={ext.toUpperCase()}>
                             <a href={credUrl} target="_blank" rel="noopener noreferrer" className="other-credential-link">{ext.toUpperCase()}</a>
                           </div>
                         );
                       }
                     })}
+                    </div>
                   </div>
                 </div>
               )}

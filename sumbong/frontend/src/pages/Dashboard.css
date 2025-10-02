@@ -104,6 +104,38 @@
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* Prevent background scroll when any dashboard modal is open */
+body.modal-open {
+  overflow: hidden !important; /* lock background */
+  touch-action: pan-y; /* still allow vertical scroll inside fixed positioned children */
+  overscroll-behavior: contain;
+}
+/* Complaint modal header layout */
+.complaint-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  position: relative;
+  padding-right: 76px; /* reserve room for the floating X button */
+  flex-wrap: nowrap;
+}
+.complaint-header h3 { margin: 0; font-size: 1.15rem; }
+/* status badge wrapper */
+.complaint-header .complaint-status { flex-shrink: 0; display:flex; align-items:center; }
+/* allow empty header (add/edit) to not collapse height */
+.complaint-header:empty { min-height: 0; }
+@media (max-width: 520px) {
+  .complaint-header { 
+    padding-right: 90px; 
+    flex-direction: column; 
+    align-items: flex-start; 
+    gap: 6px; 
+  }
+  .complaint-header h3 { font-size: 1.05rem; line-height:1.2; }
+  .complaint-header .complaint-status { width:100%; }
+  .complaint-header .status-badge { margin-left:0; }
+}
 /* Threaded feedback chat styling */
 .feedback-thread-wrapper {
   margin-top: 12px;
@@ -569,6 +601,11 @@
   position: relative;
   z-index: 2;
 }
+    /* Override: make view profile modal use SINGLE outer scroll (remove inner scroll bar) */
+    .profile-modal .profile-modal-content {
+      overflow: visible !important; /* delegate scrolling to .profile-modal root */
+      padding-bottom: calc(var(--modal-mobile-safe-gap) + 40px) !important; /* retain safe area spacing */
+    }
 
 /* Complaint section header styling */
 .complaint-section-header {
@@ -1090,6 +1127,15 @@
   .complaints-header h4 { margin-bottom:4px; }
 }
 
+  /* Make whole add/edit complaint modal scroll instead of just the form */
+  .dashboard-modal.add-complaint-modal,
+  .dashboard-modal.edit-complaint-modal { overflow-y:auto !important; }
+  .dashboard-modal.add-complaint-modal form,
+  .dashboard-modal.edit-complaint-modal form {
+    overflow: visible !important; /* remove inner scroll */
+    max-height: none !important;
+    padding-right: 4px; /* slight space for outer scrollbar */
+  }
 /* Reduce modal sizes on smaller screens */
 @media (max-width: 820px) {
   .dashboard-modal { max-width: 640px; min-height: auto; }
@@ -1433,6 +1479,131 @@
     max-width: 360px !important;
   }
 }
+
+/* ================= Fullscreen Mobile Modal Experience (User Side) ================= */
+/* Rationale: On very small screens the system navbar / gesture area overlaps bottom buttons.
+   We switch targeted modals to a fullscreen layout with an intentional bottom safe gap so
+   interactive elements remain accessible. */
+@media (max-width: 520px) {
+  :root {
+    /* Provide extra tappable space above device nav bar: safe inset + 20px */
+    --modal-mobile-safe-gap: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  }
+  /* Target user-facing modals only */
+  .dashboard-modal.add-complaint-modal,
+  .dashboard-modal.edit-complaint-modal,
+  .complaint-details-modal,
+  .profile-modal,
+  .edit-profile-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important; /* remove curves */
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    flex-direction: column;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 10px var(--modal-mobile-safe-gap) 10px !important; /* minimal padding */
+    box-sizing: border-box;
+    overflow-y: auto; /* entire modal scrolls */
+  }
+  /* Ensure inner scrolling area instead of whole page */
+  .dashboard-modal.add-complaint-modal form,
+  .dashboard-modal.edit-complaint-modal form,
+  .complaint-details-modal .complaint-content,
+  .profile-modal .profile-modal-content,
+  .edit-profile-modal form {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    /* Ensure final field / button not obscured by nav bar */
+    padding-bottom: calc(var(--modal-mobile-safe-gap) + 40px) !important;
+  }
+  /* Keep bottom action areas above safe gap */
+  .feedback-thread-input,
+  .profile-actions.single-action,
+  .modal-footer,
+  .complaint-btn,
+  .profile-action-btn {
+    margin-bottom: calc(var(--modal-mobile-safe-gap) - 8px);
+  }
+  /* Make primary complaint submit buttons a bit raised for better reach */
+  .dashboard-modal.add-complaint-modal .complaint-btn,
+  .dashboard-modal.edit-complaint-modal .complaint-btn,
+  .complaint-details-modal .complaint-btn {
+    position: relative;
+  }
+}
+
+/* For smaller widths keep only native safe-area inset (no added visual gap) */
+@media (max-width: 420px) { :root { --modal-mobile-safe-gap: env(safe-area-inset-bottom, 0px); } }
+@media (max-width: 380px) { :root { --modal-mobile-safe-gap: env(safe-area-inset-bottom, 0px); } }
+
+/* === Final forced edge-to-edge override for complaint details modal (mobile) === */
+@media (max-width: 520px) {
+  .complaint-details-modal {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+  .complaint-details-modal .complaint-content {
+    padding-left: 10px;
+    padding-right: 10px; /* keep minimal internal padding only */
+  }
+  .complaint-details-modal .complaint-header {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+    padding-right: 90px !important; /* extra space for close button so status badge not overlapped */
+    box-sizing: border-box;
+  }
+}
+
+/* Ultimate enforcement: ensure the modal itself is fixed and flush to viewport on small/medium screens */
+@media (max-width: 900px) {
+  .dashboard-modal-bg > .complaint-details-modal,
+  .dashboard-modal-bg .complaint-details-modal.complaint-details-modal,
+  .dashboard-modal-bg > .profile-modal,
+  .dashboard-modal-bg .profile-modal.profile-modal,
+  .dashboard-modal-bg > .edit-profile-modal,
+  .dashboard-modal-bg .edit-profile-modal.edit-profile-modal { /* doubled classes for specificity */
+    position: fixed !important;
+    inset: 0 !important; /* top:0,right:0,bottom:0,left:0 */
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 env(safe-area-inset-bottom, 0px) 0 !important; /* remove side padding */
+    overflow-y: auto !important; /* allow whole modal to scroll */
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: none !important;
+  }
+  .complaint-details-modal .complaint-content { padding: 0 10px 60px 10px !important; }
+  .complaint-details-modal .complaint-header { padding: 0 16px 12px 16px !important; }
+  /* Give inner profile modal content horizontal breathing room */
+  .profile-modal .profile-modal-content { padding: 0 14px 70px 14px !important; }
+  .edit-profile-modal form { padding: 0 14px 70px 14px !important; }
+}
+
+  /* Unified scroll container for complaint modal (details + thread + input) */
+  .complaint-scroll-body {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    /* Let outer modal provide scrolling; avoid nested scroll */
+    height: auto;
+    overflow: visible;
+    padding-bottom: 16px;
+  }
+  .complaint-scroll-body .feedback-thread-wrapper { margin-top: 4px; }
+  @media (max-width: 900px) {
+    .complaint-details-modal .complaint-scroll-body { padding: 0 10px 60px 10px; }
+  }
 .complaint-label {
   font-weight: 500;
   color: #222b45;
@@ -1742,8 +1913,9 @@
   border-radius: 8px;
   max-width: 700px;
   width: 100%;
-  max-height: 85vh;
-  overflow-y: auto;
+  /* Remove fixed internal cap so fullscreen overrides can take full height; allow natural height desktop with body scroll lock */
+  max-height: none;
+  overflow-y: auto; /* root scroll area */
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   animation: slideUpModal 0.30s cubic-bezier(.22,.9,.32,1);
 }
@@ -1835,6 +2007,12 @@
 
 .profile-modal-content {
   padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  flex: 1 1 auto; /* so it can stretch in fullscreen */
+  box-sizing: border-box;
+  overflow: visible; /* root modal handles scrolling */
 }
 
 /* Credentials Preview (uniform sizing) */
@@ -2573,13 +2751,70 @@
 }
 
 .evidence-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  display: flex;
+  flex-direction: row;
   gap: 16px;
-  max-height: 300px;
-  overflow-y: auto;
-  padding: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 6px 4px 10px;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  scroll-snap-type: x mandatory; /* smooth snapping */
 }
+/* Fixed card width: show up to 3 naturally (depending on container width). If >3, horizontal scroll activates. */
+.evidence-grid .evidence-item {
+  flex: 0 0 240px; /* adjust this if you want slightly wider/narrower */
+  max-width: 240px;
+  scroll-snap-align: start;
+}
+/* Evidence horizontal strip: 3 items desktop, 2 items on narrow screens */
+.evidence-strip-wrapper { width:100%; position:relative; }
+.evidence-strip {
+  display:flex;
+  flex-direction:row;
+  gap:16px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding:6px 4px 10px;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.evidence-strip::-webkit-scrollbar { height:5px; }
+.evidence-strip::-webkit-scrollbar-track { background:#f1f5f9; border-radius:4px; }
+.evidence-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+.evidence-strip::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+@media (max-width: 600px){
+  .evidence-strip { scrollbar-width: thin; }
+  .evidence-strip::-webkit-scrollbar { height:3px; }
+  .evidence-strip::-webkit-scrollbar-track { background:transparent; }
+  .evidence-strip::-webkit-scrollbar-thumb { background:#cbd5e1; }
+  .evidence-strip::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+}
+.evidence-strip .evidence-item { flex:0 0 calc((100% - 32px)/3); max-width:calc((100% - 32px)/3); scroll-snap-align:start; }
+@media (max-width: 600px){
+  .evidence-strip .evidence-item { flex:0 0 calc((100% - 16px)/2); max-width:calc((100% - 16px)/2); }
+}
+/* Tighten gap above Messages section in complaint view on small screens */
+@media (max-width: 520px){
+  .complaint-details-modal .feedback-thread-wrapper { margin-top: 0 !important; }
+  .complaint-details-modal .complaint-evidence { padding-bottom: 2px; }
+  /* Reduce overall vertical spacing inside scroll body on small screens */
+  .complaint-details-modal .complaint-scroll-body { gap: 12px !important; }
+  /* Pull messages section slightly closer if still too far */
+  .complaint-details-modal .feedback-thread-wrapper { margin-top: -50px !important; }
+}
+@media (max-width: 640px){
+  .evidence-nav { width:30px; height:30px; font-size:18px; }
+  .evidence-nav.prev { left: 2px; }
+  .evidence-nav.next { right: 2px; }
+}
+.evidence-grid::-webkit-scrollbar { height: 8px; }
+.evidence-grid::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+.evidence-grid::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.evidence-grid::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+/* Removed old width rule (replaced by responsive flex-basis above) */
 
 .evidence-item {
   display: flex;
@@ -2702,6 +2937,288 @@
   }
   .notif-toast .swal2-title { font-size: 0.8rem !important; }
   .notif-toast .swal2-html-container { font-size: 0.7rem !important; }
+}
+
+/* === Modern Scrollbar Theme (applies to key scrollable regions) === */
+/* Design goals: low-contrast track, subtle elevated thumb, smooth hover/active feedback, consistent across browsers. */
+:root {
+  --scrollbar-track-bg: #f1f5f9;          /* neutral track */
+  --scrollbar-track-bg-alt: #f8fafc;       /* alternate (unused yet) */
+  --scrollbar-thumb-bg: #cbd5e1;           /* base thumb */
+  --scrollbar-thumb-hover: #94a3b8;        /* hover state */
+  --scrollbar-thumb-active: #64748b;       /* active drag */
+  --scrollbar-corner-bg: #f1f5f9;          /* corner fill */
+  --scrollbar-size: 10px;                  /* vertical thickness */
+  --scrollbar-radius: 20px;                /* pill shape */
+  --scrollbar-minlength: 28px;             /* avoid ultra tiny thumb */
+  --scrollbar-fade: 170ms;                 /* transition timing */
+}
+
+/* Core vertical scroll containers */
+.dashboard-modal,
+.dashboard-modal form,
+.complaint-details-modal,
+.complaint-scroll-body,
+.feedback-thread-list,
+.profile-modal, /* root profile modal */
+.edit-profile-modal, /* root edit profile modal (dashboard-modal variant) */
+.profile-modal .profile-modal-content,
+.edit-profile-modal form {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--scrollbar-thumb-bg) var(--scrollbar-track-bg);
+}
+
+/* WebKit-based browsers */
+.dashboard-modal::-webkit-scrollbar,
+.dashboard-modal form::-webkit-scrollbar,
+.complaint-details-modal::-webkit-scrollbar,
+.complaint-scroll-body::-webkit-scrollbar,
+.feedback-thread-list::-webkit-scrollbar,
+.profile-modal::-webkit-scrollbar,
+.edit-profile-modal::-webkit-scrollbar,
+.profile-modal .profile-modal-content::-webkit-scrollbar,
+.edit-profile-modal form::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  background: transparent; /* let track rule render */
+}
+
+.dashboard-modal::-webkit-scrollbar-track,
+.dashboard-modal form::-webkit-scrollbar-track,
+.complaint-details-modal::-webkit-scrollbar-track,
+.complaint-scroll-body::-webkit-scrollbar-track,
+.feedback-thread-list::-webkit-scrollbar-track,
+.profile-modal::-webkit-scrollbar-track,
+.edit-profile-modal::-webkit-scrollbar-track,
+.profile-modal .profile-modal-content::-webkit-scrollbar-track,
+.edit-profile-modal form::-webkit-scrollbar-track {
+  background: var(--scrollbar-track-bg);
+  border-radius: var(--scrollbar-radius);
+  box-shadow: inset 0 0 0 1px #e2e8f0, inset 0 0 4px rgba(0,0,0,0.04);
+}
+
+.dashboard-modal::-webkit-scrollbar-thumb,
+.dashboard-modal form::-webkit-scrollbar-thumb,
+.complaint-details-modal::-webkit-scrollbar-thumb,
+.complaint-scroll-body::-webkit-scrollbar-thumb,
+.feedback-thread-list::-webkit-scrollbar-thumb,
+.profile-modal::-webkit-scrollbar-thumb,
+.edit-profile-modal::-webkit-scrollbar-thumb,
+.profile-modal .profile-modal-content::-webkit-scrollbar-thumb,
+.edit-profile-modal form::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--scrollbar-thumb-bg), #b8c6d5);
+  border-radius: var(--scrollbar-radius);
+  min-height: var(--scrollbar-minlength);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.6) inset;
+  transition: background var(--scrollbar-fade) ease, box-shadow var(--scrollbar-fade) ease;
+}
+
+.dashboard-modal::-webkit-scrollbar-thumb:hover,
+.dashboard-modal form::-webkit-scrollbar-thumb:hover,
+.complaint-details-modal::-webkit-scrollbar-thumb:hover,
+.complaint-scroll-body::-webkit-scrollbar-thumb:hover,
+.feedback-thread-list::-webkit-scrollbar-thumb:hover,
+.profile-modal::-webkit-scrollbar-thumb:hover,
+.edit-profile-modal::-webkit-scrollbar-thumb:hover,
+.profile-modal .profile-modal-content::-webkit-scrollbar-thumb:hover,
+.edit-profile-modal form::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--scrollbar-thumb-hover), #8096a9);
+}
+
+.dashboard-modal::-webkit-scrollbar-thumb:active,
+.dashboard-modal form::-webkit-scrollbar-thumb:active,
+.complaint-details-modal::-webkit-scrollbar-thumb:active,
+.complaint-scroll-body::-webkit-scrollbar-thumb:active,
+.feedback-thread-list::-webkit-scrollbar-thumb:active,
+.profile-modal::-webkit-scrollbar-thumb:active,
+.edit-profile-modal::-webkit-scrollbar-thumb:active,
+.profile-modal .profile-modal-content::-webkit-scrollbar-thumb:active,
+.edit-profile-modal form::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, var(--scrollbar-thumb-active), #556270);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.15) inset, 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* Corner (when both axes scroll) */
+.dashboard-modal::-webkit-scrollbar-corner,
+.complaint-details-modal::-webkit-scrollbar-corner { background: var(--scrollbar-corner-bg); }
+
+/* Evidence strip already has bespoke sizing; we only enhance its thumb finish slightly */
+.evidence-strip::-webkit-scrollbar-thumb {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12) inset;
+}
+.evidence-strip::-webkit-scrollbar-thumb:active {
+  background: #94a3b8; /* keep simple for narrow bar */
+}
+
+/* ===== Credentials Horizontal Strip (profile modal) ===== */
+.credentials-preview-section { display:flex; flex-direction:column; gap:12px; }
+.credentials-strip-wrapper { width:100%; position:relative; }
+.credentials-strip {
+  display:flex;
+  flex-direction:row;
+  gap:16px;
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding:6px 4px 10px;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width: thin;
+  scrollbar-color:#94a3b8 #f1f5f9;
+}
+.credentials-strip::-webkit-scrollbar { height:5px; }
+.credentials-strip::-webkit-scrollbar-track { background:#f1f5f9; border-radius:4px; }
+.credentials-strip::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+.credentials-strip::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+@media (max-width: 600px){
+  .credentials-strip { scrollbar-width: thin; }
+  .credentials-strip::-webkit-scrollbar { height:3px; }
+  .credentials-strip::-webkit-scrollbar-track { background:transparent; }
+  .credentials-strip::-webkit-scrollbar-thumb { background:#cbd5e1; }
+  .credentials-strip::-webkit-scrollbar-thumb:hover { background:#94a3b8; }
+}
+.credentials-strip .credential-item { flex:0 0 calc((100% - 32px)/3); max-width:calc((100% - 32px)/3); scroll-snap-align:start; }
+@media (max-width: 600px){
+  .credentials-strip .credential-item { flex:0 0 calc((100% - 16px)/2); max-width:calc((100% - 16px)/2); }
+}
+
+/* Re-use credential card styling if existing grid styles rely on .credentials-grid selectors */
+.credential-item { display:flex; align-items:center; justify-content:center; background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:8px; box-sizing:border-box; }
+.credential-thumb { width:100%; height:100px; object-fit:cover; border-radius:6px; }
+
+
+/* Reduced thickness on very small screens for vertical scroll areas (not evidence strip which is horizontal) */
+@media (max-width: 520px) {
+  .dashboard-modal::-webkit-scrollbar,
+  .dashboard-modal form::-webkit-scrollbar,
+  .complaint-details-modal::-webkit-scrollbar,
+  .complaint-scroll-body::-webkit-scrollbar,
+  .feedback-thread-list::-webkit-scrollbar,
+  .profile-modal::-webkit-scrollbar,
+  .edit-profile-modal::-webkit-scrollbar,
+  .profile-modal .profile-modal-content::-webkit-scrollbar,
+  .edit-profile-modal form::-webkit-scrollbar { width: 8px; }
+}
+
+/* Firefox small-screen refinement */
+@supports (scrollbar-color: auto) {
+  @media (max-width: 520px) {
+  .dashboard-modal,
+  .dashboard-modal form,
+  .complaint-details-modal,
+  .complaint-scroll-body,
+  .feedback-thread-list,
+  .profile-modal,
+  .edit-profile-modal,
+  .profile-modal .profile-modal-content,
+  .edit-profile-modal form { scrollbar-width: thin; }
+  }
+}
+
+/* Optional fade-in on hover for large screens */
+@media (min-width: 901px) {
+  .dashboard-modal,
+  .complaint-details-modal,
+  .profile-modal,
+  .edit-profile-modal,
+  .profile-modal .profile-modal-content,
+  .edit-profile-modal form { scrollbar-color: var(--scrollbar-thumb-bg) transparent; }
+  .dashboard-modal::-webkit-scrollbar-track,
+  .complaint-details-modal::-webkit-scrollbar-track,
+  .profile-modal::-webkit-scrollbar-track,
+  .edit-profile-modal::-webkit-scrollbar-track,
+  .profile-modal .profile-modal-content::-webkit-scrollbar-track,
+  .edit-profile-modal form::-webkit-scrollbar-track { background: transparent; }
+  .dashboard-modal:hover::-webkit-scrollbar-track,
+  .complaint-details-modal:hover::-webkit-scrollbar-track,
+  .profile-modal:hover::-webkit-scrollbar-track,
+  .edit-profile-modal:hover::-webkit-scrollbar-track,
+  .profile-modal .profile-modal-content:hover::-webkit-scrollbar-track,
+  .edit-profile-modal form:hover::-webkit-scrollbar-track { background: var(--scrollbar-track-bg); }
+}
+
+/* Desktop gap at bottom of profile modal so logout button not flush with rounded corner */
+@media (min-width: 901px) {
+  .profile-modal { padding-bottom: 28px; }
+  .profile-modal .modal-footer { margin-bottom: 4px; }
+}
+
+/* === Fix: Prevent close (X) button overlapping Edit Profile modal header content === */
+.edit-profile-modal { position: relative; }
+/* Integrate the close button seamlessly into the header (not floating over content) */
+.edit-profile-modal .modal-close-btn, /* legacy selector (keep) */
+.edit-profile-modal .modal-close-x { /* actual button in markup */
+  position: absolute;
+  top: -4px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background .18s ease, color .18s ease;
+}
+.edit-profile-modal .modal-close-btn:hover,
+.edit-profile-modal .modal-close-x:hover { background:#f1f5f9; }
+.edit-profile-modal .profile-modal-header { position:relative; padding-right:58px !important; }
+/* If edit profile uses a bare h3 (not wrapped in .profile-modal-header) reserve space */
+.edit-profile-modal > h3 { padding-right:58px; margin-top:0; }
+@media (max-width: 520px){
+  .edit-profile-modal .modal-close-btn { top:8px; right:6px; width:36px; height:36px; }
+  .edit-profile-modal .profile-modal-header { padding-right:54px !important; }
+  .edit-profile-modal > h3 { padding-right:54px; }
+}
+
+/* Desktop constraint so entire profile modal (including header) scrolls instead of inner content */
+@media (min-width: 901px) {
+  .profile-modal.profile-modal { /* extra specificity */
+    max-height: 85vh; /* constrain height so root becomes scrolling container */
+    overflow-y: auto !important;
+  }
+  .profile-modal.profile-modal .profile-modal-content { overflow: visible !important; }
+}
+
+/* === Fullscreen Responsive Overrides for VIEW Profile Modal (appended for precedence) === */
+@media (max-width: 900px) {
+  /* Use the actual overlay parent (.profile-modal-overlay) since profile modal is NOT inside .dashboard-modal-bg */
+  .profile-modal-overlay > .profile-modal.profile-modal { /* doubled class for specificity */
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding: calc(env(safe-area-inset-top, 0px) + 10px) 0 calc(env(safe-area-inset-bottom, 0px)) 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: none !important;
+    background: #ffffff;
+  }
+  .profile-modal.profile-modal .profile-modal-header { 
+    border-radius: 0 !important; 
+    padding: 16px 18px !important; 
+  }
+  .profile-modal.profile-modal .profile-modal-content { 
+    padding: 0 18px 70px 18px !important; 
+    box-sizing: border-box; 
+  }
+}
+@media (max-width: 520px) {
+  .profile-modal-overlay > .profile-modal.profile-modal {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 8px) !important;
+  }
+  .profile-modal.profile-modal .profile-modal-header { 
+    padding: 14px 16px !important; 
+  }
+  .profile-modal.profile-modal .profile-modal-content { 
+    padding: 0 16px 80px 16px !important; 
+  }
 }
 
  
