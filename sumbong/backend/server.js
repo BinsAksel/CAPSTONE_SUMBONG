@@ -94,9 +94,8 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
-  // Added 'Cache-Control' to allowed and exposed headers to satisfy frontend preflight (SSE & caching logic)
-  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With','Cache-Control'],
-  exposedHeaders: ['Content-Type','Authorization','Cache-Control']
+  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With'],
+  exposedHeaders: ['Content-Type','Authorization']
 }));
 if (corsDebug) {
   app.get('/__cors_debug', (req,res) => {
@@ -179,10 +178,6 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/', authLimiter); // auth first (stricter)
 app.use('/api/', generalLimiter);
-// Fast-path for CORS preflight to reduce overhead (must come after CORS middleware already configured)
-app.options('*', (req,res) => {
-  res.sendStatus(204);
-});
 // Sanitization
 app.use(mongoSanitize());
 const sanitizeBodyFields = (fields=[]) => (req,res,next)=>{ fields.forEach(f=>{ if (req.body && typeof req.body[f] === 'string') { req.body[f] = sanitizeHtml(req.body[f], { allowedTags: [], allowedAttributes: {} }); }}); next(); };

@@ -1,19 +1,21 @@
 import React, { useEffect, useState, useRef } from 'react';
 import './InstallPWAButton.css';
 
-// Shows a small install bubble ONLY when the browser fires beforeinstallprompt.
-// If the event never fires (unsupported or already installed), nothing is shown.
+// Compact top-right bubble style installer
 export default function InstallPWAButton() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showBubble, setShowBubble] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [installed, setInstalled] = useState(false);
-  const dismissedRef = useRef(false);
+  const helpTimerRef = useRef(null);
+
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
   const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 
   useEffect(() => {
     if (isStandalone()) { setInstalled(true); return; }
+
     const handleBeforeInstallPrompt = (e) => {
-      if (dismissedRef.current) return;
       e.preventDefault();
       setDeferredPrompt(e);
       setShowBubble(true);
@@ -21,19 +23,33 @@ export default function InstallPWAButton() {
     const handleAppInstalled = () => {
       setInstalled(true);
       setShowBubble(false);
+      setShowHelp(false);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
+
+    // If after 6s no event & iOS (no prompt), still show bubble so user sees manual option
+    helpTimerRef.current = setTimeout(() => {
+      if (!deferredPrompt && !installed) {
+        setShowBubble(true);
+      }
+    }, 6000);
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      if (helpTimerRef.current) clearTimeout(helpTimerRef.current);
     };
-  }, []);
+  }, [deferredPrompt, installed]);
 
-  if (installed || !showBubble || dismissedRef.current || !deferredPrompt) return null;
+  if (installed || !showBubble) return null;
 
   const performInstall = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+      // iOS / unsupported → toggle help popover
+      setShowHelp(h => !h);
+      return;
+    }
     deferredPrompt.prompt();
     try {
       const { outcome } = await deferredPrompt.userChoice;
@@ -47,16 +63,18 @@ export default function InstallPWAButton() {
   };
 
   const dismissCompletely = () => {
-    dismissedRef.current = true;
     setShowBubble(false);
+    setShowHelp(false);
   };
 
   return (
     <div className="pwa-bubble-wrapper" aria-live="polite">
       <button
-        className="pwa-bubble"
+        className={`pwa-bubble ${showHelp ? 'help-open' : ''}`}
         onClick={performInstall}
-        aria-label="Install Sumbong application"
+        aria-haspopup={!deferredPrompt ? 'dialog' : undefined}
+        aria-expanded={showHelp}
+        aria-label={deferredPrompt ? 'Install Sumbong application' : 'How to install Sumbong'}
         type="button"
       >
         <img
@@ -74,7 +92,7 @@ export default function InstallPWAButton() {
           }}
         />
         <span className="pwa-bubble-fallback" aria-hidden="true">S</span>
-    <span className="pwa-bubble-label">Install SUMBONG</span>
+        <span className="pwa-bubble-label">Install SUMBONG</span>
         <span
           className="pwa-bubble-close top-right"
           role="button"
@@ -84,7 +102,20 @@ export default function InstallPWAButton() {
           aria-label="Dismiss install prompt"
         >×</span>
       </button>
-      {/* No fallback instructions: button only appears when real install prompt is available */}
+      {showHelp && (
+        <div className="pwa-bubble-popover" role="dialog" aria-label="Install instructions">
+          {isIOS() ? (
+            <ol>
+              <li>Tap the <b>Share</b> icon</li>
+              <li>Select <b>Add to Home Screen</b></li>
+              <li>Tap <b>Add</b></li>
+            </ol>
+          ) : (
+            <p>Open your browser menu and choose <b>Add to Home screen</b>.</p>
+          )}
+          <div className="pwa-bubble-tip" />
+        </div>
+      )}
     </div>
   );
 }

@@ -27,16 +27,9 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then(cached => {
       if (cached) return cached;
       return fetch(request).then(resp => {
-        if (!resp || !resp.ok) {
-          // network error or non-OK status -> attempt offline fallback for navigation
-          if (request.mode === 'navigate') {
-            return caches.match('/index.html');
-          }
-          return resp; // may be undefined; caller handles
-        }
         const copy = resp.clone();
-        // Only cache same-origin basic successful responses
-        if (request.url.startsWith(self.location.origin) && resp.type === 'basic') {
+        // Only cache same-origin basic responses
+        if (request.url.startsWith(self.location.origin) && resp.status === 200 && resp.type === 'basic') {
           caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
         }
         return resp;
