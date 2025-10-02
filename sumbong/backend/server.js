@@ -99,7 +99,9 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET','POST','PATCH','PUT','DELETE','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With'],
+  // Added 'Cache-Control' (and legacy 'Pragma','Expires') because browser may send these on fetch/EventSource
+  // and we were seeing: "Request header field cache-control is not allowed by Access-Control-Allow-Headers in preflight response".
+  allowedHeaders: ['Content-Type','Authorization','Accept','X-Requested-With','Cache-Control','Pragma','Expires'],
   exposedHeaders: ['Content-Type','Authorization']
 }));
 // Friendly CORS error handler (must have 4 params) placed immediately after cors middleware.
@@ -547,6 +549,9 @@ app.get('/api/health', (req, res) => {
 
 // Routes
 // Auth routes (signup/login/admin login) grouped together
+// Explicit OPTIONS for certain routes (helps some stricter browsers / proxies)
+app.options('/api/auth/admin/login', cors());
+app.options('/api/realtime/:userId', cors());
 app.post('/api/auth/signup', handleUpload, signup);
 app.post('/api/auth/login', login);
 app.post('/api/auth/admin/login', adminLogin);
