@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import loginImage from '../assets/login.png';
 import '../auth/Login.css'; // reuse same styling as user login
-
-const API_BASE = process.env.REACT_APP_API_BASE || 'https://capstone-sumbong.onrender.com';
+import { API_BASE } from '../config/apiBase';
 
 const Admin = () => {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -43,7 +42,8 @@ const Admin = () => {
     e.preventDefault();
     if (loading) return;
     setLoading(true);
-    const base = API_BASE.replace(/\/$/, '');
+  // API_BASE already trimmed & sanitized
+  const base = API_BASE;
     const primary = `${base}/api/auth/admin/login`;
     try {
       let data;

@@ -1,11 +1,8 @@
 import axios from 'axios';
-
-const API_BASE = process.env.REACT_APP_API_BASE || 'https://capstone-sumbong.onrender.com';
+import { API_BASE } from '../config/apiBase';
 
 // Axios instance for admin-authenticated calls
-const adminApi = axios.create({
-  baseURL: API_BASE,
-});
+const adminApi = axios.create({ baseURL: API_BASE });
 
 adminApi.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');

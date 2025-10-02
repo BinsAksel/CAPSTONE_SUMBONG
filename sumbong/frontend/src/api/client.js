@@ -1,10 +1,9 @@
 import axios from 'axios';
 import Swal from 'sweetalert2';
+import { API_BASE } from '../config/apiBase';
 
 // Central Axios instance with base URL + auth & 401 handling
-const api = axios.create({
-  baseURL: 'https://capstone-sumbong.onrender.com'
-});
+const api = axios.create({ baseURL: API_BASE });
 
 // Attach Authorization header automatically if token exists
 api.interceptors.request.use((config) => {
