@@ -28,19 +28,26 @@ export default function InstallPWAButton() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
 
-    // If after 6s no event & iOS (no prompt), still show bubble so user sees manual option
+    // Fallback: after 2.5s (instead of 6s) if no event, show bubble (covers iOS & cases where event won't fire)
     helpTimerRef.current = setTimeout(() => {
-      if (!deferredPrompt && !installed) {
+      if (!deferredPrompt && !installed) setShowBubble(true);
+    }, 2500);
+
+    // If user switches away and returns, attempt again (helps when SW finishes activating in background)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && !installed && !showBubble && !deferredPrompt) {
         setShowBubble(true);
       }
-    }, 6000);
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
       if (helpTimerRef.current) clearTimeout(helpTimerRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [deferredPrompt, installed]);
+  }, [deferredPrompt, installed, showBubble]);
 
   if (installed || !showBubble) return null;
 
