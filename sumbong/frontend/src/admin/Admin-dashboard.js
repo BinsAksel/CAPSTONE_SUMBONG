@@ -157,6 +157,8 @@ const AdminDashboard = () => {
   const [currentCredentialIndex, setCurrentCredentialIndex] = useState(0);
   // Evidence modal state for complaint evidence viewer
   const [evidenceModal, setEvidenceModal] = useState({ open: false, index: 0 });
+  // Router navigate (moved up so all hooks run every render before any conditional UI)
+  const navigate = useNavigate();
   // Render the fullscreen evidence modal for complaints
   function renderEvidenceModal() {
     if (!viewComplaint || !viewComplaint.evidence || !evidenceModal.open) return null;
@@ -218,16 +220,7 @@ const AdminDashboard = () => {
       </div>
     );
   }
-  const navigate = useNavigate();
-
-  if (dataLoading) {
-    return (
-      <div className="admin-dashboard-container" style={{ position:'relative', minHeight:'100vh' }}>
-        <LoadingOverlay show text="Loading admin data..." />
-      </div>
-    );
-  }
-
+  // Removed early return to satisfy Rules of Hooks; render loading overlay conditionally instead.
   const statusOptions = [
     { value: 'pending', label: 'Pending', color: '#ffeaea', textColor: '#e53935' },
     { value: 'in progress', label: 'In Progress', color: '#fffbe6', textColor: '#eab308' },
@@ -1040,6 +1033,11 @@ const AdminDashboard = () => {
 
   return (
     <div className={`admin-root ${sidebarOpen ? 'sidebar-open' : ''}`} style={{ display: 'flex', alignItems: 'stretch', height: '100%' }}>
+      {dataLoading && (
+        <div className="admin-dashboard-container" style={{ position:'fixed', inset:0, zIndex:2000 }}>
+          <LoadingOverlay show text="Loading admin data..." />
+        </div>
+      )}
       {/* Mobile Hamburger Button */}
       <button
         type="button"
