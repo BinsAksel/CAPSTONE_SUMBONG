@@ -13,6 +13,11 @@ export default function GoogleTokenHandler() {
     const params = new URLSearchParams(location.search);
     const token = params.get('token');
     const pending = params.get('pending');
+    const path = location.pathname;
+    // If we're on reset-password route, do NOT treat the token query param as a JWT
+    if (path === '/reset-password') {
+      return; // allow ResetPassword page to manage token itself
+    }
     if (pending === '1') {
       Swal.fire({
         icon: 'info',
@@ -24,7 +29,8 @@ export default function GoogleTokenHandler() {
       });
       return;
     }
-    if (token) {
+    // Basic heuristic: JWTs usually have 2 dots. Reset tokens we generate do NOT.
+    if (token && /\w+\.\w+\.\w+/.test(token)) {
       localStorage.setItem('token', token);
       // Fetch user info and store in localStorage
        fetch(`${API_BASE}/api/user/me`, {
