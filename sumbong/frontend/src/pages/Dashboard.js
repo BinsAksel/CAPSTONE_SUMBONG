@@ -1244,16 +1244,20 @@ const Dashboard = () => {
   // Handler for profile field changes (restored)
   const handleEditChange = (e) => {
     const { name, value, files } = e.target;
-    // Phone formatting (retain previous logic if existed earlier)
     if (name === 'phoneNumber') {
-      const digits = value.replace(/\D/g, '').slice(0, 11); // limit to 11 digits
-      let display = digits;
-      if (digits.length > 4 && digits.length <= 7) {
-        display = `${digits.slice(0,4)}-${digits.slice(4)}`;
-      } else if (digits.length > 7) {
-        display = `${digits.slice(0,4)}-${digits.slice(4,7)}-${digits.slice(7)}`;
+      // Enforce +639 prefix and numeric subscriber digits (up to 9 digits after 9)
+      const digits = value.replace(/\D/g, '');
+      // Find first '9' which starts the local mobile number (09...)
+      const first9 = digits.indexOf('9');
+      if (first9 === -1) {
+        setEditData(ed => ({ ...ed, phoneNumber: '+639' }));
+        return;
       }
-      setEditData(ed => ({ ...ed, phoneNumber: display }));
+      const subscriber = digits.slice(first9, first9 + 10); // leading 9 + up to 9 more digits
+      const normalized = '+639' + subscriber.slice(1); // replace leading 0/9 pattern with +639
+      // Cap full length (+639 + 9 digits = 13 chars)
+      const capped = normalized.slice(0, 13);
+      setEditData(ed => ({ ...ed, phoneNumber: capped }));
       return;
     }
     if (name === 'profilePic' && files && files[0]) {
@@ -1294,7 +1298,11 @@ const Dashboard = () => {
       const formData = new FormData();
       formData.append('firstName', editData.firstName);
       formData.append('lastName', editData.lastName);
-      formData.append('phoneNumber', (editData.phoneNumber || '').replace(/\D/g, ''));
+  // Normalize phone to digits only for backend OR keep +639XXXXXXXXX? Backend previously expects digits pattern; maintain consistent full string
+  // If value matches +639 pattern with 9 digits, send as-is. Otherwise strip non-digits (fallback)
+  const rawPhone = editData.phoneNumber || '';
+  const normalizedPhone = /^\+639\d{9}$/.test(rawPhone) ? rawPhone : rawPhone.replace(/\D/g,'');
+  formData.append('phoneNumber', normalizedPhone);
       formData.append('address', editData.address);
       if (editData.file) formData.append('profilePic', editData.file);
       const res = await api.patch('/api/user', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
@@ -2002,7 +2010,10 @@ const Dashboard = () => {
                     name="phoneNumber"
                     value={editData.phoneNumber}
                     onChange={handleEditChange}
-                    placeholder="09XX XXX XXXX"
+                    placeholder="+639XXXXXXXXX"
+                    pattern="^\+639\d{0,9}$" /* allow progressive entry */
+                    maxLength={13}
+                    title="Format: +639 followed by 9 digits"
                   />
                 </div>
                 <div className="input-wrapper">
