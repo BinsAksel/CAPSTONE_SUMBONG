@@ -204,6 +204,7 @@ body.modal-open {
 /* Dashboard Header - Blue Design */
 .dashboard-header {
   display: flex;
+  flex-direction: row;
   justify-content: flex-end;
   align-items: center;
   margin-bottom: 24px;
@@ -400,6 +401,64 @@ body.modal-open {
   animation: swapInOut 3s ease-in-out forwards;
 }
 
+/* ================= Password Change (Profile Modal) ================ */
+.password-change-wrapper {
+  margin-top: 1.5rem;
+}
+.pw-toggle-btn-primary {
+  width: 100%;
+  background: linear-gradient(135deg,#1d4ed8,#2563eb);
+  color:#fff;
+  font-weight:600;
+  border:none;
+  border-radius:8px;
+  padding:12px 20px;
+  cursor:pointer;
+  font-size:.95rem;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  box-shadow:0 3px 10px rgba(37,99,235,0.25);
+  transition:background .25s, transform .25s;
+}
+.pw-toggle-btn-primary:hover { background: linear-gradient(135deg,#1e40af,#1d4ed8); }
+.pw-toggle-btn-primary:active { transform: translateY(1px); }
+.pw-toggle-btn-cancel { background:#f1f5f9; color:#334155; box-shadow:none; border:1px solid #cbd5e1; }
+.pw-toggle-btn-cancel:hover { background:#e2e8f0; }
+
+.password-card {
+  margin-top:1rem;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:18px 20px 22px;
+  box-shadow:0 4px 14px -2px rgba(0,0,0,0.06),0 1px 3px rgba(0,0,0,0.08);
+  animation: fadeIn .25s ease;
+}
+.password-card h4 { margin:0 0 10px; font-size:1rem; font-weight:600; color:#1e293b; letter-spacing:.5px; }
+.password-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px 18px; margin-top:4px; }
+.password-grid .input-wrapper { margin:0; }
+
+.pw-input-group { position:relative; }
+.pw-input-group input { width:100%; padding-right:42px; }
+.pw-show-btn { position:absolute; top:50%; right:8px; transform:translateY(-50%); background:#fff; border:1px solid #cbd5e1; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; color:#475569; font-weight:600; transition:all .2s; }
+.pw-show-btn:hover { background:#2563eb; color:#fff; border-color:#1d4ed8; }
+
+.pw-hint { font-size:11px; color:#475569; margin-top:6px; line-height:1.4; }
+
+.pw-actions { margin-top:16px; display:flex; gap:12px; flex-wrap:wrap; }
+.pw-actions button { flex:1; min-width:160px; }
+.pw-submit-btn { background:#16a34a; border:none; color:#fff; font-weight:600; border-radius:8px; padding:10px 18px; cursor:pointer; box-shadow:0 3px 8px rgba(22,163,74,0.3); transition:background .25s, transform .25s; }
+.pw-submit-btn:hover { background:#15803d; }
+.pw-submit-btn:active { transform:translateY(1px); }
+.pw-submit-btn[disabled] { background:#86efac; cursor:not-allowed; box-shadow:none; }
+
+@media (max-width:560px){
+  .password-grid { grid-template-columns:1fr; }
+  .pw-actions { flex-direction:column; }
+}
+
 .swap-text {
   background: #10b981;
   color: white;
@@ -431,6 +490,34 @@ body.modal-open {
   }
 }
 
+/* ================= Password Change Modern UI (Appended) ================= */
+.pw-section-wrapper { margin-top: 28px; }
+.pw-toggle-btn { width:100%; background:linear-gradient(135deg,#1e3a8a 0%, #2563eb 60%, #1d4ed8 100%); color:#fff; border:none; padding:14px 18px; border-radius:8px; font-size:14px; font-weight:600; display:flex; align-items:center; gap:10px; cursor:pointer; box-shadow:0 4px 14px -4px rgba(37,99,235,.45),0 2px 4px rgba(0,0,0,.05); transition:filter .25s, background .25s; }
+.pw-toggle-btn:hover { filter:brightness(1.05); }
+.pw-toggle-btn.open { background:linear-gradient(135deg,#334155 0%, #475569 55%, #1e293b 100%); }
+.pw-toggle-icon { display:flex; align-items:center; justify-content:center; }
+.pw-collapse { max-height:0; overflow:hidden; transition:max-height .45s ease, opacity .4s ease; opacity:0; }
+.pw-collapse.show { max-height:720px; opacity:1; }
+.pw-card { margin-top:16px; background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:22px 24px 26px; box-shadow:0 6px 18px -8px rgba(30,58,138,0.28),0 2px 6px rgba(0,0,0,0.06); animation: pwCardIn .35s ease; }
+@keyframes pwCardIn { from { opacity:0; transform:translateY(14px);} to { opacity:1; transform:translateY(0);} }
+.pw-card-header h4 { margin:0 0 4px; font-size:1.05rem; font-weight:700; color:#1e293b; letter-spacing:.5px; }
+.pw-card-header p { margin:0 0 18px; font-size:.8rem; color:#64748b; font-weight:500; }
+.pw-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px 22px; }
+.pw-field label { display:block; font-size:.7rem; font-weight:600; letter-spacing:.05em; text-transform:uppercase; margin-bottom:6px; color:#334155; }
+.pw-input-wrap { position:relative; }
+.pw-input-wrap input { width:100%; padding:11px 42px 11px 12px; border:1.5px solid #cbd5e1; background:#f8fafc; border-radius:8px; font-size:.9rem; font-weight:500; color:#1e293b; transition:border .2s, background .2s; }
+.pw-input-wrap input:focus { outline:none; border-color:#2563eb; background:#fff; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+.pw-eye { position:absolute; right:6px; top:50%; transform:translateY(-50%); border:none; background:transparent; cursor:pointer; font-size:14px; opacity:.55; transition:opacity .2s; padding:4px 6px; }
+.pw-eye:hover { opacity:.9; }
+.pw-policy { margin-top:12px; font-size:.7rem; letter-spacing:.03em; font-weight:600; color:#475569; background:#f1f5f9; padding:10px 12px; border-radius:6px; border:1px dashed #cbd5e1; }
+.pw-actions { margin-top:20px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+.pw-submit { background:linear-gradient(135deg,#16a34a 0%, #22c55e 60%, #16a34a 100%); color:#fff; border:none; padding:11px 22px; border-radius:8px; font-weight:700; font-size:.85rem; letter-spacing:.05em; cursor:pointer; box-shadow:0 4px 14px -4px rgba(34,197,94,.55),0 2px 6px rgba(0,0,0,.05); transition:filter .25s; }
+.pw-submit:hover { filter:brightness(1.05); }
+.pw-submit:disabled { filter:grayscale(.35) brightness(.9); cursor:not-allowed; }
+.pw-cancel-inline { background:none; border:none; color:#475569; font-weight:600; cursor:pointer; padding:8px 12px; border-radius:6px; }
+.pw-cancel-inline:hover { background:#f1f5f9; }
+@media (max-width:540px){ .pw-grid{ grid-template-columns:1fr; } .pw-card{ padding:20px 18px 24px; } .pw-policy{ font-size:.63rem; } .pw-submit{ width:100%; justify-content:center; display:inline-flex; } .pw-actions{ flex-direction:column; align-items:stretch; } .pw-cancel-inline{ width:100%; text-align:center; } }
+
 
 
 
@@ -446,11 +533,13 @@ body.modal-open {
 
 /* Main Content */
 .dashboard-main {
+  width: 100%;
   padding: 40px 48px;
   background: #f9fafb;
   min-height: 100vh;
   font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
   overflow-x: hidden; /* prevent whole page horizontal scroll; only table wrapper can scroll */
+  box-sizing: border-box;
 }
 .dashboard-main h3 {
   margin-top: 0;
@@ -715,7 +804,7 @@ body.modal-open {
     0 1px 4px rgba(74, 144, 226, 0.1);
 }
 .dashboard-complaints-table .view-btn {
-  background: #2563eb;
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -1445,19 +1534,79 @@ body.modal-open {
 }
 .profile-actions.single-action { justify-content: flex-end; }
 .profile-action-btn {
-  width: 100%;
-  padding: 12px 0;
-  background: #163b63;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  font-size: 1.05rem;
-  cursor: pointer;
-  transition: background 0.2s;
+  width:100%;
+  padding:14px 18px;
+  background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 55%,#1d4ed8 100%);
+  color:#fff;
+  border:none;
+  border-radius:10px;
+  font-weight:600;
+  font-size:.95rem;
+  cursor:pointer;
+  letter-spacing:.4px;
+  position:relative;
+  box-shadow:0 6px 16px -6px rgba(30,58,138,.45),0 2px 4px rgba(0,0,0,.08);
+  transition:filter .25s, transform .25s, box-shadow .25s;
 }
-.profile-action-btn:hover {
-  background: #0f2a47;
+.profile-action-btn:hover { filter:brightness(1.05); }
+.profile-action-btn:active { transform:translateY(1px); box-shadow:0 3px 10px -4px rgba(30,58,138,.4),0 1px 3px rgba(0,0,0,.12); }
+.profile-action-btn:focus-visible { outline:2px solid #93c5fd; outline-offset:2px; }
+
+/* Generic button utility (optional future reuse) */
+.btn { font-family:inherit; font-weight:600; border-radius:10px; border:none; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; line-height:1; position:relative; transition:filter .25s, transform .25s; }
+.btn-primary { background:linear-gradient(135deg,#1e3a8a,#2563eb); color:#fff; box-shadow:0 4px 14px -4px rgba(37,99,235,.55),0 2px 6px rgba(0,0,0,.08); }
+.btn-primary:hover { filter:brightness(1.06); }
+.btn-primary:active { transform:translateY(1px); }
+.btn-outline { background:#fff; color:#1e3a8a; border:1.5px solid #2563eb; }
+.btn-outline:hover { background:#eff6ff; }
+.btn-danger { background:linear-gradient(135deg,#b91c1c,#dc2626); color:#fff; }
+.btn-danger:hover { filter:brightness(1.05); }
+
+/* Harmonize password section buttons */
+.pw-toggle-btn { border-radius:10px; font-size:.9rem; }
+.pw-submit { border-radius:10px; font-size:.9rem; padding:14px 26px; background:linear-gradient(135deg,#1e3a8a 0%,#2563eb 60%,#1d4ed8 100%); box-shadow:0 6px 16px -6px rgba(30,58,138,.45),0 2px 4px rgba(0,0,0,.08); font-weight:600; letter-spacing:.4px; }
+.pw-submit:active { transform:translateY(1px); }
+.pw-cancel-inline { font-size:.8rem; }
+
+/* Override earlier small-size rule for profile modal submit button */
+.edit-profile-modal .profile-action-btn { padding:14px 18px !important; font-size:.95rem !important; }
+
+/* Refine toggle opened state */
+.pw-toggle-btn.open { filter:brightness(1.02); box-shadow:0 4px 12px -4px rgba(15,23,42,.35),0 1px 3px rgba(0,0,0,.15); }
+/* ===== Enhanced Password Change UI Additions ===== */
+.pw-strength-wrapper { margin-top:8px; display:flex; align-items:center; gap:10px; }
+.pw-strength-bar { flex:1; height:8px; background:#e2e8f0; border-radius:6px; position:relative; overflow:hidden; }
+.pw-strength-bar span { position:absolute; top:0; left:0; bottom:0; width:0; background:linear-gradient(90deg,#ef4444,#f97316,#facc15,#22c55e); transition:width .35s ease; border-radius:6px; }
+.pw-strength-label { font-size:.65rem; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#475569; min-width:52px; text-align:right; }
+.pw-strength-label.level-strong { color:#15803d; }
+.pw-strength-label.level-good { color:#1d4ed8; }
+.pw-strength-label.level-fair { color:#d97706; }
+.pw-strength-label.level-too-weak { color:#b91c1c; }
+
+/* debug: temporary visual mark to confirm enhanced password CSS loaded (remove later) */
+.pw-card.enhanced-loaded-debug { outline:2px dashed rgba(37,99,235,.35); }
+
+.pw-rules { margin-top:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px 10px; }
+.pw-rules ul { list-style:none; padding:0; margin:0; display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:6px 14px; }
+.pw-rules li { position:relative; padding-left:18px; font-size:.62rem; font-weight:600; letter-spacing:.04em; color:#64748b; line-height:1.3; }
+.pw-rules li:before { content:""; width:10px; height:10px; border:2px solid #94a3b8; border-radius:50%; position:absolute; left:0; top:4px; background:#fff; transition:all .25s; }
+.pw-rules li.ok { color:#065f46; }
+.pw-rules li.ok:before { background:#10b981; border-color:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.25); }
+
+.pw-error { margin-top:6px; font-size:.65rem; font-weight:600; color:#b91c1c; animation:fadeIn .25s ease; }
+
+/* Adjust spacing when rules present */
+.pw-card .pw-actions { margin-top:22px; }
+
+@keyframes fadeIn { from { opacity:0; transform:translateY(-2px);} to { opacity:1; transform:translateY(0);} }
+@keyframes pwCardIn { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:translateY(0);} }
+
+@media (max-width:620px){
+  .pw-rules ul { grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); }
+}
+@media (max-width:480px){
+  .pw-strength-wrapper { flex-direction:column; align-items:flex-start; }
+  .pw-strength-label { text-align:left; }
 }
 .complaint-input-container {
   display: flex;

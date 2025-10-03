@@ -17,6 +17,8 @@ const complaintTypes = [
 ];
 
 const Dashboard = () => {
+  // Debug build marker (remove later once confirmed UI updates show)
+  try { console.log('[Dashboard] build marker', 'pw-enhanced-v1'); } catch {}
   const navigate = useNavigate();
   // Base API URL constant (single source of truth)
   // API_BASE imported from centralized config
@@ -40,9 +42,14 @@ const Dashboard = () => {
   }, []);
   const [showProfile, setShowProfile] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showComplaint, setShowComplaint] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Password change local state
+  const [pwFields, setPwFields] = useState({ current: '', next: '', confirm: '' });
+  const [pwLoading, setPwLoading] = useState(false);
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
   const fileInputRef = useRef();
   const complaintFileInputRef = useRef();
   const eventSourceRef = useRef(null);
@@ -227,6 +234,76 @@ const Dashboard = () => {
   const pendingCount = complaints.filter(c => (c.status || '').toLowerCase() === 'pending').length;
   const inProgressCount = complaints.filter(c => (c.status || '').toLowerCase() === 'in progress').length;
   const solvedCount = complaints.filter(c => (c.status || '').toLowerCase() === 'solved').length;
+
+  // ===== Real-time & Offline helpers (re-added) =====
+  let realtimeReconnectTimerRef = useRef(null);
+
+  function setupRealTimeUpdates() {
+    if (!user._id) return;
+    // Close existing connection
+    if (eventSourceRef.current) {
+      try { eventSourceRef.current.close(); } catch {}
+      eventSourceRef.current = null;
+    }
+    const es = new EventSource(`${API_BASE}/api/realtime/${user._id}`);
+    eventSourceRef.current = es;
+    es.onopen = () => {
+      setRealtimeConnected(true);
+      if (realtimeReconnectTimerRef.current) {
+        clearTimeout(realtimeReconnectTimerRef.current);
+        realtimeReconnectTimerRef.current = null;
+      }
+    };
+    es.onmessage = (evt) => {
+      if (!evt.data) return;
+      try {
+        const data = JSON.parse(evt.data);
+        switch (data.type) {
+          case 'connected':
+            break;
+          case 'status_update':
+            handleStatusUpdate && handleStatusUpdate(data);
+            break;
+          case 'feedback_thread_update':
+            handleThreadFeedbackUpdate && handleThreadFeedbackUpdate(data);
+            break;
+          case 'credential_verification':
+            handleCredentialVerification && handleCredentialVerification(data);
+            break;
+          case 'credential_resubmission':
+            handleCredentialResubmission && handleCredentialResubmission(data);
+            break;
+          default:
+            break;
+        }
+      } catch (e) { /* swallow parse errors */ }
+    };
+    es.onerror = () => {
+      setRealtimeConnected(false);
+      try { es.close(); } catch {}
+      if (!realtimeReconnectTimerRef.current) {
+        realtimeReconnectTimerRef.current = setTimeout(() => {
+          realtimeReconnectTimerRef.current = null;
+          setupRealTimeUpdates();
+        }, 3000);
+      }
+    };
+  }
+
+  function handleOnline() {
+    setupRealTimeUpdates();
+  }
+  function handleOffline() {
+    setRealtimeConnected(false);
+    if (eventSourceRef.current) {
+      try { eventSourceRef.current.close(); } catch {}
+      eventSourceRef.current = null;
+    }
+  }
+  function setupOfflineDetection() {
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+  }
 
   // Real-time updates setup
   useEffect(() => {
@@ -457,73 +534,125 @@ const Dashboard = () => {
     }
   };
 
-  // Setup offline detection
-  const setupOfflineDetection = () => {
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-  };
-
-  const handleOnline = () => {
-    console.log('User is back online');
-    // Reconnect to real-time updates
-    if (user._id) {
-      setupRealTimeUpdates();
-    }
-  };
-
-  const handleOffline = () => {
-    console.log('User is offline');
-    // Close real-time connection
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-  };
-
-  const setupRealTimeUpdates = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-    }
-
-  const eventSource = new EventSource(`${API_BASE}/api/realtime/${user._id}`);
-    eventSourceRef.current = eventSource;
-
-    eventSource.onopen = () => {
-      setRealtimeConnected(true);
-    };
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        switch (data.type) {
-          case 'connected':
-            break;
-          case 'status_update':
-            handleStatusUpdate(data);
-            break;
-          case 'feedback_thread_update':
-            handleThreadFeedbackUpdate(data);
-            break;
-          case 'credential_verification':
-            handleCredentialVerification(data);
-            break;
-          case 'credential_resubmission':
-            handleCredentialResubmission(data);
-            break;
-          default:
-        }
-      } catch {}
-    };
-
-    eventSource.onerror = () => {
-      setRealtimeConnected(false);
-      // Try reconnect after a short delay, but only if still not connected
-      setTimeout(() => {
-        if (!realtimeConnected && user._id) {
-          setupRealTimeUpdates();
-        }
-      }, 4000);
-    };
-  };
+            {/* Password Change Section (Enhanced) */}
+            <div className="pw-section-wrapper">
+              <button
+                type="button"
+                aria-expanded={showPasswordSection}
+                onClick={() => setShowPasswordSection(s => !s)}
+                className={`pw-toggle-btn ${showPasswordSection ? 'open' : ''}`}
+              >
+                <span className="pw-toggle-icon" aria-hidden="true">
+                  {showPasswordSection ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                  )}
+                </span>
+                <span>{showPasswordSection ? 'Cancel Password Change' : 'Change Password'}</span>
+              </button>
+              <div className={`pw-collapse ${showPasswordSection ? 'show' : ''}`}>
+                {showPasswordSection && (() => {
+                  const newPw = pwFields.next || '';
+                  const rules = {
+                    length: newPw.length >= 8,
+                    upper: /[A-Z]/.test(newPw),
+                    lower: /[a-z]/.test(newPw),
+                    number: /\d/.test(newPw),
+                    symbol: /[\W_]/.test(newPw)
+                  };
+                  const passedCount = Object.values(rules).filter(Boolean).length;
+                  const strengthPct = (passedCount / 5) * 100;
+                  let strengthLabel = 'Too Weak';
+                  if (strengthPct >= 80) strengthLabel = 'Strong';
+                  else if (strengthPct >= 60) strengthLabel = 'Good';
+                  else if (strengthPct >= 40) strengthLabel = 'Fair';
+                  const confirmMismatch = pwFields.confirm && pwFields.confirm !== newPw;
+                  return (
+                    <form onSubmit={handleChangePassword} className="pw-card enhanced-loaded-debug" noValidate>
+                      <div className="pw-card-header">
+                        <h4>Update Password</h4>
+                        <p>Use a unique strong password you don’t use elsewhere.</p>
+                      </div>
+                      <div className="pw-grid">
+                        <div className="pw-field">
+                          <label htmlFor="currentPassword">Current Password</label>
+                          <div className="pw-input-wrap">
+                            <input
+                              id="currentPassword"
+                              type={pwFields._showCurrent ? 'text' : 'password'}
+                              autoComplete="current-password"
+                              value={pwFields.current}
+                              onChange={e => setPwFields(f => ({ ...f, current: e.target.value }))}
+                              placeholder="Current password"
+                              required
+                            />
+                            <button type="button" className="pw-eye" onClick={() => setPwFields(f => ({ ...f, _showCurrent: !f._showCurrent }))} aria-label="Toggle current password visibility">
+                              {pwFields._showCurrent ? '🙈' : '👁️'}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="pw-field">
+                          <label htmlFor="newPassword">New Password</label>
+                          <div className="pw-input-wrap">
+                            <input
+                              id="newPassword"
+                              type={pwFields._showNew ? 'text' : 'password'}
+                              autoComplete="new-password"
+                              value={pwFields.next}
+                              onChange={e => setPwFields(f => ({ ...f, next: e.target.value }))}
+                              placeholder="New password"
+                              pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).{8,}"
+                              required
+                              aria-describedby="pw-strength pw-rules"
+                            />
+                            <button type="button" className="pw-eye" onClick={() => setPwFields(f => ({ ...f, _showNew: !f._showNew }))} aria-label="Toggle new password visibility">
+                              {pwFields._showNew ? '🙈' : '👁️'}
+                            </button>
+                          </div>
+                          <div className="pw-strength-wrapper" id="pw-strength" aria-live="polite">
+                            <div className="pw-strength-bar"><span style={{ width: strengthPct + '%'}} data-level={strengthLabel}></span></div>
+                            <div className={`pw-strength-label level-${strengthLabel.toLowerCase().replace(/ /g,'-')}`}>{strengthLabel}</div>
+                          </div>
+                        </div>
+                        <div className="pw-field">
+                          <label htmlFor="confirmNewPassword">Confirm New Password</label>
+                          <div className="pw-input-wrap">
+                            <input
+                              id="confirmNewPassword"
+                              type={pwFields._showConfirm ? 'text' : 'password'}
+                              autoComplete="new-password"
+                              value={pwFields.confirm}
+                              onChange={e => setPwFields(f => ({ ...f, confirm: e.target.value }))}
+                              placeholder="Confirm new password"
+                              required
+                              aria-invalid={confirmMismatch || undefined}
+                            />
+                            <button type="button" className="pw-eye" onClick={() => setPwFields(f => ({ ...f, _showConfirm: !f._showConfirm }))} aria-label="Toggle confirm password visibility">
+                              {pwFields._showConfirm ? '🙈' : '👁️'}
+                            </button>
+                          </div>
+                          {confirmMismatch && <div className="pw-error" role="alert">Passwords do not match.</div>}
+                        </div>
+                      </div>
+                      <div className="pw-rules" id="pw-rules" aria-live="polite">
+                        <ul>
+                          <li className={rules.length ? 'ok' : ''}>At least 8 characters</li>
+                          <li className={rules.upper ? 'ok' : ''}>Uppercase letter</li>
+                          <li className={rules.lower ? 'ok' : ''}>Lowercase letter</li>
+                          <li className={rules.number ? 'ok' : ''}>Number</li>
+                          <li className={rules.symbol ? 'ok' : ''}>Symbol (!@#$…)</li>
+                        </ul>
+                      </div>
+                      <div className="pw-actions">
+                        <button type="submit" className="pw-submit" disabled={pwLoading || !strongPw.test(newPw) || confirmMismatch}>{pwLoading ? 'Updating…' : 'Save New Password'}</button>
+                        <button type="button" className="pw-cancel-inline" onClick={() => { setShowPasswordSection(false); setPwFields({ current:'', next:'', confirm:'' }); }}>Discard</button>
+                      </div>
+                    </form>
+                  );
+                })()}
+              </div>
+            </div>
 
   const dedupeNotifications = (items) => {
     const seen = new Set();
@@ -1231,23 +1360,23 @@ const Dashboard = () => {
     await Promise.all([refreshUserData(), refreshComplaintsData()]);
   };
 
+  // Handler for profile field changes (restored)
   const handleEditChange = (e) => {
     const { name, value, files } = e.target;
+    // Phone formatting (retain previous logic if existed earlier)
     if (name === 'phoneNumber') {
-      // Keep only digits, limit to 11 chars (PH mobile format), format as 09XX-XXX-XXXX visually
-      const digits = value.replace(/\D/g, '').slice(0, 11);
+      const digits = value.replace(/\D/g, '').slice(0, 11); // limit to 11 digits
       let display = digits;
       if (digits.length > 4 && digits.length <= 7) {
         display = `${digits.slice(0,4)}-${digits.slice(4)}`;
       } else if (digits.length > 7) {
         display = `${digits.slice(0,4)}-${digits.slice(4,7)}-${digits.slice(7)}`;
       }
-      setEditData({ ...editData, phoneNumber: display });
+      setEditData(ed => ({ ...ed, phoneNumber: display }));
       return;
     }
     if (name === 'profilePic' && files && files[0]) {
       const file = files[0];
-      // Basic validation: allow jpg/jpeg/png only and <= ~10MB
       const isValidType = /image\/(jpeg|jpg|png)/i.test(file.type);
       const isValidSize = file.size <= 10 * 1024 * 1024;
       if (!isValidType || !isValidSize) {
@@ -1260,17 +1389,13 @@ const Dashboard = () => {
         });
         return;
       }
-      // Revoke previous blob URL if any to avoid memory leaks
-      if (editData.profilePic && editData.profilePic.startsWith('blob:')) {
-        try { URL.revokeObjectURL(editData.profilePic); } catch {}
-      }
-      const objectUrl = URL.createObjectURL(file);
-      setEditData({ ...editData, file, profilePic: objectUrl });
+      setEditData(ed => ({ ...ed, file, profilePic: URL.createObjectURL(file) }));
     } else {
-      setEditData({ ...editData, [name]: value });
+      setEditData(ed => ({ ...ed, [name]: value }));
     }
   };
 
+  // Profile save handler (moved earlier so it's defined before JSX usage)
   const handleEditProfile = async (e) => {
     e.preventDefault();
     const result = await Swal.fire({
@@ -1288,38 +1413,28 @@ const Dashboard = () => {
       const formData = new FormData();
       formData.append('firstName', editData.firstName);
       formData.append('lastName', editData.lastName);
-      // Send numeric-only phone to backend
       formData.append('phoneNumber', (editData.phoneNumber || '').replace(/\D/g, ''));
       formData.append('address', editData.address);
-      if (editData.file) {
-        formData.append('profilePic', editData.file);
-      }
-      const token = localStorage.getItem('token');
-      const res = await api.patch('/api/user', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      if (editData.file) formData.append('profilePic', editData.file);
+      const res = await api.patch('/api/user', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (res.data && res.data.user) {
-        // Cache-bust profile picture (only if present)
         const updatedUser = { ...res.data.user };
-        if (updatedUser.profilePicture) {
-          updatedUser.profilePicture = withCacheBust(updatedUser.profilePicture);
-        }
+        if (updatedUser.profilePicture) updatedUser.profilePicture = withCacheBust(updatedUser.profilePicture);
         setUser(updatedUser);
         localStorage.setItem('user', JSON.stringify(updatedUser));
         setEditData({
           firstName: updatedUser.firstName,
           lastName: updatedUser.lastName,
           phoneNumber: updatedUser.phoneNumber || '',
-          address: updatedUser.address || '',
+            address: updatedUser.address || '',
           profilePic: updatedUser.profilePicture || '',
           file: null,
         });
         setShowEdit(false);
         Swal.fire({ icon: 'success', title: 'Profile updated!' });
-        // Refetch complaints + user (fresh snapshot) after update
         await Promise.all([
           fetchComplaints(updatedUser._id),
-          refreshUserData()
+          refreshUserData && refreshUserData()
         ]);
       }
     } catch (err) {
@@ -1327,6 +1442,45 @@ const Dashboard = () => {
     }
     setLoading(false);
   };
+
+  async function handleChangePassword(e) {
+    e.preventDefault();
+    if (!pwFields.current || !pwFields.next || !pwFields.confirm) {
+      Swal.fire('Missing Fields', 'Please fill in all password fields.', 'warning');
+      return;
+    }
+    if (pwFields.next === pwFields.current) {
+      Swal.fire('Invalid Password', 'New password must be different from current password.', 'warning');
+      return;
+    }
+    if (!strongPw.test(pwFields.next)) {
+      Swal.fire('Weak Password', 'Password must have upper, lower, number, special character and be at least 8 characters.', 'warning');
+      return;
+    }
+    if (pwFields.next !== pwFields.confirm) {
+      Swal.fire('Mismatch', 'New password and confirmation do not match.', 'warning');
+      return;
+    }
+    try {
+      setPwLoading(true);
+      const res = await api.patch('/api/auth/change-password', {
+        currentPassword: pwFields.current,
+        newPassword: pwFields.next
+      });
+      if (res.data && res.data.success) {
+        Swal.fire({ icon: 'success', title: 'Password changed!', text: 'A confirmation email was sent to your inbox.' });
+        setPwFields({ current: '', next: '', confirm: '' });
+        setShowPasswordSection(false);
+      } else {
+        Swal.fire('Error', (res.data && res.data.message) || 'Failed to change password.', 'error');
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Failed to change password.';
+      Swal.fire('Error', msg, 'error');
+    } finally {
+      setPwLoading(false);
+    }
+  }
 
   // Close Edit Profile modal and cleanup blob preview URL to prevent memory leaks
   const handleCloseEditModal = () => {
@@ -1830,7 +1984,7 @@ const Dashboard = () => {
                   <th>Location</th>
                   <th>Status</th>
                   <th>Action</th>
-                </tr>
+                               </tr>
               </thead>
               <tbody>
                 {(!showHistory
@@ -2025,6 +2179,73 @@ const Dashboard = () => {
                 </button>
               </div>
             </form>
+            {/* Password Change Section */}
+            <div className="password-change-wrapper">
+              <button
+                type="button"
+                onClick={() => setShowPasswordSection(s => !s)}
+                className={showPasswordSection ? 'pw-toggle-btn-primary pw-toggle-btn-cancel' : 'pw-toggle-btn-primary'}
+              >
+                {showPasswordSection ? 'Cancel Password Change' : 'Change Password'}
+              </button>
+              {showPasswordSection && (
+                <form onSubmit={handleChangePassword} className="password-card">
+                  <h4>Update Password</h4>
+                  <div className="password-grid">
+                    <div className="input-wrapper pw-input-group">
+                      <label className="field-label" htmlFor="currentPassword">Current Password</label>
+                      <input
+                        id="currentPassword"
+                        type={pwFields.showCurrent ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        value={pwFields.current}
+                        onChange={e => setPwFields(f => ({ ...f, current: e.target.value }))}
+                        placeholder="Current Password"
+                        required
+                      />
+                      <button type="button" className="pw-show-btn" onClick={() => setPwFields(f => ({ ...f, showCurrent: !f.showCurrent }))}>{pwFields.showCurrent ? 'Hide' : 'Show'}</button>
+                    </div>
+                    <div className="input-wrapper pw-input-group">
+                      <label className="field-label" htmlFor="newPassword">New Password</label>
+                      <input
+                        id="newPassword"
+                        type={pwFields.showNew ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={pwFields.next}
+                        onChange={e => setPwFields(f => ({ ...f, next: e.target.value }))}
+                        placeholder="New Password"
+                        pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).{8,}"
+                        required
+                      />
+                      <button type="button" className="pw-show-btn" onClick={() => setPwFields(f => ({ ...f, showNew: !f.showNew }))}>{pwFields.showNew ? 'Hide' : 'Show'}</button>
+                    </div>
+                    <div className="input-wrapper pw-input-group">
+                      <label className="field-label" htmlFor="confirmNewPassword">Confirm New Password</label>
+                      <input
+                        id="confirmNewPassword"
+                        type={pwFields.showConfirm ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        value={pwFields.confirm}
+                        onChange={e => setPwFields(f => ({ ...f, confirm: e.target.value }))}
+                        placeholder="Confirm New Password"
+                        required
+                      />
+                      <button type="button" className="pw-show-btn" onClick={() => setPwFields(f => ({ ...f, showConfirm: !f.showConfirm }))}>{pwFields.showConfirm ? 'Hide' : 'Show'}</button>
+                    </div>
+                  </div>
+                  <div className="pw-hint">Must include uppercase, lowercase, number, special character. Minimum 8 characters.</div>
+                  <div className="pw-actions">
+                    <button
+                      type="submit"
+                      disabled={pwLoading}
+                      className="pw-submit-btn"
+                    >
+                      {pwLoading ? 'Updating...' : 'Update Password'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
