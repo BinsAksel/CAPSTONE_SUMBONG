@@ -101,6 +101,9 @@ const userSchema = new mongoose.Schema({
   },
   passwordResetToken: { type: String, select: false },
   passwordResetExpires: { type: Date, select: false },
+  // Dedicated token for authenticated email-based password change (user initiated from dashboard)
+  passwordChangeToken: { type: String, select: false },
+  passwordChangeExpires: { type: Date, select: false },
   passwordChangedAt: { type: Date }
   ,
   // Email verification
@@ -172,6 +175,15 @@ userSchema.methods.createEmailVerificationToken = function(expMinutes = parseInt
   const hashed = crypto.createHash('sha256').update(raw).digest('hex');
   this.emailVerificationToken = hashed;
   this.emailVerificationExpires = Date.now() + expMinutes * 60 * 1000;
+  return raw;
+};
+
+// Create password change token (requires current password verification prior to issuing)
+userSchema.methods.createPasswordChangeToken = function(expMinutes = parseInt(process.env.PASSWORD_CHANGE_TOKEN_EXP_MINUTES || '20', 10)) {
+  const raw = crypto.randomBytes(32).toString('hex');
+  const hashed = crypto.createHash('sha256').update(raw).digest('hex');
+  this.passwordChangeToken = hashed;
+  this.passwordChangeExpires = Date.now() + expMinutes * 60 * 1000;
   return raw;
 };
 

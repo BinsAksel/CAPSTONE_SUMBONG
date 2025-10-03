@@ -25,7 +25,7 @@ connectDB()
     dbConnected = false;
     console.error('MongoDB connection error:', err);
   });
-const { signup, login, handleUpload, googleSignup, adminLogin, forgotPassword, resetPassword, changePassword, verifyEmail, resendVerification } = require('./controllers/authController');
+const { signup, login, handleUpload, googleSignup, adminLogin, forgotPassword, resetPassword, changePassword, verifyEmail, resendVerification, requestPasswordChange, confirmPasswordChange } = require('./controllers/authController');
 const sendEmail = require('./utils/sendEmail');
 const {
   complaintStatusTemplate,
@@ -559,6 +559,10 @@ app.post('/api/auth/admin/login', adminLogin);
 app.post('/api/auth/forgot-password', forgotPassword);
 app.post('/api/auth/reset-password', resetPassword);
 app.patch('/api/auth/change-password', authenticateJWT, changePassword);
+// Authenticated email confirmation flow for password change
+app.post('/api/auth/request-password-change', authenticateJWT, requestPasswordChange);
+// Confirmation endpoint (token + current + new password)
+app.post('/api/auth/confirm-password-change', confirmPasswordChange);
 // Email verification
 app.post('/api/auth/verify-email', verifyEmail);
 app.post('/api/auth/resend-verification', resendVerification);

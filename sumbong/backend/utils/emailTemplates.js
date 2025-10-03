@@ -96,6 +96,16 @@ module.exports = {
       <p>If you did not request this, you can safely ignore this email.</p>
     `)
   }),
+  passwordChangeRequestTemplate: ({ firstName='User', changeUrl, minutes=20 }) => ({
+    subject: 'Confirm Your Password Change',
+    html: baseWrapper(`
+      <h2>Confirm Password Change</h2>
+      <p>Hi ${firstName},</p>
+      <p>You initiated a password change from your dashboard. To continue, click the button below within <b>${minutes} minutes</b>.</p>
+      <p><a class="btn" href="${changeUrl}" target="_blank" rel="noopener">Set New Password</a></p>
+      <p>If you did not start this change, ignore this email and your password will remain unchanged.</p>
+    `)
+  }),
   passwordChangedTemplate: ({ firstName='User', when }) => ({
     subject: 'Your Password Was Changed',
     html: baseWrapper(`

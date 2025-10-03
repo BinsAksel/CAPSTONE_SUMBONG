@@ -2017,9 +2017,45 @@ const Dashboard = () => {
                   />
                 </div>
               </div>
-              <div className="profile-actions single-action">
+              <div className="profile-actions" style={{ display:'flex', gap:12, flexWrap:'wrap', marginTop:24 }}>
                 <button type="submit" disabled={loading} className="profile-action-btn">
                   Save Changes
+                </button>
+                <button
+                  type="button"
+                  className="profile-action-btn"
+                  style={{ background:'#4a5568' }}
+                  disabled={loading}
+                  onClick={() => {
+                    Swal.fire({
+                      title: 'Change Password',
+                      text: 'Enter your current password to receive a confirmation link via email.',
+                      input: 'password',
+                      inputAttributes: { autocomplete: 'current-password' },
+                      showCancelButton: true,
+                      confirmButtonText: 'Send Link',
+                      confirmButtonColor: '#1a365d'
+                    }).then(async result => {
+                      if (!result.isConfirmed) return;
+                      const currentPassword = result.value;
+                      if (!currentPassword) return;
+                      try {
+                        const token = localStorage.getItem('token');
+                        const resp = await fetch(`${API_BASE}/api/auth/request-password-change`, {
+                          method: 'POST',
+                          headers: { 'Content-Type':'application/json', Authorization: `Bearer ${token}` },
+                          body: JSON.stringify({ currentPassword })
+                        });
+                        const data = await resp.json().catch(()=>({}));
+                        if (!resp.ok || !data.success) throw new Error(data.message || 'Request failed');
+                        Swal.fire({ icon:'success', title:'Email Sent', text:'Check your email for the password change link.', confirmButtonColor:'#1a365d' });
+                      } catch (e) {
+                        Swal.fire({ icon:'error', title:'Failed', text: e.message || 'Could not send link.', confirmButtonColor:'#1a365d' });
+                      }
+                    });
+                  }}
+                >
+                  Change Password
                 </button>
               </div>
             </form>

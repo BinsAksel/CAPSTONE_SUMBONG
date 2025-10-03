@@ -9,6 +9,7 @@ import Admin from '../admin/Admin';
 import AdminDashboard from '../admin/Admin-dashboard';
 import ForgotPassword from '../auth/password/ForgotPassword';
 import ResetPassword from '../auth/password/ResetPassword';
+import ChangePasswordViaEmail from '../auth/password/ChangePasswordViaEmail';
 import VerifyEmail from '../auth/VerifyEmail';
 
 // Admin protected route
@@ -71,6 +72,10 @@ const routes = [
   {
     path: '/reset-password',
     element: <ResetPassword />
+  },
+  {
+    path: '/change-password',
+    element: <ChangePasswordViaEmail />
   },
   {
     path: '/verify-email',

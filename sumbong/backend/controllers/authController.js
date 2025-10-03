@@ -130,7 +130,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { passwordResetTemplate, passwordChangedTemplate, emailVerificationTemplate, emailVerifiedConfirmationTemplate } = require('../utils/emailTemplates');
+const { passwordResetTemplate, passwordChangedTemplate, emailVerificationTemplate, emailVerifiedConfirmationTemplate, passwordChangeRequestTemplate } = require('../utils/emailTemplates');
 
 // Memory storage -> direct Cloudinary upload
 const upload = multer({
@@ -457,6 +457,59 @@ const changePassword = async (req,res) => {
   }
 };
 
+// Authenticated request to send email with confirmation link to change password via token (requires current password)
+const requestPasswordChange = async (req,res) => {
+  try {
+    const { currentPassword } = req.body;
+    if (!currentPassword) return res.status(400).json({ success:false, message:'Current password required' });
+    const user = await User.findById(req.user.id).select('+password +passwordChangeToken +passwordChangeExpires');
+    if (!user) return res.status(404).json({ success:false, message:'User not found' });
+    const match = await user.matchPassword(currentPassword);
+    if (!match) return res.status(401).json({ success:false, message:'Current password incorrect' });
+    const rawToken = user.createPasswordChangeToken(parseInt(process.env.PASSWORD_CHANGE_TOKEN_EXP_MINUTES||'20',10));
+    await user.save({ validateBeforeSave:false });
+    const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/, '');
+    const changeUrl = `${FRONTEND}/change-password?token=${rawToken}`;
+    try {
+      const { subject, html } = passwordChangeRequestTemplate({ firstName: user.firstName, changeUrl, minutes: parseInt(process.env.PASSWORD_CHANGE_TOKEN_EXP_MINUTES||'20',10) });
+      await sendPasswordSecurityEmail(user.email, subject, html);
+    } catch (e) { console.warn('Password change request email failed:', e.message); }
+    res.json({ success:true, message:'If the password was correct, a confirmation link was sent to your email.' });
+  } catch (e) {
+    console.error('requestPasswordChange error:', e);
+    res.status(500).json({ success:false, message:'Failed to initiate password change' });
+  }
+};
+
+// Public endpoint (no auth) to actually set new password using passwordChangeToken + require current again optionally? (design: only via token, ask for current + new + confirm on page) but backend must verify token & current.
+const confirmPasswordChange = async (req,res) => {
+  try {
+    const { token, currentPassword, newPassword } = req.body;
+    if (!token || !currentPassword || !newPassword) return res.status(400).json({ success:false, message:'Token, current and new password required' });
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({ passwordChangeToken: hashed, passwordChangeExpires: { $gt: Date.now() } }).select('+password +passwordChangeToken +passwordChangeExpires');
+    if (!user) return res.status(400).json({ success:false, message:'Invalid or expired link' });
+    // Re-verify current password to mitigate email compromise risk
+    const match = await user.matchPassword(currentPassword);
+    if (!match) return res.status(401).json({ success:false, message:'Current password incorrect' });
+    const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!strongPw.test(newPassword)) return res.status(400).json({ success:false, message:'Weak new password.' });
+    user.password = newPassword;
+    user.passwordChangedAt = new Date();
+    user.passwordChangeToken = undefined;
+    user.passwordChangeExpires = undefined;
+    await user.save();
+    try {
+      const { subject, html } = passwordChangedTemplate({ firstName: user.firstName, when: new Date().toLocaleString() });
+      sendPasswordSecurityEmail(user.email, subject, html);
+    } catch (e) { console.warn('Password changed email failed:', e.message); }
+    res.json({ success:true, message:'Password updated successfully. You can log in with the new password.' });
+  } catch (e) {
+    console.error('confirmPasswordChange error:', e);
+    res.status(500).json({ success:false, message:'Failed to update password' });
+  }
+};
+
 // Email verification handlers
 const verifyEmail = async (req,res) => {
   try {
@@ -514,6 +567,8 @@ module.exports = {
   forgotPassword,
   resetPassword,
   changePassword,
+  requestPasswordChange,
+  confirmPasswordChange,
   verifyEmail,
   resendVerification
 };
