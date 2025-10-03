@@ -170,7 +170,7 @@ const Login = () => {
               Don't have an account? <Link to="/signup">Sign up</Link>
             </div>
             <div className="learn-more">
-              <Link to="/learn-more">Learn more.</Link>
+              <Link to="/landing">Learn more.</Link>
             </div>
             {unverifiedEmail && (
               <div className="verification-hint" style={{ marginTop: 24, background:'#fffaf0', border:'1px solid #fbd38d', padding:12, borderRadius:6 }}>
