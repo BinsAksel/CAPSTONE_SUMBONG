@@ -43,6 +43,8 @@ const CompleteProfile = () => {
     regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
     message: 'Password must be 8+ chars with upper, lower, number, special.'
   };
+  // Derive an HTML pattern (remove anchors and use a slightly simpler special-char class for broader browser compatibility)
+  const passwordHtmlPattern = '(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).{8,}';
 
   const fetchPolicy = async (name) => {
     try {
@@ -338,7 +340,7 @@ const CompleteProfile = () => {
               onChange={handleChange}
               placeholder="Set a strong password"
               required
-              pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}"
+              pattern={passwordHtmlPattern}
               title={PASSWORD_POLICY.message}
               autoComplete="new-password"
             />
