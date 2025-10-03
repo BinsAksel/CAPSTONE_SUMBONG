@@ -99,7 +99,7 @@ const LandingPage = () => {
         </div>
         <header className="hero" id="top">
         <h1 className="app-name">SUMBONG</h1>
-        <p className="tagline">System for Updating and Managing Barangay Online Notices and Grievances for the Residents of Barangay East Tapinac</p>
+        <p className="tagline">System for Updating and Managing Barangay Online Notices and Grievances for the Residents of Barangay East Tapinac, Olongapo City</p>
         {isAuthed ? (
           <p className="redirect-msg">Redirecting you to your dashboard…</p>
         ) : (
@@ -119,7 +119,7 @@ const LandingPage = () => {
         <section id="about" className="info-section">
           <div className="section-inner">
             <h2>About</h2>
-            <p>SUMBONG is a community-focused reporting platform enabling residents to securely submit concerns, incidents, and feedback to local authorities in real time. It bridges the gap between citizens and barangay officials with transparency and verifiable updates.</p>
+            <p>SUMBONG is a community-focused reporting platform for Barangay East Tapinac, Olongapo City enabling residents to securely submit concerns, incidents, and feedback to local authorities in real time. It bridges the gap between citizens and barangay officials with transparency and verifiable updates.</p>
           </div>
         </section>
         <section id="why" className="info-section alt">
@@ -138,13 +138,14 @@ const LandingPage = () => {
         <section id="what" className="info-section">
           <div className="section-inner">
             <h2>What Is SUMBONG?</h2>
-            <p>It is a digital complaint and incident submission system tailored for barangay-level governance. Residents create an account, submit a report with optional media, and receive notifications as officials review, verify, and resolve the issue. The platform streamlines documentation and reduces delays caused by manual reporting.</p>
+            <p>It is a digital complaint and incident submission system tailored for barangay-level governance in Barangay East Tapinac, Olongapo City. Residents create an account, submit a report with optional media, and receive notifications as officials review, verify, and resolve the issue. The platform streamlines documentation and reduces delays caused by manual reporting.</p>
             <p className="note">Ready to participate? <button className="bottom-cta" onClick={() => navigate('/login')}>Get Started</button></p>
           </div>
         </section>
       </main>
       <footer className="landing-footer">
         <span>© {new Date().getFullYear()} SUMBONG. All rights reserved.</span>
+        <span>Barangay East Tapinac, Olongapo City</span>
         <span>Contact Us @ <a className="footer-email" href="mailto:sumbongsystem@gmail.com" rel="noopener noreferrer">sumbongsystem@gmail.com</a>.</span>
       </footer>
     </div>
