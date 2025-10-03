@@ -65,19 +65,11 @@ const routes = [
   },
   {
     path: '/forgot-password',
-    element: (
-      <PublicRoute>
-        <ForgotPassword />
-      </PublicRoute>
-    )
+    element: <ForgotPassword />
   },
   {
     path: '/reset-password',
-    element: (
-      <PublicRoute>
-        <ResetPassword />
-      </PublicRoute>
-    )
+    element: <ResetPassword />
   },
   {
     path: '/signup',

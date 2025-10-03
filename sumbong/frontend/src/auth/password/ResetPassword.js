@@ -20,6 +20,11 @@ const ResetPassword = () => {
   const [showPw2, setShowPw2] = useState(false);
 
   useEffect(() => {
+    // Always clear any existing session so old token can't remain active while resetting
+    try {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    } catch {/* ignore */}
     if (!token) {
       Swal.fire({
         icon: 'error',
