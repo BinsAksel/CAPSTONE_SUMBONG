@@ -84,5 +84,25 @@ module.exports = {
   complaintFeedbackTemplate,
   credentialApprovedTemplate,
   credentialRejectedTemplate,
-  credentialResubmissionTemplate
+  credentialResubmissionTemplate,
+  // Password & security templates
+  passwordResetTemplate: ({ firstName='User', resetUrl, minutes=15 }) => ({
+    subject: 'Password Reset Instructions',
+    html: baseWrapper(`
+      <h2>Password Reset Requested</h2>
+      <p>Hi ${firstName},</p>
+      <p>We received a request to reset your password. This link is valid for <b>${minutes} minutes</b>.</p>
+      <p><a class="btn" href="${resetUrl}" target="_blank" rel="noopener">Reset Password</a></p>
+      <p>If you did not request this, you can safely ignore this email.</p>
+    `)
+  }),
+  passwordChangedTemplate: ({ firstName='User', when }) => ({
+    subject: 'Your Password Was Changed',
+    html: baseWrapper(`
+      <h2>Password Changed</h2>
+      <p>Hi ${firstName},</p>
+      <p>Your password was successfully changed at <b>${when}</b>.</p>
+      <p>If this wasn’t you, reset it immediately or contact support.</p>
+    `)
+  })
 };

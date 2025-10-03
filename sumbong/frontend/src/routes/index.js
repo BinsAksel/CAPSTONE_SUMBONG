@@ -7,6 +7,8 @@ import Dashboard from '../pages/Dashboard';
 import LandingPage from '../pages/LandingPage';
 import Admin from '../admin/Admin';
 import AdminDashboard from '../admin/Admin-dashboard';
+import ForgotPassword from '../auth/password/ForgotPassword';
+import ResetPassword from '../auth/password/ResetPassword';
 
 // Admin protected route
 const AdminRoute = ({ children }) => {
@@ -58,6 +60,22 @@ const routes = [
     element: (
       <PublicRoute>
         <Login />
+      </PublicRoute>
+    )
+  },
+  {
+    path: '/forgot-password',
+    element: (
+      <PublicRoute>
+        <ForgotPassword />
+      </PublicRoute>
+    )
+  },
+  {
+    path: '/reset-password',
+    element: (
+      <PublicRoute>
+        <ResetPassword />
       </PublicRoute>
     )
   },

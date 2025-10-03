@@ -3,13 +3,21 @@
 // @access  Public
 const googleSignup = async (req, res) => {
   try {
-    const { firstName, lastName, email, phoneNumber, address, acceptedTerms, acceptedPrivacy, policiesVersion } = req.body;
+    const { firstName, lastName, email, phoneNumber, address, acceptedTerms, acceptedPrivacy, policiesVersion, password } = req.body;
     // Validate required fields
     if (!firstName || !lastName || !email || !phoneNumber || !address) {
       return res.status(400).json({
         success: false,
         message: 'Please provide all required fields'
       });
+    }
+    // Password (user may set during complete profile). If not provided yet, force it.
+    if (!password) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
+    const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!strongPw.test(password)) {
+      return res.status(400).json({ success: false, message: 'Weak password. Must be 8+ chars with upper, lower, number & special.' });
     }
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -27,7 +35,7 @@ const googleSignup = async (req, res) => {
         message: 'Please provide a valid phone number'
       });
     }
-  // Check if user already exists
+    // Check if user already exists
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({
@@ -58,16 +66,14 @@ const googleSignup = async (req, res) => {
         message: 'Please upload credentials for verification'
       });
     }
-    // Generate a random password (not used for login, but required by schema)
-    const randomPassword = Math.random().toString(36).slice(-8);
-    // Create user
+    // Use provided password (User pre-save hook will hash it)
     const user = await User.create({
       firstName,
       lastName,
       email,
       phoneNumber,
       address,
-      password: randomPassword,
+      password,
       credentials: credentialObjs,
       profilePicture: req.body.profilePicture || null,
       approved: false,
@@ -114,6 +120,8 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const { passwordResetTemplate, passwordChangedTemplate } = require('../utils/emailTemplates');
 
 // Memory storage -> direct Cloudinary upload
 const upload = multer({
@@ -354,11 +362,84 @@ const adminLogin = async (req, res) => {
   }
 };
 
+async function sendPasswordSecurityEmail(to, subject, html) {
+  try { await require('../utils/sendEmail')({ to, subject, html }); } catch (e) { console.warn('Password email send failed:', e.message); }
+}
+
+
+const forgotPassword = async (req,res) => {
+  try {
+    const { email } = req.body;
+    const genericMsg = { success:true, message: 'If that email exists, password reset instructions were sent.' };
+    if (!email) return res.json(genericMsg);
+    const user = await User.findOne({ email: email.toLowerCase().trim() });
+    if (!user) return res.json(genericMsg);
+    const token = user.createPasswordResetToken(parseInt(process.env.RESET_TOKEN_EXPIRY_MINUTES||'15',10));
+    await user.save({ validateBeforeSave: false });
+    const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/,'')
+    const resetUrl = `${FRONTEND}/reset-password?token=${token}`;
+    const { subject, html } = passwordResetTemplate({ firstName: user.firstName, resetUrl, minutes: parseInt(process.env.RESET_TOKEN_EXPIRY_MINUTES||'15',10) });
+    await sendPasswordSecurityEmail(user.email, subject, html);
+    return res.json(genericMsg);
+  } catch (e) {
+    console.error('forgotPassword error:', e);
+    return res.json({ success:true, message: 'If that email exists, password reset instructions were sent.' });
+  }
+};
+
+const resetPassword = async (req,res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ success:false, message:'Token and new password required' });
+    const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!strongPw.test(password)) return res.status(400).json({ success:false, message:'Weak password. Include upper, lower, number, special; min 8 chars.' });
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({ passwordResetToken: hashed, passwordResetExpires: { $gt: Date.now() } }).select('+passwordResetToken +passwordResetExpires');
+    if (!user) return res.status(400).json({ success:false, message:'Invalid or expired reset token' });
+    user.password = password;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    user.passwordChangedAt = new Date();
+    await user.save();
+    const { subject, html } = passwordChangedTemplate({ firstName: user.firstName, when: new Date().toLocaleString() });
+    sendPasswordSecurityEmail(user.email, subject, html);
+    res.json({ success:true, message:'Password updated. You can now log in.' });
+  } catch (e) {
+    console.error('resetPassword error:', e);
+    res.status(500).json({ success:false, message:'Failed to reset password' });
+  }
+};
+
+const changePassword = async (req,res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({ success:false, message:'Current and new password required' });
+    const user = await User.findById(req.user.id).select('+password');
+    if (!user) return res.status(404).json({ success:false, message:'User not found' });
+    const match = await user.matchPassword(currentPassword);
+    if (!match) return res.status(401).json({ success:false, message:'Current password incorrect' });
+    const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+    if (!strongPw.test(newPassword)) return res.status(400).json({ success:false, message:'Weak new password.' });
+    user.password = newPassword;
+    user.passwordChangedAt = new Date();
+    await user.save();
+    const { subject, html } = passwordChangedTemplate({ firstName: user.firstName, when: new Date().toLocaleString() });
+    sendPasswordSecurityEmail(user.email, subject, html);
+    res.json({ success:true, message:'Password changed successfully' });
+  } catch (e) {
+    console.error('changePassword error:', e);
+    res.status(500).json({ success:false, message:'Failed to change password' });
+  }
+};
+
 module.exports = {
   signup,
   login,
   handleUpload,
   googleSignup,
   generateToken,
-  adminLogin
+  adminLogin,
+  forgotPassword,
+  resetPassword,
+  changePassword
 };

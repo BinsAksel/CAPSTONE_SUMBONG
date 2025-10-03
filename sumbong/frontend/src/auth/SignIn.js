@@ -27,6 +27,7 @@ const SignIn = () => {
     address: '',
     password: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [images, setImages] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -117,10 +118,20 @@ const SignIn = () => {
   // Acceptance intentionally NOT persisted; always reset on load.
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    if (name === 'phoneNumber') {
+      const normalizePhone = (raw) => {
+        const digits = raw.replace(/\D/g,'');
+        const first9 = digits.indexOf('9');
+        if (first9 === -1) return '+639'; // no starting 9 yet
+        const subscriber = digits.slice(first9, first9 + 10); // 9 plus up to 9 digits
+        return '+639' + subscriber.slice(1); // +639 plus remaining digits after leading 9
+      };
+      const normalized = normalizePhone(value);
+      setFormData(prev => ({ ...prev, phoneNumber: normalized }));
+      return;
+    }
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleImageChange = (e) => {
@@ -145,16 +156,42 @@ const SignIn = () => {
     }
   }
 
+  const PASSWORD_POLICY = {
+    // At least 8 chars, one uppercase, one lowercase, one digit, one special
+    regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/,
+    message: 'Password must be 8+ chars, include upper & lower case letters, a number, and a special character.'
+  };
+
   const performSignup = async () => {
     setLoading(true);
 
+    // Password validation first to fail fast
+    if (!PASSWORD_POLICY.regex.test(formData.password)) {
+      setLoading(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'Weak Password',
+        text: PASSWORD_POLICY.message,
+        confirmButtonColor: '#1a365d'
+      });
+      return;
+    }
+
     // Phone number validation (Philippines: 10-13 digits, numbers only)
-    const phone = formData.phoneNumber.trim();
-    if (!/^\d{10,13}$/.test(phone)) {
+    const phoneRaw = formData.phoneNumber.trim();
+    const isValidPhilippineNumber = (() => {
+      // Accept formats:
+      // 1) 09xxxxxxxxx  (local; 11 digits total)
+      // 2) 63xxxxxxxxxx or +63xxxxxxxxxx (country code; 63 + 10 digits) per user requirement
+      if (/^09\d{9}$/.test(phoneRaw)) return true;
+      if (/^\+?63\d{10}$/.test(phoneRaw)) return true;
+      return false;
+    })();
+    if (!isValidPhilippineNumber) {
       Swal.fire({
         icon: 'error',
         title: 'Invalid Phone Number',
-        text: 'Please enter a valid phone number (10-13 digits, numbers only).',
+        html: 'Valid formats:<br/>09xxxxxxxxx (11 digits)<br/>63xxxxxxxxxx or +63xxxxxxxxxx (12 digits incl. country code, plus sign optional).',
         confirmButtonColor: '#1a365d'
       });
       setLoading(false);
@@ -274,6 +311,9 @@ const SignIn = () => {
               onChange={handleChange}
               placeholder="Phone Number"
               required
+              pattern="^\+639\d{0,9}$" /* allow partial while typing */
+              maxLength={13}
+              title="Phone auto-normalizes to +639 then your digits"
             />
           </div>
           <div className="form-group">
@@ -286,14 +326,28 @@ const SignIn = () => {
             />
           </div>
           <div className="form-group">
-            <input
-              type="password"
-              name="password"
-              value={formData.password}
-              onChange={handleChange}
-              placeholder="Password"
-              required
-            />
+            <div className="password-input-container">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                value={formData.password}
+                onChange={handleChange}
+                placeholder="Password"
+                required
+                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}"
+                title={PASSWORD_POLICY.message}
+                autoComplete="new-password"
+              />
+              <button
+                type="button"
+                className={`password-toggle ${showPassword ? 'show' : ''}`}
+                onClick={() => setShowPassword(p=>!p)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              />
+            </div>
+            <small style={{display:'block',marginTop:4,fontSize:12,color:'#555'}}>
+              8+ chars, upper & lower case, number, special character.
+            </small>
           </div>
           <div className="form-group">
             <label className="file-label">
@@ -374,4 +428,4 @@ const SignIn = () => {
   );
 };
 
-export default SignIn; 
+export default SignIn;

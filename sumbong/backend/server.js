@@ -25,7 +25,7 @@ connectDB()
     dbConnected = false;
     console.error('MongoDB connection error:', err);
   });
-const { signup, login, handleUpload, googleSignup, adminLogin } = require('./controllers/authController');
+const { signup, login, handleUpload, googleSignup, adminLogin, forgotPassword, resetPassword, changePassword } = require('./controllers/authController');
 const sendEmail = require('./utils/sendEmail');
 const {
   complaintStatusTemplate,
@@ -555,6 +555,10 @@ app.options('/api/realtime/:userId', cors());
 app.post('/api/auth/signup', handleUpload, signup);
 app.post('/api/auth/login', login);
 app.post('/api/auth/admin/login', adminLogin);
+// Password lifecycle
+app.post('/api/auth/forgot-password', forgotPassword);
+app.post('/api/auth/reset-password', resetPassword);
+app.patch('/api/auth/change-password', authenticateJWT, changePassword);
 
 // Get all users
 app.get('/api/admin/users', authenticateJWT, requireAdmin, async (req, res) => {

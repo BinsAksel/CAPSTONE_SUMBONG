@@ -75,7 +75,7 @@ const Login = () => {
           <GoogleButton text="Continue with Google" onClick={handleGoogleLogin} />
           <form onSubmit={handleSubmit} className="login-form" /* internal scroll on large screens */>
             <div className="form-group">
-              <label htmlFor="email">Email or phone number</label>
+              <label htmlFor="email">Email</label>
               <input
                 type="email"
                 id="email"
@@ -122,7 +122,7 @@ const Login = () => {
                 />
                 <label htmlFor="rememberMe">Remember me</label>
               </div>
-              <Link to="/help" className="help-link">Need help?</Link>
+              <Link to="/forgot-password" className="help-link">Forgot password?</Link>
             </div>
             <div className="signup-prompt">
               Don't have an account? <Link to="/signup">Sign up</Link>

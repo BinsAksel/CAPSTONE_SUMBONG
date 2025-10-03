@@ -224,6 +224,14 @@ button:disabled {
   button { padding: 12px 20px; }
 }
 
+/* Password Input Container (unified with Login) */
+.password-input-container { position: relative; display: flex; align-items: center; }
+.password-input-container input { padding-right: 50px; }
+.password-toggle { position: absolute; right: 12px; background: none; border: none; color: #2d3748; cursor: pointer; padding: 4px; border-radius: 4px; transition: background-color 0.2s ease; display: flex; align-items: center; justify-content: center; width: 24px; height: 24px; }
+.password-toggle:hover { background-color: rgba(49, 130, 206, 0.1); }
+.password-toggle::before { content: "👁"; font-size: 16px; }
+.password-toggle.show::before { content: "👁‍🗨"; }
+
   /* =========================
      Policy Modal (responsive centered)
   ========================= */

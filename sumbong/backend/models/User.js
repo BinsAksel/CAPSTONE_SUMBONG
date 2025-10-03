@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 const userSchema = new mongoose.Schema({
   firstName: {
@@ -97,7 +98,10 @@ const userSchema = new mongoose.Schema({
   resubmissionRequestDate: {
     type: Date,
     default: null
-  }
+  },
+  passwordResetToken: { type: String, select: false },
+  passwordResetExpires: { type: Date, select: false },
+  passwordChangedAt: { type: Date }
   ,
   // Policy acceptance tracking
   acceptedTerms: { type: Boolean, default: false },
@@ -145,6 +149,20 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
+userSchema.methods.createPasswordResetToken = function(expMinutes = 15) {
+  const raw = crypto.randomBytes(32).toString('hex');
+  const hashed = crypto.createHash('sha256').update(raw).digest('hex');
+  this.passwordResetToken = hashed;
+  this.passwordResetExpires = Date.now() + expMinutes * 60 * 1000;
+  return raw; // return raw (emailed); only hashed stored
+};
+
+userSchema.methods.changedPasswordAfter = function(jwtIatSeconds) {
+  if (!this.passwordChangedAt) return false;
+  const changed = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
+  return changed > jwtIatSeconds; // true means password changed after token issued
+};
+
 const User = mongoose.model('User', userSchema);
 
-module.exports = User; 
+module.exports = User;

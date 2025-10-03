@@ -19,10 +19,11 @@ const CompleteProfile = () => {
   const [formData, setFormData] = useState({
     firstName: initialFirstName,
     lastName: initialLastName,
-    phoneNumber: '',
+    phoneNumber: '+639', // start with normalized prefix immediately
     address: '',
     email: initialEmail,
-    profilePicture: initialProfilePicture
+    profilePicture: initialProfilePicture,
+    password: ''
   });
   const [images, setImages] = useState([]);
   const [error, setError] = useState('');
@@ -37,6 +38,11 @@ const CompleteProfile = () => {
   const modalScrollRef = useRef(null);
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
   const [pendingSubmit, setPendingSubmit] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const PASSWORD_POLICY = {
+    regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
+    message: 'Password must be 8+ chars with upper, lower, number, special.'
+  };
 
   const fetchPolicy = async (name) => {
     try {
@@ -104,10 +110,75 @@ const CompleteProfile = () => {
   // Acceptance not persisted; resets every new visit.
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    if (name === 'phoneNumber') {
+      // Always enforce +639 prefix and strip non-digits
+      const digits = value.replace(/\D/g, '');
+      // Extract subscriber digits after an initial 9 (Philippine mobile starts with 9)
+      // Remove any leading country/zeros before first 9
+      const first9 = digits.indexOf('9');
+      let subscriber = first9 === -1 ? '' : digits.slice(first9 + 1); // digits after the first 9
+      subscriber = subscriber.replace(/[^0-9]/g,'').slice(0,9); // cap at 9 digits
+      const normalized = '+639' + subscriber;
+      setFormData(prev => ({ ...prev, phoneNumber: normalized }));
+      return;
+    }
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handlePhonePaste = (e) => {
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    const digits = text.replace(/\D/g,'');
+    const first9 = digits.indexOf('9');
+    const subscriber = first9 === -1 ? '' : digits.slice(first9 + 1, first9 + 10);
+    setFormData(prev => ({ ...prev, phoneNumber: '+639' + subscriber }));
+    e.preventDefault();
+  };
+
+  const handlePhoneKeyDown = (e) => {
+    if (e.target.name !== 'phoneNumber') return;
+    // Prevent deleting inside fixed prefix +639
+    const protectUntil = 4; // indices 0..3 are + 6 3 9
+    const { selectionStart, selectionEnd, value } = e.target;
+    const key = e.key;
+    const navKeys = ['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Home','End'];
+    if (navKeys.includes(key)) return;
+    if (key === 'Backspace' && selectionStart <= protectUntil) {
+      e.preventDefault(); return;
+    }
+    if (key === 'Delete' && selectionStart < protectUntil) {
+      e.preventDefault(); return;
+    }
+    // Block any non-digit input (other than allowed control keys)
+    if (!/[0-9]/.test(key) && key.length === 1) {
+      e.preventDefault();
+      return;
+    }
+    // Enforce max length (+639 + 9 digits = 13 chars)
+    const currentDigitsAfterPrefix = value.slice(4).replace(/\D/g,'');
+    if (/[0-9]/.test(key) && currentDigitsAfterPrefix.length >= 9 && selectionStart === selectionEnd) {
+      e.preventDefault();
+    }
+  };
+
+  const handlePhoneInput = (e) => {
+    if (e.target.name !== 'phoneNumber') return;
+    // Force sanitize in case of IME or browser autofill producing unexpected chars
+    const raw = e.target.value;
+    const digits = raw.replace(/\D/g,'')
+    const first9 = digits.indexOf('9');
+    const subscriber = first9 === -1 ? '' : digits.slice(first9 + 1, first9 + 10);
+    const normalized = '+639' + subscriber;
+    if (normalized !== formData.phoneNumber) {
+      setFormData(prev => ({ ...prev, phoneNumber: normalized }));
+    }
+  };
+
+  const handlePhoneBeforeInput = (e) => {
+    if (e.target.name !== 'phoneNumber') return;
+    if (e.data && !/^[0-9]$/.test(e.data)) {
+      e.preventDefault();
+    }
   };
 
   const handleImageChange = (e) => {
@@ -119,12 +190,35 @@ const CompleteProfile = () => {
   const performSubmit = async () => {
     setLoading(true);
     try {
+      // Validation: must be +639 followed by exactly 9 digits
+      const phoneRaw = formData.phoneNumber.trim();
+      if (!/^\+639\d{9}$/.test(phoneRaw)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid Phone Number',
+          html: 'Enter a valid Philippine mobile number: +639 followed by 9 digits.',
+          confirmButtonColor: '#3b5998'
+        });
+        setLoading(false);
+        return;
+      }
+      if (!formData.password || !PASSWORD_POLICY.regex.test(formData.password)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Weak Password',
+          text: PASSWORD_POLICY.message,
+          confirmButtonColor: '#3b5998'
+        });
+        setLoading(false);
+        return;
+      }
       const formDataToSend = new FormData();
       formDataToSend.append('firstName', formData.firstName);
       formDataToSend.append('lastName', formData.lastName);
       formDataToSend.append('phoneNumber', formData.phoneNumber);
       formDataToSend.append('address', formData.address);
       formDataToSend.append('email', formData.email);
+      formDataToSend.append('password', formData.password);
       if (formData.profilePicture) {
         formDataToSend.append('profilePicture', formData.profilePicture);
       }
@@ -214,16 +308,50 @@ const CompleteProfile = () => {
           />
         </div>
         <div className="form-group">
-          <label htmlFor="phoneNumber">Phone Number</label>
+          <label htmlFor="phoneNumber">Phone Numbers</label>
           <input
             type="tel"
             name="phoneNumber"
             id="phoneNumber"
             value={formData.phoneNumber}
             onChange={handleChange}
+            onKeyDown={handlePhoneKeyDown}
+            onPaste={handlePhonePaste}
+            onBeforeInput={handlePhoneBeforeInput}
+            onInput={handlePhoneInput}
+            inputMode="numeric"
             placeholder="Phone Number"
             required
+            pattern="^\+639\d{9}$"
+            maxLength={13}
+            title="Format: +639XXXXXXXXX"
           />
+        </div>
+        <div className="form-group">
+          <label htmlFor="password">Password</label>
+          <div className="password-input-container">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              name="password"
+              id="password"
+              value={formData.password}
+              onChange={handleChange}
+              placeholder="Set a strong password"
+              required
+              pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}"
+              title={PASSWORD_POLICY.message}
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              className={`password-toggle ${showPassword ? 'show' : ''}`}
+              onClick={()=>setShowPassword(p=>!p)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            />
+          </div>
+          <small style={{display:'block',marginTop:4,fontSize:12,color:'#555'}}>
+            {PASSWORD_POLICY.message}
+          </small>
         </div>
         <div className="form-group">
           <label htmlFor="address">Address</label>
