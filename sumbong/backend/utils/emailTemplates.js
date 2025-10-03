@@ -104,5 +104,23 @@ module.exports = {
       <p>Your password was successfully changed at <b>${when}</b>.</p>
       <p>If this wasn’t you, reset it immediately or contact support.</p>
     `)
+  }),
+  emailVerificationTemplate: ({ firstName='User', verifyUrl, minutes=30 }) => ({
+    subject: 'Verify Your Email Address',
+    html: baseWrapper(`
+      <h2>Confirm Your Email</h2>
+      <p>Hi ${firstName},</p>
+      <p>Please verify your email address to activate your account. This link expires in ${minutes} minutes.</p>
+      <p><a class="btn" href="${verifyUrl}" target="_blank" rel="noopener">Verify Email</a></p>
+      <p>If you didn't create an account, you can ignore this email.</p>
+    `)
+  }),
+  emailVerifiedConfirmationTemplate: ({ firstName='User' }) => ({
+    subject: 'Email Verified Successfully',
+    html: baseWrapper(`
+      <h2>Email Verified</h2>
+      <p>Hi ${firstName},</p>
+      <p>Your email has been verified successfully. An administrator still needs to approve your credentials before you can log in. You'll receive another email once approval is complete.</p>
+    `)
   })
 };

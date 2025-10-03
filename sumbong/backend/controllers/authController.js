@@ -83,6 +83,15 @@ const googleSignup = async (req, res) => {
       acceptedPoliciesAt: new Date()
     });
     if (user) {
+      // Generate & send email verification token (Google signup also must verify email)
+      try {
+        const rawToken = user.createEmailVerificationToken(parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10));
+        await user.save({ validateBeforeSave:false });
+  const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/, '');
+        const verifyUrl = `${FRONTEND}/verify-email?token=${rawToken}`;
+        const { subject, html } = emailVerificationTemplate({ firstName: user.firstName, verifyUrl, minutes: parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10) });
+        await sendPasswordSecurityEmail(user.email, subject, html);
+      } catch (e) { console.warn('Email verification send failed (googleSignup):', e.message); }
       try {
         const bus = require('../events/bus');
         bus.emit('new_user', { userId: user._id.toString() });
@@ -121,7 +130,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { passwordResetTemplate, passwordChangedTemplate } = require('../utils/emailTemplates');
+const { passwordResetTemplate, passwordChangedTemplate, emailVerificationTemplate, emailVerifiedConfirmationTemplate } = require('../utils/emailTemplates');
 
 // Memory storage -> direct Cloudinary upload
 const upload = multer({
@@ -251,6 +260,19 @@ const signup = async (req, res) => {
       });
 
       if (user) {
+        const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+        if (!strongPw.test(password)) {
+          return res.status(400).json({ success:false, message:'Weak password. Must include upper, lower, number, special; min 8 chars.' });
+        }
+        // Send email verification
+        try {
+          const rawToken = user.createEmailVerificationToken(parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10));
+          await user.save({ validateBeforeSave:false });
+          const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/, '');
+          const verifyUrl = `${FRONTEND}/verify-email?token=${rawToken}`;
+          const { subject, html } = emailVerificationTemplate({ firstName: user.firstName, verifyUrl, minutes: parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10) });
+          await sendPasswordSecurityEmail(user.email, subject, html);
+        } catch (e) { console.warn('Email verification send failed (signup):', e.message); }
         try {
           const bus = require('../events/bus');
           bus.emit('new_user', { userId: user._id.toString() });
@@ -299,7 +321,10 @@ const login = async (req, res) => {
         message: 'Invalid email or password' 
       });
     }
-
+    // Enforce email verification before approval
+    if (!user.emailVerified) {
+      return res.status(403).json({ success:false, code:'EMAIL_NOT_VERIFIED', message:'Please verify your email. A verification link was sent.' });
+    }
     // Check if user is approved
     if (!user.approved) {
       return res.status(403).json({
@@ -432,6 +457,53 @@ const changePassword = async (req,res) => {
   }
 };
 
+// Email verification handlers
+const verifyEmail = async (req,res) => {
+  try {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ success:false, message:'Token required' });
+    const hashed = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({ emailVerificationToken: hashed, emailVerificationExpires: { $gt: Date.now() } }).select('+emailVerificationToken +emailVerificationExpires');
+    if (!user) return res.status(400).json({ success:false, message:'Invalid or expired token' });
+    if (user.emailVerified) return res.json({ success:true, alreadyVerified:true, message:'Email already verified.' });
+    user.emailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save({ validateBeforeSave:false });
+    try {
+      const { subject, html } = emailVerifiedConfirmationTemplate({ firstName: user.firstName });
+      await sendPasswordSecurityEmail(user.email, subject, html);
+    } catch (e) { console.warn('Verification confirmation email failed:', e.message); }
+    return res.json({ success:true, message:'Email verified. Awaiting admin approval.' });
+  } catch (e) {
+    console.error('verifyEmail error:', e);
+    res.status(500).json({ success:false, message:'Verification failed' });
+  }
+};
+
+const resendVerification = async (req,res) => {
+  try {
+    const { email } = req.body;
+    const generic = { success:true, message:'If that email exists and is unverified, a link was sent.' };
+    if (!email) return res.status(200).json(generic);
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+emailVerificationToken +emailVerificationExpires');
+    if (!user) return res.status(200).json(generic);
+    if (user.emailVerified) return res.status(200).json({ success:true, message:'Email already verified.' });
+    const rawToken = user.createEmailVerificationToken(parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10));
+    await user.save({ validateBeforeSave:false });
+    try {
+  const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/, '');
+      const verifyUrl = `${FRONTEND}/verify-email?token=${rawToken}`;
+      const { subject, html } = emailVerificationTemplate({ firstName: user.firstName, verifyUrl, minutes: parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10) });
+      await sendPasswordSecurityEmail(user.email, subject, html);
+    } catch (e) { console.warn('Resend verification email failed:', e.message); }
+    return res.status(200).json(generic);
+  } catch (e) {
+    console.error('resendVerification error:', e);
+    return res.status(200).json({ success:true, message:'If that email exists and is unverified, a link was sent.' });
+  }
+};
+
 module.exports = {
   signup,
   login,
@@ -441,5 +513,7 @@ module.exports = {
   adminLogin,
   forgotPassword,
   resetPassword,
-  changePassword
+  changePassword,
+  verifyEmail,
+  resendVerification
 };

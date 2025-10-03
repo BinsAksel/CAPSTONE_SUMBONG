@@ -9,6 +9,7 @@ import Admin from '../admin/Admin';
 import AdminDashboard from '../admin/Admin-dashboard';
 import ForgotPassword from '../auth/password/ForgotPassword';
 import ResetPassword from '../auth/password/ResetPassword';
+import VerifyEmail from '../auth/VerifyEmail';
 
 // Admin protected route
 const AdminRoute = ({ children }) => {
@@ -70,6 +71,10 @@ const routes = [
   {
     path: '/reset-password',
     element: <ResetPassword />
+  },
+  {
+    path: '/verify-email',
+    element: <VerifyEmail />
   },
   {
     path: '/signup',

@@ -29,6 +29,10 @@ const Login = () => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
+  const [resendBusy, setResendBusy] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (loading) return;
@@ -42,12 +46,21 @@ const Login = () => {
         window.location.href = '/dashboard';
       }
     } catch (error) {
+      const code = error.response?.data?.code;
       const msg = error.response?.data?.message || '';
-      if (msg.toLowerCase().includes('not approved')) {
+      if (code === 'EMAIL_NOT_VERIFIED') {
+        setUnverifiedEmail(formData.email);
+        Swal.fire({
+          icon: 'warning',
+          title: 'Email Not Verified',
+          html: 'Please verify your email. You can request a new link below.',
+          confirmButtonColor: '#1a365d'
+        });
+      } else if (code === 'ACCOUNT_NOT_APPROVED' || msg.toLowerCase().includes('not approved')) {
         Swal.fire({
           icon: 'info',
           title: 'Account Not Approved',
-          text: 'Your account is not yet approved by the admin.',
+          text: 'Your email is verified, but your account awaits admin approval.',
           confirmButtonColor: '#1a365d'
         });
       } else {
@@ -60,6 +73,35 @@ const Login = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!unverifiedEmail || resendBusy || resendSent) return;
+    setResendBusy(true);
+    try {
+      await fetch(`${API_BASE}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: unverifiedEmail.trim() })
+      });
+      setResendSent(true);
+      Swal.fire({
+        icon: 'success',
+        title: 'Link Sent',
+        text: 'If the email is unverified, a new verification link was sent.',
+        confirmButtonColor: '#1a365d'
+      });
+    } catch {
+      setResendSent(true);
+      Swal.fire({
+        icon: 'success',
+        title: 'Link Sent',
+        text: 'If the email is unverified, a new verification link was sent.',
+        confirmButtonColor: '#1a365d'
+      });
+    } finally {
+      setResendBusy(false);
     }
   };
 
@@ -130,6 +172,18 @@ const Login = () => {
             <div className="learn-more">
               <Link to="/learn-more">Learn more.</Link>
             </div>
+            {unverifiedEmail && (
+              <div className="verification-hint" style={{ marginTop: 24, background:'#fffaf0', border:'1px solid #fbd38d', padding:12, borderRadius:6 }}>
+                <p style={{ margin:0, fontSize:13, color:'#744210', fontWeight:600 }}>Email verification required</p>
+                <p style={{ margin:'4px 0 8px', fontSize:12, color:'#975a16' }}>We sent a link to {unverifiedEmail}. Didn't get it?</p>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <button type="button" className="secondary-btn" disabled={resendBusy || resendSent} onClick={handleResend} style={{ padding:'6px 12px', fontSize:12 }}>
+                    {resendBusy ? 'Sending…' : (resendSent ? 'Link Sent' : 'Resend Link')}
+                  </button>
+                  <Link to="/verify-email" style={{ fontSize:12, color:'#1a365d', fontWeight:600 }}>Enter Token Manually</Link>
+                </div>
+              </div>
+            )}
           </form>
         </div>
       </div>

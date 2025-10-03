@@ -103,6 +103,10 @@ const userSchema = new mongoose.Schema({
   passwordResetExpires: { type: Date, select: false },
   passwordChangedAt: { type: Date }
   ,
+  // Email verification
+  emailVerified: { type: Boolean, default: false, index: true },
+  emailVerificationToken: { type: String, select: false },
+  emailVerificationExpires: { type: Date, select: false },
   // Policy acceptance tracking
   acceptedTerms: { type: Boolean, default: false },
   acceptedPrivacy: { type: Boolean, default: false },
@@ -161,6 +165,14 @@ userSchema.methods.changedPasswordAfter = function(jwtIatSeconds) {
   if (!this.passwordChangedAt) return false;
   const changed = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
   return changed > jwtIatSeconds; // true means password changed after token issued
+};
+
+userSchema.methods.createEmailVerificationToken = function(expMinutes = parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES || '30', 10)) {
+  const raw = crypto.randomBytes(32).toString('hex');
+  const hashed = crypto.createHash('sha256').update(raw).digest('hex');
+  this.emailVerificationToken = hashed;
+  this.emailVerificationExpires = Date.now() + expMinutes * 60 * 1000;
+  return raw;
 };
 
 const User = mongoose.model('User', userSchema);

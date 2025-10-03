@@ -35,6 +35,45 @@ Each email send is wrapped in a `try/catch` and will log a warning (not crash th
 ### Security Note
 Ensure the `BREVO_API_KEY` is only stored in environment configuration (.env not committed). The system uses a fixed sender identity `systemsumbong@gmail.com`.
 
+## Email & Account Lifecycle Additions
+The authentication flow now enforces BOTH email verification and admin approval before a user can log in.
+
+### New Environment Variable
+- `EMAIL_VERIFY_TOKEN_EXP_MINUTES` (optional, default 30) – Expiration window (minutes) for verification links.
+
+### New User Schema Fields
+- `emailVerified` (Boolean)
+- `emailVerificationToken` (hashed, transient)
+- `emailVerificationExpires` (Date)
+
+### New Endpoints
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/api/auth/verify-email` | Body: `{ token }` – Verifies the email using the raw token from the link |
+| POST | `/api/auth/resend-verification` | Body: `{ email }` – Resends a verification link if the user exists and is still unverified |
+
+### Flow Summary
+1. User signs up (standard or Google complete-profile) → backend creates a verification token and emails link: `https://<frontend>/verify-email?token=RAW_TOKEN`.
+2. User clicks link → frontend calls `POST /api/auth/verify-email`.
+3. Backend marks `emailVerified = true` and sends a confirmation email.
+4. Login is allowed only if BOTH `emailVerified === true` and `approved === true` (admin approval).
+5. If email is unverified, login returns 403 with `code: "EMAIL_NOT_VERIFIED"`.
+6. If email verified but not approved, login returns 403 with `code: "ACCOUNT_NOT_APPROVED"`.
+
+### Frontend Pages/Changes
+- `VerifyEmail.js` – Consumes token or lets user manually paste & resend link.
+- `Login.js` – Detects `EMAIL_NOT_VERIFIED` and shows resend + link to `/verify-email`.
+
+### Security Considerations
+- Tokens are 32-byte random hex strings, SHA-256 hashed in DB.
+- On success, token & expiry are cleared.
+- Resend endpoint is indistinguishable (always generic response) to prevent email enumeration.
+- Email verification enforced before admin approval check to avoid leaking approval status for unverified emails.
+
+### Suggested Monitoring
+Log counts of issued vs. verified tokens (future improvement) to detect deliverability issues.
+
+
 ## Admin Real-Time Notifications (Notification Bell)
 Admins receive real-time (SSE) and persisted notifications for key events:
 
