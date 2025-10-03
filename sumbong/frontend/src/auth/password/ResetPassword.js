@@ -5,7 +5,8 @@ import '../Login.css';
 import BackButton from '../../components/BackButton';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+// Unified strong password regex (matches SignIn & CompleteProfile patterns)
+const strongPw = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
 const ResetPassword = () => {
   const location = useLocation();

@@ -156,11 +156,19 @@ const SignIn = () => {
     }
   }
 
+  // Unified password policy (same logic as CompleteProfile & reset page)
+  // Explanation:
+  //  - (?=.*[a-z]) lowercase
+  //  - (?=.*[A-Z]) uppercase
+  //  - (?=.*\d) digit
+  //  - (?=.*[\W_]) any non-word (punctuation/special) or underscore
+  //  - .{8,} length >= 8
   const PASSWORD_POLICY = {
-    // At least 8 chars, one uppercase, one lowercase, one digit, one special
-    regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/,
+    regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/,
     message: 'Password must be 8+ chars, include upper & lower case letters, a number, and a special character.'
   };
+  // HTML pattern equivalent (anchors are implicit for pattern attribute)
+  const passwordHtmlPattern = '(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[\\W_]).{8,}';
 
   const performSignup = async () => {
     setLoading(true);
@@ -334,7 +342,7 @@ const SignIn = () => {
                 onChange={handleChange}
                 placeholder="Password"
                 required
-                pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}"
+                pattern={passwordHtmlPattern}
                 title={PASSWORD_POLICY.message}
                 autoComplete="new-password"
               />
