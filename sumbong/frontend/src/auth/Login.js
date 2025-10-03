@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import loginImage from '../assets/login.png';
 import Swal from 'sweetalert2';
 import './Login.css';
+import BackButton from '../components/BackButton';
 import { API_BASE } from '../config/apiBase';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -64,6 +65,7 @@ const Login = () => {
 
   return (
     <div className="login-layout">{/* Mirror SignIn outer layout */}
+      <BackButton to="/" />
       <div className="login-illustration-panel" aria-hidden="true">
         <img src={loginImage} alt="Illustration" />
       </div>

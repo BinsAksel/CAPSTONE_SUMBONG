@@ -1,0 +1,36 @@
+.back-btn {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  /* Match nav button height (~42px) */
+  min-height: 42px;
+  padding: 0 14px 0 12px; /* tighter horizontal padding */
+  background: rgba(255,255,255,0.92);
+  color: #1a365d;
+  border: 1px solid rgba(0,0,0,0.10);
+  border-radius: 46px; /* pill */
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  line-height: 1;
+  box-shadow: 0 4px 14px -6px rgba(0,0,0,0.22), 0 2px 8px -4px rgba(0,0,0,0.14);
+  backdrop-filter: blur(5px) saturate(1.15);
+  transition: background .25s, box-shadow .25s, transform .25s;
+  z-index: 10;
+  width: auto; /* override global button width:100% rules */
+  inline-size: fit-content; /* ensure it only wraps its content */
+}
+.back-btn:hover { background: #ffffff; box-shadow:0 6px 20px -8px rgba(0,0,0,0.30); }
+.back-btn:active { transform: translateY(1px); }
+.back-btn:focus-visible { outline:2px solid #3182ce; outline-offset:2px; }
+.back-btn-icon { font-size: 14px; line-height:1; }
+.back-btn-text { letter-spacing: .35px; }
+/* Compact on very narrow screens */
+@media (max-width:480px){
+  .back-btn { min-height:36px; padding:0 12px 0 10px; font-size:13px; top:10px; left:10px; }
+}

@@ -4,6 +4,7 @@ import { Navigate } from 'react-router-dom';
 import SignIn from '../auth/SignIn';
 import Login from '../auth/Login';
 import Dashboard from '../pages/Dashboard';
+import LandingPage from '../pages/LandingPage';
 import Admin from '../admin/Admin';
 import AdminDashboard from '../admin/Admin-dashboard';
 
@@ -42,7 +43,15 @@ const routes = [
   },
   {
     path: '/',
-    element: <Navigate to="/login" replace />
+    element: <LandingPage />
+  },
+  {
+    path: '/landing',
+    element: <LandingPage />
+  },
+  {
+    path: '/landing-page',
+    element: <LandingPage />
   },
   {
     path: '/login',

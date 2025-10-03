@@ -7,6 +7,7 @@ import './SignIn.css';
 import Swal from 'sweetalert2';
 import { API_BASE } from '../config/apiBase';
 import LoadingSpinner from '../components/LoadingSpinner';
+import BackButton from '../components/BackButton';
 
 const SignIn = () => {
   const navigate = useNavigate();
@@ -225,6 +226,7 @@ const SignIn = () => {
 
   return (
     <div className="signin-layout">
+      <BackButton to="/login" />
       <div className="signin-illustration-panel" aria-hidden="true">
         <img src={loginImage} alt="Illustration" />
       </div>

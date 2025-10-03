@@ -11,6 +11,7 @@
   width: 100%;
   background: radial-gradient(circle at 25% 35%, #f2f8fd, #e6f1fa 55%, #deecf8);
   overflow: hidden;
+  position: relative; /* anchor back button */
 }
 
 .login-illustration-panel {
