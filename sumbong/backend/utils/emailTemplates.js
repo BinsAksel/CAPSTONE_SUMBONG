@@ -57,7 +57,7 @@ function credentialRejectedTemplate({ firstName = 'User', issueDetails, adminNot
   const html = baseWrapper(`
     <h2>Credential Review Result</h2>
     <p>Hi ${firstName},</p>
-    <p>Some issues were found during review of your submitted credentials:</p>
+    <p>Some The submitted credentials did not pass verification. Your account will be deleted; you’ll need to register again with valid documents.</p>
     ${issueDetails ? `<p><b>Issue Details:</b><br/>${issueDetails}</p>` : ''}
     ${adminNotes ? `<p><b>Admin Notes:</b><br/>${adminNotes}</p>` : ''}
     ${requiredActions ? `<p><b>Required Actions:</b><br/>${requiredActions}</p>` : ''}

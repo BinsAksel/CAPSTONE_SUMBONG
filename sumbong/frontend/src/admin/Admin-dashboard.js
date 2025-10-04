@@ -72,7 +72,6 @@ const AdminDashboard = () => {
   const [credentialModalOpen, setCredentialModalOpen] = useState(false);
   const [issueDetailsModalOpen, setIssueDetailsModalOpen] = useState(false);
   const [issueDetails, setIssueDetails] = useState('');
-  const [adminNotes, setAdminNotes] = useState('');
   const [requiredActions, setRequiredActions] = useState('');
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verificationHistory, setVerificationHistory] = useState([]);
@@ -789,12 +788,10 @@ const AdminDashboard = () => {
     
     setVerificationLoading(true);
     try {
-      await adminApi.patch(`/api/admin/approve-credentials/${userId}`, {
-        adminNotes: adminNotes || 'Credentials verified successfully'
-      });
+      await adminApi.patch(`/api/admin/approve-credentials/${userId}`);
       fetchUsers();
       closeCredentialModal();
-      setAdminNotes('');
+      
       Swal.fire({
         icon: 'success',
         title: 'Credentials approved!',
@@ -845,13 +842,12 @@ const AdminDashboard = () => {
     try {
       await adminApi.patch(`/api/admin/reject-credentials/${userId}`, {
         issueDetails: issueDetails.trim(),
-        adminNotes: adminNotes.trim() || 'Credentials rejected due to issues found',
         requiredActions: requiredActions.trim() || 'Please upload corrected credentials'
       });
       fetchUsers();
       closeIssueDetailsModal();
       setIssueDetails('');
-      setAdminNotes('');
+      
       setRequiredActions('');
       Swal.fire({
         icon: 'success',
@@ -874,16 +870,13 @@ const AdminDashboard = () => {
   };
 
   const openIssueDetailsModal = () => {
-    console.log('Opening issue details modal for user:', selectedCredential);
     if (selectedCredential && selectedCredential.userId) {
-      console.log('User ID:', selectedCredential.userId);
       setCurrentUserId(selectedCredential.userId);
     }
     setIssueDetailsModalOpen(true);
   };
 
   const openIssueDetailsModalForUser = (userId) => {
-    console.log('Opening issue details modal for user ID:', userId);
     setCurrentUserId(userId);
     setIssueDetailsModalOpen(true);
   };
@@ -891,7 +884,6 @@ const AdminDashboard = () => {
   const closeIssueDetailsModal = () => {
     setIssueDetailsModalOpen(false);
     setIssueDetails('');
-    setAdminNotes('');
     setRequiredActions('');
     setCurrentUserId(null);
   };
@@ -905,61 +897,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleRequestResubmission = async (userId) => {
-    console.log('handleRequestResubmission called with userId:', userId);
-    console.log('currentUserId state:', currentUserId);
-    
-    if (!userId) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error: User ID not found. Please try again.',
-        timer: 900,
-        showConfirmButton: false,
-        timerProgressBar: true
-      });
-      return;
-    }
-    if (!issueDetails.trim()) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'Provide reason for resubmission',
-        timer: 1000,
-        showConfirmButton: false,
-        timerProgressBar: true
-      });
-      return;
-    }
-    
-    setVerificationLoading(true);
-    try {
-      await adminApi.patch(`/api/admin/request-resubmission/${userId}`, {
-        reason: issueDetails.trim(),
-        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
-      });
-      fetchUsers();
-      closeIssueDetailsModal();
-      setIssueDetails('');
-      setAdminNotes('');
-      setRequiredActions('');
-      Swal.fire({
-        icon: 'success',
-        title: 'Resubmission requested',
-        timer: 700,
-        showConfirmButton: false,
-        timerProgressBar: true
-      });
-    } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Failed to request resubmission',
-        text: err.response?.data?.message || err.message,
-        timer: 1400,
-        showConfirmButton: false,
-        timerProgressBar: true
-      });
-    }
-    setVerificationLoading(false);
-  };
+  // Removed request resubmission flow
 
   const pendingCount = complaints.filter(c => c.status === 'pending').length;
 
@@ -1162,7 +1100,6 @@ const AdminDashboard = () => {
             <th>Address</th>
             <th>Verification Status</th>
             <th>Credentials for Verification</th>
-            <th>Admin Notes</th>
             <th>Verify Account</th>
           </tr>
         </thead>
@@ -1220,25 +1157,7 @@ const AdminDashboard = () => {
                         'No credentials uploaded'
                       )}
                     </td>
-              <td>
-                {user.adminNotes ? (
-                  <div style={{ maxWidth: '200px', wordWrap: 'break-word' }}>
-                    <strong>Notes:</strong> {user.adminNotes}
-                    {user.issueDetails && (
-                      <div style={{ marginTop: '5px', fontSize: '12px', color: '#e53e3e' }}>
-                        <strong>Issues:</strong> {user.issueDetails}
-                      </div>
-                    )}
-                    {user.requiredActions && (
-                      <div style={{ marginTop: '5px', fontSize: '12px', color: '#3182ce' }}>
-                        <strong>Actions:</strong> {user.requiredActions}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  'No notes'
-                )}
-              </td>
+              
                     <td>
                       <div className="verify-actions-inner">
                         <button className="action-btn approve-btn" onClick={() => verifyUser(user._id)} disabled={user.approved}>Approve</button>
@@ -1432,7 +1351,6 @@ const AdminDashboard = () => {
                   <th>Email</th>
                   <th>Verification Status</th>
                   <th>Verification Date</th>
-                  <th>Admin Notes</th>
                   <th>Issue Details</th>
                   <th>Required Actions</th>
                   <th>Rejection Count</th>
@@ -1450,9 +1368,6 @@ const AdminDashboard = () => {
                     </td>
                     <td>
                       {user.verificationDate ? new Date(user.verificationDate).toLocaleDateString() : 'N/A'}
-                    </td>
-                    <td style={{ maxWidth: '200px', wordWrap: 'break-word' }}>
-                      {user.adminNotes || 'No notes'}
                     </td>
                     <td style={{ maxWidth: '200px', wordWrap: 'break-word' }}>
                       {user.issueDetails || 'No issues'}
@@ -1790,16 +1705,6 @@ const AdminDashboard = () => {
                 />
               </div>
               <div className="form-group">
-                <label><strong>Admin Notes:</strong></label>
-                <textarea
-                  value={adminNotes}
-                  onChange={(e) => setAdminNotes(e.target.value)}
-                  placeholder="Additional notes or comments..."
-                  rows="3"
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-                />
-              </div>
-              <div className="form-group">
                 <label><strong>Required Actions:</strong></label>
                 <textarea
                   value={requiredActions}
@@ -1817,18 +1722,10 @@ const AdminDashboard = () => {
                 >
                   {verificationLoading ? <InlineButtonSpinner show>Reject Credentials</InlineButtonSpinner> : 'Reject Credentials'}
                 </button>
+                {/* Request Resubmission button removed per request */}
                 <button 
-                  className={`action-btn ${verificationLoading ? 'button-loading loading-text-hidden' : ''}`}
-                  onClick={() => handleRequestResubmission(currentUserId)}
-                  disabled={verificationLoading || !issueDetails.trim()}
-                  style={{ backgroundColor: '#f59e0b', color: 'white' }}
-                >
-                  {verificationLoading ? <InlineButtonSpinner show>Request Resubmission</InlineButtonSpinner> : 'Request Resubmission'}
-                </button>
-                <button 
-                  className="action-btn"
+                  className="action-btn cancel-btn"
                   onClick={closeIssueDetailsModal}
-                  style={{ backgroundColor: '#6b7280', color: 'white' }}
                 >
                   Cancel
                 </button>
