@@ -77,6 +77,10 @@ const AdminDashboard = () => {
   const [historyDateFilter, setHistoryDateFilter] = useState('all');
   const [historyDateFrom, setHistoryDateFrom] = useState('');
   const [historyDateTo, setHistoryDateTo] = useState('');
+  // Analytics date filter
+  const [analyticsDateFilter, setAnalyticsDateFilter] = useState('all');
+  const [analyticsDateFrom, setAnalyticsDateFrom] = useState('');
+  const [analyticsDateTo, setAnalyticsDateTo] = useState('');
   const [complaintSearch, setComplaintSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [userSearch, setUserSearch] = useState('');
@@ -491,6 +495,89 @@ const AdminDashboard = () => {
     const { start, end } = getDateRange(preset);
     if (!start || !end || !dateObj) return true;
     return dateObj >= start && dateObj <= end;
+  };
+
+  // Format a human-readable date range label for analytics CSV/reporting
+  const analyticsRangeLabel = () => {
+    if (!analyticsDateFilter || analyticsDateFilter === 'all') return 'All time';
+    if (analyticsDateFilter === 'custom') {
+      const from = analyticsDateFrom || '';
+      const to = analyticsDateTo || '';
+      if (!from && !to) return 'All time';
+      return `${from || '—'} to ${to || '—'}`;
+    }
+    const { start, end } = getDateRange(analyticsDateFilter) || {};
+    if (!start || !end) return 'All time';
+    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    return `${fmt(start)} to ${fmt(end)}`;
+  };
+
+  // Download Analytics as CSV based on current filter and visible metrics
+  const downloadAnalyticsCSV = () => {
+    try {
+      const usersFiltered = (users || []).filter(u => {
+        const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
+        return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+      });
+      const complaintsFiltered = (complaints || []).filter(c => {
+        const candidate = (c.date && c.time) ? `${c.date}T${c.time}` : (c.createdAt || c.updatedAt || c.deletedAt || null);
+        return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+      });
+
+      const approvedUsers = usersFiltered.filter(u => u.approved).length;
+      const rejectedUsers = usersFiltered.filter(u => (u.verificationStatus||'').toLowerCase()==='rejected').length;
+      const pendingUsersCalc = Math.max(0, usersFiltered.length - approvedUsers - rejectedUsers);
+
+      const pendingComplaintsCalc = complaintsFiltered.filter(c => (c.status||'').toLowerCase()==='pending').length;
+      const inProgComplaintsCalc = complaintsFiltered.filter(c => {
+        const s = (c.status||'').toLowerCase();
+        return s==='in progress' || s==='inprogress';
+      }).length;
+      const solvedComplaintsCalc = complaintsFiltered.filter(c => (c.status||'').toLowerCase()==='solved').length;
+
+      const csvEscape = (val) => {
+        const s = String(val ?? '');
+        // Escape quotes and wrap in quotes if contains comma, quote, or newline
+        const needs = /[",\n]/.test(s);
+        const escaped = s.replace(/"/g, '""');
+        return needs ? `"${escaped}"` : escaped;
+      };
+
+      const rows = [
+        ['Report', 'Analytics Summary'],
+        ['Generated At', new Date().toLocaleString()],
+        ['Date Range', analyticsRangeLabel()],
+        [],
+        ['Users Total', usersFiltered.length],
+        ['Users Approved', approvedUsers],
+        ['Users Pending', pendingUsersCalc],
+        ['Users Rejected', rejectedUsers],
+        [],
+        ['Complaints Total', complaintsFiltered.length],
+        ['Complaints Pending', pendingComplaintsCalc],
+        ['Complaints In Progress', inProgComplaintsCalc],
+        ['Complaints Solved', solvedComplaintsCalc],
+      ];
+
+      const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const ts = new Date();
+      const y = ts.getFullYear();
+      const m = String(ts.getMonth()+1).padStart(2, '0');
+      const d = String(ts.getDate()).padStart(2, '0');
+      const hh = String(ts.getHours()).padStart(2, '0');
+      const mm = String(ts.getMinutes()).padStart(2, '0');
+      a.href = url;
+      a.download = `analytics-report-${y}${m}${d}-${hh}${mm}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Failed to export CSV' });
+    }
   };
 
   const fetchComplaintHistory = async () => {
@@ -1139,6 +1226,9 @@ const AdminDashboard = () => {
               <span className="admin-badge">{pendingCount}</span>
             )}
           </button>
+          <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>
+            Analytics
+          </button>
           <button className={activeTab === 'complaint-history' ? 'active' : ''} onClick={() => { setActiveTab('complaint-history'); fetchComplaintHistory(); }}>
             Complaint History
           </button>
@@ -1479,6 +1569,211 @@ const AdminDashboard = () => {
               </tbody>
             </table>
             </div>
+            </div>
+          </>
+        )}
+        {activeTab === 'analytics' && (
+          <>
+            <h2>Analytics</h2>
+            <div style={{ marginBottom: 12, color: '#64748b' }}>Snapshot of user verification and complaint status distribution.</div>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div>
+                <label style={{ fontWeight: 'bold', marginRight: 8 }}>Date range:</label>
+                <select value={analyticsDateFilter} onChange={e => setAnalyticsDateFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
+                  <option value="all">All time</option>
+                  <option value="today">Today</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="this-month">This month</option>
+                  <option value="last-month">Last month</option>
+                  <option value="custom">Custom…</option>
+                </select>
+              </div>
+              {analyticsDateFilter === 'custom' && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="date" value={analyticsDateFrom} onChange={e=>setAnalyticsDateFrom(e.target.value)} />
+                  <span>to</span>
+                  <input type="date" value={analyticsDateTo} onChange={e=>setAnalyticsDateTo(e.target.value)} />
+                </div>
+              )}
+            </div>
+
+            {/* Quick summary cards */}
+            <div className="admin-summary-grid" style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
+              {(() => {
+                // Filter datasets by analytics date
+                const usersFiltered = (users || []).filter(u => {
+                  const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
+                  return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+                });
+                const complaintsFiltered = (complaints || []).filter(c => {
+                  const candidate = (c.date && c.time) ? `${c.date}T${c.time}` : (c.createdAt || c.updatedAt || c.deletedAt || null);
+                  return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+                });
+                const approvedUsers = usersFiltered.filter(u => u.approved).length;
+                const rejectedUsers = usersFiltered.filter(u => (u.verificationStatus||'').toLowerCase()==='rejected').length;
+                const pendingUsersCalc = Math.max(0, usersFiltered.length - approvedUsers - rejectedUsers);
+                const pendingComplaintsCalc = complaintsFiltered.filter(c => (c.status||'').toLowerCase()==='pending').length;
+                const inProgComplaintsCalc = complaintsFiltered.filter(c => {
+                  const s = (c.status||'').toLowerCase();
+                  return s==='in progress' || s==='inprogress';
+                }).length;
+                const solvedComplaintsCalc = complaintsFiltered.filter(c => (c.status||'').toLowerCase()==='solved').length;
+                return (
+                  <>
+              <div className="admin-summary-card total">
+                <div className="summary-title">Total Users</div>
+                <div className="summary-value">{usersFiltered.length}</div>
+              </div>
+              <div className="admin-summary-card approved">
+                <div className="summary-title">Approved Users</div>
+                <div className="summary-value">{approvedUsers}</div>
+              </div>
+              <div className="admin-summary-card pending">
+                <div className="summary-title">Pending Users</div>
+                <div className="summary-value">{pendingUsersCalc}</div>
+              </div>
+              <div className="admin-summary-card rejected">
+                <div className="summary-title">Rejected Users</div>
+                <div className="summary-value">{rejectedUsers}</div>
+              </div>
+              <div className="admin-summary-card total">
+                <div className="summary-title">Total Complaints</div>
+                <div className="summary-value">{complaintsFiltered.length}</div>
+              </div>
+              <div className="admin-summary-card pending">
+                <div className="summary-title">Pending Complaints</div>
+                <div className="summary-value">{pendingComplaintsCalc}</div>
+              </div>
+              <div className="admin-summary-card progress">
+                <div className="summary-title">In Progress Complaints</div>
+                <div className="summary-value">{inProgComplaintsCalc}</div>
+              </div>
+              <div className="admin-summary-card solved">
+                <div className="summary-title">Solved Complaints</div>
+                <div className="summary-value">{solvedComplaintsCalc}</div>
+              </div>
+                  </>
+                );
+              })()}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'stretch' }}>
+              {/* Users chart */}
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, background: '#fff' }}>
+                <h3 style={{ marginTop: 0 }}>Users by Status</h3>
+                {(() => {
+                  const usersFiltered = (users || []).filter(u => {
+                    const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
+                    return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+                  });
+                  const approved = usersFiltered.filter(u => u.approved).length;
+                  const rejected = usersFiltered.filter(u => (u.verificationStatus||'').toLowerCase()==='rejected').length;
+                  const pending = Math.max(0, usersFiltered.length - approved - rejected);
+                  const data = [
+                    { label: 'Approved', value: approved, color: '#22c55e' },
+                    { label: 'Pending', value: pending, color: '#eab308' },
+                    { label: 'Rejected', value: rejected, color: '#ef4444' }
+                  ];
+                  const max = Math.max(1, ...data.map(d => d.value));
+                  return (
+                    <div>
+                      {data.map((d, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                          <div style={{ width: 90, textAlign: 'right', fontSize: 13, color: '#475569' }}>{d.label}</div>
+                          <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 9999, height: 16, position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ width: `${(d.value/max)*100}%`, background: d.color, height: '100%' }} />
+                          </div>
+                          <div style={{ width: 40, textAlign: 'left', fontWeight: 600 }}>{d.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Complaints chart */}
+              <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 16, background: '#fff' }}>
+                <h3 style={{ marginTop: 0 }}>Complaints by Status</h3>
+                {(() => {
+                  const complaintsFiltered = (complaints || []).filter(c => {
+                    const candidate = (c.date && c.time) ? `${c.date}T${c.time}` : (c.createdAt || c.updatedAt || c.deletedAt || null);
+                    return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+                  });
+                  const pending = complaintsFiltered.filter(c => (c.status||'').toLowerCase() === 'pending').length;
+                  const inprog = complaintsFiltered.filter(c => {
+                    const s = (c.status||'').toLowerCase();
+                    return s === 'in progress' || s === 'inprogress';
+                  }).length;
+                  const solved = complaintsFiltered.filter(c => (c.status||'').toLowerCase() === 'solved').length;
+                  const data = [
+                    { label: 'Pending', value: pending, color: '#ef4444' },
+                    { label: 'In Progress', value: inprog, color: '#eab308' },
+                    { label: 'Solved', value: solved, color: '#22c55e' }
+                  ];
+                  const max = Math.max(1, ...data.map(d => d.value));
+                  return (
+                    <div>
+                      {data.map((d, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                          <div style={{ width: 90, textAlign: 'right', fontSize: 13, color: '#475569' }}>{d.label}</div>
+                          <div style={{ flex: 1, background: '#f1f5f9', borderRadius: 9999, height: 16, position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ width: `${(d.value/max)*100}%`, background: d.color, height: '100%' }} />
+                          </div>
+                          <div style={{ width: 40, textAlign: 'left', fontWeight: 600 }}>{d.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Empty state fallback */}
+            {(() => {
+              const usersFiltered = (users || []).filter(u => {
+                const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
+                return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+              });
+              const complaintsFiltered = (complaints || []).filter(c => {
+                const candidate = (c.date && c.time) ? `${c.date}T${c.time}` : (c.createdAt || c.updatedAt || c.deletedAt || null);
+                return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
+              });
+              return usersFiltered.length === 0 && complaintsFiltered.length === 0;
+            })() && (
+              <div style={{ marginTop: 16, color: '#64748b' }}>No analytics data yet.</div>
+            )}
+
+            {/* Analytics footer action: compact CSV export button at bottom */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+              <button
+                onClick={downloadAnalyticsCSV}
+                title="Download CSV report"
+                aria-label="Download CSV report"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid #0369a1',
+                  background: '#0284c7',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: 12,
+                  boxShadow: 'none',
+                  width: 'auto',
+                  flex: '0 0 auto',
+                  alignSelf: 'flex-end',
+                  maxWidth: 'fit-content'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                  <path d="M12 3v10m0 0l-4-4m4 4l4-4" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                CSV
+              </button>
             </div>
           </>
         )}
