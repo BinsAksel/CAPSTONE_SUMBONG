@@ -873,7 +873,8 @@ app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','con
 
 // Get all complaints by user
 app.get('/api/complaints/user/:userId', async (req, res) => {
-  const complaints = await Complaint.find({ user: req.params.userId }).sort({ createdAt: -1 });
+  // Exclude user-soft-deleted complaints from user listings
+  const complaints = await Complaint.find({ user: req.params.userId, isDeletedByUser: { $ne: true } }).sort({ createdAt: -1 });
   res.json({ complaints });
 });
 
@@ -885,6 +886,10 @@ app.get('/api/complaints/:id', authenticateJWT, async (req, res) => {
     const isOwner = complaint.user.toString() === req.user.id;
     if (!isOwner && !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized to view this complaint' });
+    }
+    // If user soft-deleted the complaint, prevent the owner (non-admin) from viewing it again
+    if (complaint.isDeletedByUser && isOwner && !req.user.isAdmin) {
+      return res.status(404).json({ message: 'Complaint not found' });
     }
     res.json({ complaint });
   } catch (e) {

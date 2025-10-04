@@ -65,8 +65,18 @@ const AdminDashboard = () => {
     } catch { return {}; }
   })();
   const [complaintFilter, setComplaintFilter] = useState('all');
+  // New: filters for complaints and history
+  const [complaintTypeFilter, setComplaintTypeFilter] = useState('all');
+  const [complaintDateFilter, setComplaintDateFilter] = useState('all'); // all|today|7|30|this-month|last-month|custom
+  const [complaintDateFrom, setComplaintDateFrom] = useState('');
+  const [complaintDateTo, setComplaintDateTo] = useState('');
   const [historyComplaints, setHistoryComplaints] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyTypeFilter, setHistoryTypeFilter] = useState('all');
+  const [historyDateFilter, setHistoryDateFilter] = useState('all');
+  const [historyDateFrom, setHistoryDateFrom] = useState('');
+  const [historyDateTo, setHistoryDateTo] = useState('');
   const [complaintSearch, setComplaintSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [userSearch, setUserSearch] = useState('');
@@ -430,14 +440,81 @@ const AdminDashboard = () => {
     }
   };
 
+  // Helpers: date range compute and filter predicate
+  const getDateRange = (preset) => {
+    const now = new Date();
+    let start = null, end = null;
+    switch (preset) {
+      case 'today':
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+        break;
+      case '7':
+        end = now;
+        start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case '30':
+        end = now;
+        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case 'this-month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+        break;
+      case 'last-month':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+        break;
+      default:
+        break;
+    }
+    return { start, end };
+  };
+
+  const withinRange = (isoDateStr, preset, fromStr, toStr) => {
+    if (!preset || preset === 'all') return true;
+    let dateObj = null;
+    if (isoDateStr) {
+      // complaints may store date/time separately like 'YYYY-MM-DD' and 'HH:mm'
+      // For admin table we pass either combined ISO or just date string
+      dateObj = new Date(isoDateStr);
+      if (Number.isNaN(dateObj.getTime())) return true; // if unparsable, don't filter out
+    }
+    if (preset === 'custom') {
+      if (!fromStr && !toStr) return true;
+      const from = fromStr ? new Date(fromStr) : null;
+      const to = toStr ? new Date(toStr + 'T23:59:59.999') : null;
+      if (from && dateObj < from) return false;
+      if (to && dateObj > to) return false;
+      return true;
+    }
+    const { start, end } = getDateRange(preset);
+    if (!start || !end || !dateObj) return true;
+    return dateObj >= start && dateObj <= end;
+  };
+
   const fetchComplaintHistory = async () => {
     try {
       setHistoryLoading(true);
-      const res = await adminApi.get('/api/admin/complaints/history');
-      setHistoryComplaints(res.data.complaints || []);
-    } catch (err) {
-      setHistoryComplaints([]);
-      Swal.fire({ icon: 'error', title: 'Failed to fetch complaint history' });
+      try {
+        // Primary: dedicated history endpoint
+        const res = await adminApi.get('/api/admin/complaints/history');
+        setHistoryComplaints(res.data.complaints || []);
+      } catch (err1) {
+        // Fallback: includeDeleted=1 and client-side filter if backend hasn't been redeployed yet
+        try {
+          const res2 = await adminApi.get('/api/complaints?includeDeleted=1');
+          const all = res2.data.complaints || [];
+          const onlyDeleted = all.filter(c => c.isDeletedByUser);
+          setHistoryComplaints(onlyDeleted);
+          // Surface that we're using a fallback so you know backend deploy is pending
+          Swal.fire({ icon: 'info', title: 'Using fallback for history', text: 'Backend history endpoint not available yet; showing filtered list instead.' });
+        } catch (err2) {
+          setHistoryComplaints([]);
+          const msg = err2?.response?.data?.message || err1?.response?.data?.message || err2?.message || 'Failed to fetch complaint history';
+          Swal.fire({ icon: 'error', title: 'Fetch failed', text: msg });
+        }
+      }
     } finally {
       setHistoryLoading(false);
     }
@@ -1222,7 +1299,7 @@ const AdminDashboard = () => {
                 <div className="summary-value">{solvedComplaints}</div>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
               <div>
                 <label style={{ fontWeight: 'bold', marginRight: 8 }}>Filter by status:</label>
                 <select value={complaintFilter} onChange={e => setComplaintFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
@@ -1232,6 +1309,36 @@ const AdminDashboard = () => {
                   <option value="solved">Solved</option>
                 </select>
               </div>
+              <div>
+                <label style={{ fontWeight: 'bold', marginRight: 8 }}>Category:</label>
+                <select value={complaintTypeFilter} onChange={e => setComplaintTypeFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
+                  <option value="all">All</option>
+                  <option value="Noise">Noise</option>
+                  <option value="Harassment">Harassment</option>
+                  <option value="Garbage">Garbage</option>
+                  <option value="Vandalism">Vandalism</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontWeight: 'bold', marginRight: 8 }}>Date:</label>
+                <select value={complaintDateFilter} onChange={e => setComplaintDateFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
+                  <option value="all">All time</option>
+                  <option value="today">Today</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="this-month">This month</option>
+                  <option value="last-month">Last month</option>
+                  <option value="custom">Custom…</option>
+                </select>
+              </div>
+              {complaintDateFilter === 'custom' && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="date" value={complaintDateFrom} onChange={e=>setComplaintDateFrom(e.target.value)} />
+                  <span>to</span>
+                  <input type="date" value={complaintDateTo} onChange={e=>setComplaintDateTo(e.target.value)} />
+                </div>
+              )}
               <div>
                 <div className="admin-user-search-wrapper">
                   <span className="admin-user-search-icon">
@@ -1244,7 +1351,7 @@ const AdminDashboard = () => {
                     type="text"
                     value={complaintSearch}
                     onChange={e => setComplaintSearch(e.target.value)}
-                    placeholder="Search by user, email, or type..."
+                    placeholder="Search by name, email, type, location..."
                     className="admin-user-search-input"
                     style={{ paddingLeft: 36 }}
                   />
@@ -1266,13 +1373,15 @@ const AdminDashboard = () => {
               </thead>
               <tbody>
                 {complaints.filter(c => {
-                  const statusMatch = complaintFilter === 'all' ? true : c.status === complaintFilter;
+                  const statusMatch = complaintFilter === 'all' ? true : (c.status || '').toLowerCase() === complaintFilter.toLowerCase();
+                  const typeMatch = complaintTypeFilter === 'all' ? true : (c.type || '') === complaintTypeFilter;
                   const search = complaintSearch.trim().toLowerCase();
-                  const name = (c.fullName || '').toLowerCase();
-                  const email = (c.contact || '').toLowerCase();
-                  const type = (c.type || '').toLowerCase();
-                  const searchMatch = !search || name.includes(search) || email.includes(search) || type.includes(search);
-                  return statusMatch && searchMatch;
+                  const hay = [c.fullName, c.contact, c.type, c.location, c.description].map(x => (x || '').toLowerCase()).join(' ');
+                  const searchMatch = !search || hay.includes(search);
+                  // Combine date and time into ISO-like string for filtering, fallback to createdAt if present
+                  const candidateDate = c.date && c.time ? `${c.date}T${c.time}` : (c.createdAt || c.deletedAt || null);
+                  const dateMatch = withinRange(candidateDate, complaintDateFilter, complaintDateFrom, complaintDateTo);
+                  return statusMatch && typeMatch && searchMatch && dateMatch;
                 }).map(c => (
                   <tr key={c._id}>
                     <td>{c.fullName || 'Anonymous'}</td>
@@ -1358,6 +1467,54 @@ const AdminDashboard = () => {
           <>
             <h2>Complaint History</h2>
             <div style={{ marginBottom: 12, color: '#64748b' }}>Complaints removed by users remain here for administrative review until an admin permanently deletes them.</div>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="admin-user-search-wrapper">
+                <span className="admin-user-search-icon">
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="9" cy="9" r="7" stroke="#bfc9d9" strokeWidth="2"/>
+                    <line x1="14.4142" y1="14" x2="18" y2="17.5858" stroke="#bfc9d9" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                </span>
+                <input
+                  type="text"
+                  value={historySearch}
+                  onChange={e => setHistorySearch(e.target.value)}
+                  placeholder="Search by name, email, type..."
+                  className="admin-user-search-input"
+                  style={{ paddingLeft: 36 }}
+                />
+              </div>
+              <div>
+                <label style={{ fontWeight: 'bold', marginRight: 8 }}>Category:</label>
+                <select value={historyTypeFilter} onChange={e => setHistoryTypeFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
+                  <option value="all">All</option>
+                  <option value="Noise">Noise</option>
+                  <option value="Harassment">Harassment</option>
+                  <option value="Garbage">Garbage</option>
+                  <option value="Vandalism">Vandalism</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontWeight: 'bold', marginRight: 8 }}>Date:</label>
+                <select value={historyDateFilter} onChange={e => setHistoryDateFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
+                  <option value="all">All time</option>
+                  <option value="today">Today</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="30">Last 30 days</option>
+                  <option value="this-month">This month</option>
+                  <option value="last-month">Last month</option>
+                  <option value="custom">Custom…</option>
+                </select>
+              </div>
+              {historyDateFilter === 'custom' && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="date" value={historyDateFrom} onChange={e=>setHistoryDateFrom(e.target.value)} />
+                  <span>to</span>
+                  <input type="date" value={historyDateTo} onChange={e=>setHistoryDateTo(e.target.value)} />
+                </div>
+              )}
+            </div>
             <div className="admin-table-viewport">
               <div className="admin-table-scroll">
                 <table className="admin-table admin-complaints">
@@ -1372,7 +1529,15 @@ const AdminDashboard = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {(historyComplaints || []).map(c => (
+                    {(historyComplaints || []).filter(c => {
+                      const search = historySearch.trim().toLowerCase();
+                      const hay = [c.fullName, c.contact, c.type, c.location, c.description].map(x => (x || '').toLowerCase()).join(' ');
+                      const searchMatch = !search || hay.includes(search);
+                      const typeMatch = historyTypeFilter === 'all' ? true : (c.type || '') === historyTypeFilter;
+                      const candidateDate = c.deletedAt || (c.date && c.time ? `${c.date}T${c.time}` : c.createdAt || null);
+                      const dateMatch = withinRange(candidateDate, historyDateFilter, historyDateFrom, historyDateTo);
+                      return searchMatch && typeMatch && dateMatch;
+                    }).map(c => (
                       <tr key={c._id}>
                         <td>{c.fullName || 'Anonymous'}</td>
                         <td>{c.contact || 'N/A'}</td>
