@@ -499,14 +499,29 @@ const AdminDashboard = () => {
       try {
         // Primary: dedicated history endpoint
         const res = await adminApi.get('/api/admin/complaints/history');
-        setHistoryComplaints(res.data.complaints || []);
+        let history = res.data.complaints || [];
+        // Also include solved complaints in history view
+        let baseComplaints = complaints;
+        if (!baseComplaints || baseComplaints.length === 0) {
+          try {
+            const latest = await adminApi.get('/api/complaints');
+            baseComplaints = latest.data.complaints || [];
+          } catch { /* ignore */ }
+        }
+        const solved = (baseComplaints || []).filter(c => (c.status || '').toLowerCase() === 'solved');
+        const dedup = new Map();
+        [...history, ...solved].forEach(c => { if (c && c._id) dedup.set(c._id, c); });
+        setHistoryComplaints(Array.from(dedup.values()));
       } catch (err1) {
         // Fallback: includeDeleted=1 and client-side filter if backend hasn't been redeployed yet
         try {
           const res2 = await adminApi.get('/api/complaints?includeDeleted=1');
           const all = res2.data.complaints || [];
           const onlyDeleted = all.filter(c => c.isDeletedByUser);
-          setHistoryComplaints(onlyDeleted);
+          const solved = all.filter(c => (c.status || '').toLowerCase() === 'solved');
+          const dedup = new Map();
+          [...onlyDeleted, ...solved].forEach(c => { if (c && c._id) dedup.set(c._id, c); });
+          setHistoryComplaints(Array.from(dedup.values()));
           // Surface that we're using a fallback so you know backend deploy is pending
           Swal.fire({ icon: 'info', title: 'Using fallback for history', text: 'Backend history endpoint not available yet; showing filtered list instead.' });
         } catch (err2) {
@@ -721,6 +736,10 @@ const AdminDashboard = () => {
     try {
   await adminApi.patch(`/api/complaints/${complaintId}/status`, { status });
       fetchComplaints();
+      if ((status || '').toLowerCase() === 'solved') {
+        // Ensure history reflects newly solved items
+        fetchComplaintHistory();
+      }
       Swal.fire({
         icon: 'success',
         title: 'Status updated!',
