@@ -1097,7 +1097,18 @@ app.delete('/api/complaints/:id', authenticateJWT, async (req, res) => {
     if (!isOwner && !req.user.isAdmin) {
       return res.status(403).json({ message: 'Not authorized to delete this complaint' });
     }
+    // If owner deletes: soft delete only (keep for admin history)
+    if (isOwner && !req.user.isAdmin) {
+      if (complaint.isDeletedByUser) {
+        return res.json({ success: true, softDeleted: true, message: 'Complaint already removed from user view' });
+      }
+      complaint.isDeletedByUser = true;
+      complaint.deletedAt = new Date();
+      await complaint.save();
+      return res.json({ success: true, softDeleted: true });
+    }
 
+    // Admin deletion: hard delete including Cloudinary assets
     // Normalize evidence list to objects with url + publicId
     const evidenceItems = Array.isArray(complaint.evidence) ? complaint.evidence : [];
     const toDelete = [];
@@ -1113,13 +1124,11 @@ app.delete('/api/complaints/:id', authenticateJWT, async (req, res) => {
       if (!publicId && url) {
         publicId = extractFullPublicId(url);
       }
-      // For legacy stored publicIds that lost folder path, try to rebuild path using URL hints
       if (publicId && !publicId.includes('/') && url) {
         if (url.includes('/sumbong/complaints/')) publicId = 'sumbong/complaints/' + publicId;
-        else if (url.includes('/sumbong/profile_pictures/')) publicId = 'sumbong/profile_pictures/' + publicId; // unlikely here but safe
+        else if (url.includes('/sumbong/profile_pictures/')) publicId = 'sumbong/profile_pictures/' + publicId;
       }
       if (publicId) {
-        // Heuristic for resource type: treat common video extensions as video
         const lower = (url || '').toLowerCase();
         const isVideo = /(mp4|webm|ogg|mov|avi|mkv)$/i.test(lower);
         toDelete.push({ publicId, resource_type: isVideo ? 'video' : 'image' });
@@ -1129,7 +1138,6 @@ app.delete('/api/complaints/:id', authenticateJWT, async (req, res) => {
     const deletionResults = [];
     for (const asset of toDelete) {
       try {
-        // Attempt destroy; inspect response so we don't report false positives
         const resp = await cloudinary.uploader.destroy(asset.publicId, { resource_type: asset.resource_type });
         if (resp && (resp.result === 'ok' || resp.result === 'not found')) {
           deletionResults.push({ publicId: asset.publicId, status: resp.result });
@@ -1143,19 +1151,32 @@ app.delete('/api/complaints/:id', authenticateJWT, async (req, res) => {
 
     await Complaint.findByIdAndDelete(req.params.id);
 
-    res.json({
-      success: true,
-      deletedAssets: deletionResults,
-      attempted: deletionResults.length
-    });
+    res.json({ success: true, hardDeleted: true, deletedAssets: deletionResults, attempted: deletionResults.length });
   } catch (err) {
     res.status(500).json({ message: 'Failed to delete complaint', error: err.message });
   }
 });
 
+// Admin: list complaints soft-deleted by users (Complaint History)
+app.get('/api/admin/complaints/history', authenticateJWT, requireAdmin, async (req, res) => {
+  try {
+    const complaints = await Complaint.find({ isDeletedByUser: true }).populate('user', 'firstName lastName email').sort({ deletedAt: -1, createdAt: -1 });
+    const mapped = complaints.map(c => ({
+      ...c.toObject(),
+      fullName: c.user ? `${c.user.firstName} ${c.user.lastName}` : (c.fullName || 'Anonymous'),
+      contact: c.user ? c.user.email : (c.contact || 'N/A')
+    }));
+    res.json({ complaints: mapped });
+  } catch (e) {
+    res.status(500).json({ message: 'Failed to fetch complaint history', error: e.message });
+  }
+});
+
 // Get all complaints (admin view, with user info)
 app.get('/api/complaints', authenticateJWT, requireAdmin, async (req, res) => {
-  const complaints = await Complaint.find().populate('user', 'firstName lastName email').sort({ createdAt: -1 });
+  const includeDeleted = ['1','true','yes'].includes(String(req.query.includeDeleted||'').toLowerCase());
+  const filter = includeDeleted ? {} : { isDeletedByUser: { $ne: true } };
+  const complaints = await Complaint.find(filter).populate('user', 'firstName lastName email').sort({ createdAt: -1 });
   // Add user info to each complaint
   const complaintsWithUser = complaints.map(c => ({
     ...c.toObject(),

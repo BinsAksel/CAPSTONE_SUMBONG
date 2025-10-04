@@ -25,6 +25,9 @@ const complaintSchema = new mongoose.Schema({
     message: { type: String, required: true },
     createdAt: { type: Date, default: Date.now }
   }],
+  // Soft delete by user (kept for admin history)
+  isDeletedByUser: { type: Boolean, default: false },
+  deletedAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

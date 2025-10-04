@@ -65,6 +65,8 @@ const AdminDashboard = () => {
     } catch { return {}; }
   })();
   const [complaintFilter, setComplaintFilter] = useState('all');
+  const [historyComplaints, setHistoryComplaints] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [complaintSearch, setComplaintSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [userSearch, setUserSearch] = useState('');
@@ -425,6 +427,19 @@ const AdminDashboard = () => {
     } catch (err) {
       setComplaints([]);
       Swal.fire({ icon: 'error', title: 'Failed to fetch complaints' });
+    }
+  };
+
+  const fetchComplaintHistory = async () => {
+    try {
+      setHistoryLoading(true);
+      const res = await adminApi.get('/api/admin/complaints/history');
+      setHistoryComplaints(res.data.complaints || []);
+    } catch (err) {
+      setHistoryComplaints([]);
+      Swal.fire({ icon: 'error', title: 'Failed to fetch complaint history' });
+    } finally {
+      setHistoryLoading(false);
     }
   };
 
@@ -1028,6 +1043,9 @@ const AdminDashboard = () => {
               <span className="admin-badge">{pendingCount}</span>
             )}
           </button>
+          <button className={activeTab === 'complaint-history' ? 'active' : ''} onClick={() => { setActiveTab('complaint-history'); fetchComplaintHistory(); }}>
+            Complaint History
+          </button>
           <button className={activeTab === 'verification-history' ? 'active' : ''} onClick={() => {
             setActiveTab('verification-history');
             fetchVerificationHistory();
@@ -1333,6 +1351,64 @@ const AdminDashboard = () => {
               </tbody>
             </table>
             </div>
+            </div>
+          </>
+        )}
+        {activeTab === 'complaint-history' && (
+          <>
+            <h2>Complaint History</h2>
+            <div style={{ marginBottom: 12, color: '#64748b' }}>Complaints removed by users remain here for administrative review until an admin permanently deletes them.</div>
+            <div className="admin-table-viewport">
+              <div className="admin-table-scroll">
+                <table className="admin-table admin-complaints">
+                  <thead>
+                    <tr>
+                      <th>User</th>
+                      <th>Email</th>
+                      <th>Type</th>
+                      <th>Deleted At</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(historyComplaints || []).map(c => (
+                      <tr key={c._id}>
+                        <td>{c.fullName || 'Anonymous'}</td>
+                        <td>{c.contact || 'N/A'}</td>
+                        <td>{c.type || 'N/A'}</td>
+                        <td>{c.deletedAt ? new Date(c.deletedAt).toLocaleString() : '—'}</td>
+                        <td>
+                          <span className={`status-badge status-${(c.status || 'pending').toLowerCase()}`}>{c.status || 'pending'}</span>
+                        </td>
+                        <td>
+                          <div className="verify-actions-inner">
+                            <button className="action-btn view-btn" onClick={() => setViewComplaint(c)}>View</button>
+                            <button className="action-btn delete-btn" onClick={async () => {
+                              const result = await Swal.fire({ title: 'Permanently delete this complaint?', icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete', cancelButtonText: 'Cancel' });
+                              if (!result.isConfirmed) return;
+                              try {
+                                await adminApi.delete(`/api/complaints/${c._id}`);
+                                fetchComplaintHistory();
+                                Swal.fire({ icon: 'success', title: 'Complaint permanently deleted', timer: 700, showConfirmButton: false });
+                              } catch (e) {
+                                Swal.fire({ icon: 'error', title: 'Failed to delete complaint' });
+                              }
+                            }}>Delete</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {(!historyComplaints || historyComplaints.length === 0) && (
+                      <tr>
+                        <td colSpan="6" style={{ textAlign: 'center', color: '#666', padding: 16 }}>
+                          {historyLoading ? 'Loading...' : 'No complaints in history.'}
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}
