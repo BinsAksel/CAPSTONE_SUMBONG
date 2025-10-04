@@ -321,6 +321,14 @@ const login = async (req, res) => {
         message: 'Invalid email or password' 
       });
     }
+    // Prevent admin accounts from logging in via user route
+    if (user.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        code: 'ADMIN_USE_ADMIN_LOGIN',
+        message: 'Admin accounts must sign in via the Admin login.'
+      });
+    }
     // Enforce email verification before approval
     if (!user.emailVerified) {
       return res.status(403).json({ success:false, code:'EMAIL_NOT_VERIFIED', message:'Please verify your email. A verification link was sent.' });

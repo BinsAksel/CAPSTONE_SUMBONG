@@ -516,6 +516,7 @@ const AdminDashboard = () => {
   const downloadAnalyticsCSV = () => {
     try {
       const usersFiltered = (users || []).filter(u => {
+        if (u && u.isAdmin) return false;
         const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
         return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
       });
@@ -1099,13 +1100,14 @@ const AdminDashboard = () => {
 
   const pendingCount = complaints.filter(c => c.status === 'pending').length;
 
-  const pendingUsersCount = users.filter(u => !u.approved).length;
+  const pendingUsersCount = users.filter(u => !u.isAdmin && !u.approved).length;
 
   // User summary counts
-  const totalUsers = users.length;
-  const pendingUsers = users.filter(u => !u.approved).length;
-  const approvedUsers = users.filter(u => u.approved).length;
-  const rejectedUsers = users.filter(u => (u.verificationStatus || '').toLowerCase() === 'rejected').length;
+  const nonAdminUsers = users.filter(u => !u.isAdmin);
+  const totalUsers = nonAdminUsers.length;
+  const pendingUsers = nonAdminUsers.filter(u => !u.approved).length;
+  const approvedUsers = nonAdminUsers.filter(u => u.approved).length;
+  const rejectedUsers = nonAdminUsers.filter(u => (u.verificationStatus || '').toLowerCase() === 'rejected').length;
 
   // Complaint summary counts
   const totalComplaints = complaints.length;
@@ -1309,6 +1311,7 @@ const AdminDashboard = () => {
         </thead>
         <tbody>
                 {users.filter(user => {
+                  if (user.isAdmin) return false; // hide admin accounts from list
                   // Status filter
                   const statusMatch = userFilter === 'all' ? true :
                     userFilter === 'pending' ? !user.approved :
@@ -1601,8 +1604,9 @@ const AdminDashboard = () => {
             {/* Quick summary cards */}
             <div className="admin-summary-grid" style={{ display: 'flex', gap: 20, marginBottom: 24, flexWrap: 'wrap' }}>
               {(() => {
-                // Filter datasets by analytics date
+                // Filter datasets by analytics date (exclude admin accounts)
                 const usersFiltered = (users || []).filter(u => {
+                  if (u && u.isAdmin) return false;
                   const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
                   return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
                 });
@@ -1664,6 +1668,7 @@ const AdminDashboard = () => {
                 <h3 style={{ marginTop: 0 }}>Users by Status</h3>
                 {(() => {
                   const usersFiltered = (users || []).filter(u => {
+                    if (u && u.isAdmin) return false;
                     const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
                     return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
                   });
@@ -1732,6 +1737,7 @@ const AdminDashboard = () => {
             {/* Empty state fallback */}
             {(() => {
               const usersFiltered = (users || []).filter(u => {
+                if (u && u.isAdmin) return false;
                 const candidate = u.verificationDate || u.createdAt || u.updatedAt || null;
                 return withinRange(candidate, analyticsDateFilter, analyticsDateFrom, analyticsDateTo);
               });
@@ -1912,7 +1918,7 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody>
-                {verificationHistory.map(user => (
+                {verificationHistory.filter(u => !u.isAdmin).map(user => (
                   <tr key={user._id}>
                     <td>{user.firstName} {user.lastName}</td>
                     <td>{user.email}</td>
