@@ -1416,12 +1416,13 @@ app.patch('/api/admin/reject-credentials/:userId', authenticateJWT, requireAdmin
 app.get('/api/admin/verification-history', authenticateJWT, requireAdmin, async (req, res) => {
   try {
     const users = await User.find({
+      isAdmin: { $ne: true }, // exclude admin accounts from verification history
       $or: [
         { verificationStatus: { $exists: true } },
         { adminNotes: { $exists: true } },
         { issueDetails: { $exists: true } }
       ]
-    }).select('firstName lastName email verificationStatus verificationDate adminNotes issueDetails requiredActions rejectionCount approved createdAt');
+    }).select('firstName lastName email verificationStatus verificationDate adminNotes issueDetails requiredActions rejectionCount approved createdAt isAdmin');
     
     res.json({ 
       success: true, 
