@@ -1685,45 +1685,66 @@ const AdminDashboard = () => {
       <div className="complaint-section">
         <label>Evidence</label>
         {viewComplaint.evidence && viewComplaint.evidence.length > 0 ? (
-          <div className="evidence-grid">
-            {viewComplaint.evidence.map((file, idx) => {
-              const fileUrl = typeof file === 'string' ? file : (file?.url || '');
-              if (!fileUrl) return null;
-              const url = toAbsolute(fileUrl);
-              const ext = fileUrl.split('.').pop().toLowerCase();
-              const handleEvidenceClick = () => {
-                setEvidenceModal({ open: true, index: idx });
-              };
-              if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext)) {
-                return (
-                  <div key={idx} className="evidence-item">
-                    <img src={url} alt={`Evidence ${idx + 1}`} onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }} />
-                    <small>{fileUrl.split('/').pop()}</small>
-                  </div>
-                );
-              } else if (["mp4", "avi", "mov", "wmv", "flv", "webm"].includes(ext)) {
-                return (
-                  <div key={idx} className="evidence-item">
-                    <video src={url} controls onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }} />
-                    <small>{fileUrl.split('/').pop()}</small>
-                  </div>
-                );
-              } else if (ext === "pdf") {
-                return (
-                  <div key={idx} className="evidence-item">
-                    <embed src={url} type="application/pdf" onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }} />
-                    <small>{fileUrl.split('/').pop()}</small>
-                  </div>
-                );
-              } else {
-                return (
-                  <div key={idx} className="evidence-item">
-                    <div className="file-preview" onClick={handleEvidenceClick} style={{ cursor: 'zoom-in' }}>{ext.toUpperCase()}</div>
-                    <small>{fileUrl.split('/').pop()}</small>
-                  </div>
-                );
-              }
-            })}
+          <div className="evidence-strip-wrapper">
+            <div
+              className="evidence-strip"
+              onWheel={(e)=>{ if(Math.abs(e.deltaY)>Math.abs(e.deltaX)) { e.currentTarget.scrollLeft += e.deltaY; } }}
+              style={{ display:'flex', gap:12, overflowX:'auto', paddingBottom:4 }}
+            >
+              {viewComplaint.evidence.map((file, idx) => {
+                const fileUrl = typeof file === 'string' ? file : (file?.url || '');
+                if (!fileUrl) return null;
+                const url = toAbsolute(fileUrl);
+                const ext = fileUrl.split('.').pop().toLowerCase();
+                const handleEvidenceClick = (e) => { e.stopPropagation(); setEvidenceModal({ open: true, index: idx }); };
+                if (["jpg", "jpeg", "png", "gif", "bmp", "webp"].includes(ext)) {
+                  return (
+                    <div key={idx} className="evidence-item" title="Click to view full size" style={{ minWidth: 120 }}>
+                      <img
+                        src={url}
+                        alt={`Evidence ${idx + 1}`}
+                        onClick={handleEvidenceClick}
+                        className="evidence-thumb"
+                        style={{ width:120, height:90, objectFit:'cover', borderRadius:6, border:'1px solid #cbd5e1', cursor:'zoom-in' }}
+                      />
+                      <small className="evidence-filename" style={{ display:'block', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis' }}>{fileUrl.split('/').pop()}</small>
+                    </div>
+                  );
+                } else if (["mp4", "avi", "mov", "wmv", "flv", "webm"].includes(ext)) {
+                  return (
+                    <div key={idx} className="evidence-item" title="Click to view full size" style={{ minWidth: 120 }} onClick={handleEvidenceClick}>
+                      <video
+                        className="evidence-thumb"
+                        muted
+                        preload="metadata"
+                        style={{ background:'#000', width:120, height:90, objectFit:'cover', borderRadius:6, border:'1px solid #cbd5e1', cursor:'zoom-in' }}
+                      >
+                        <source src={url} type={`video/${ext}`} />
+                      </video>
+                      <small className="evidence-filename" style={{ display:'block', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis' }}>{fileUrl.split('/').pop()}</small>
+                    </div>
+                  );
+                } else if (ext === "pdf") {
+                  return (
+                    <div key={idx} className="evidence-item" onClick={handleEvidenceClick} title="Click to view full size" style={{ minWidth: 120 }}>
+                      <div className="pdf-thumb" style={{display:'flex',alignItems:'center',justifyContent:'center',background:'#eef2f7',border:'1px solid #cbd5e1',borderRadius:6,fontSize:24,fontWeight:600,color:'#475569', width:120, height:90, cursor:'zoom-in'}}>
+                        PDF
+                      </div>
+                      <small className="evidence-filename" style={{ display:'block', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis' }}>{fileUrl.split('/').pop()}</small>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div key={idx} className="evidence-item" onClick={handleEvidenceClick} title="Click to view full size" style={{ minWidth: 120 }}>
+                      <div className="file-placeholder" style={{ cursor: 'zoom-in', display:'flex',alignItems:'center',justifyContent:'center', width:120, height:90, border:'1px solid #cbd5e1', borderRadius:6 }}>
+                        {ext.toUpperCase()}
+                      </div>
+                      <small className="evidence-filename" style={{ display:'block', maxWidth:120, overflow:'hidden', textOverflow:'ellipsis' }}>{fileUrl.split('/').pop()}</small>
+                    </div>
+                  );
+                }
+              })}
+            </div>
           </div>
         ) : (
           <p>No evidence uploaded</p>
@@ -1757,8 +1778,16 @@ const AdminDashboard = () => {
             );
           })}
         </div>
-        <textarea value={threadMessage} onChange={e=>setThreadMessage(e.target.value)} placeholder="Type a message to add to the thread..." style={{ marginTop: 8 }} />
-        <button onClick={postThreadMessage} disabled={postingThreadMsg || !threadMessage.trim()}>{postingThreadMsg ? 'Posting...' : 'Post Message'}</button>
+        {activeTab !== 'complaint-history' ? (
+          <>
+            <textarea value={threadMessage} onChange={e=>setThreadMessage(e.target.value)} placeholder="Type a message to add to the thread..." style={{ marginTop: 8 }} />
+            <button onClick={postThreadMessage} disabled={postingThreadMsg || !threadMessage.trim()}>{postingThreadMsg ? 'Posting...' : 'Post Message'}</button>
+          </>
+        ) : (
+          <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>
+            Messaging is disabled in the Complaint History tab. You can read previous messages here.
+          </div>
+        )}
       </div>
     </div>
   </div>
