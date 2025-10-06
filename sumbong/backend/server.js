@@ -125,7 +125,8 @@ if (corsDebug) {
 // --- Global Security Middleware (after CORS) ---
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use((req,res,next)=>{ // custom CSP
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' https://res.cloudinary.com data:; media-src 'self' https://res.cloudinary.com data:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  // Allow OpenStreetMap tile servers for map tiles (tile.openstreetmap.org and subdomains)
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' https://res.cloudinary.com https://tile.openstreetmap.org https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org data:; media-src 'self' https://res.cloudinary.com https://tile.openstreetmap.org https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org data:; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('Permissions-Policy','geolocation=(), microphone=(), camera=()');
