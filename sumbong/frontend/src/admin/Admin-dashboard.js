@@ -13,13 +13,501 @@ import InlineButtonSpinner from '../components/InlineButtonSpinner';
 import NotificationBell from '../components/NotificationBell';
 import NotificationDropdown from '../components/NotificationDropdown';
 import { fetchNotifications, markNotificationRead, markAllNotificationsRead, deleteNotification, clearAllNotifications } from '../api/notificationsApi';
+// OpenStreetMap imports
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
+
+// Fix for default marker icons in react-leaflet
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
 
 
 // Evidence modal state and renderer for fullscreen evidence viewing
 
 // Uses shared toAbsolute utility for media paths
 
+// LocationModal component for viewing locations on map
+const LocationModal = ({ isOpen, type, initialLocation, onConfirm, onClose }) => {
+  const [currentLocation, setCurrentLocation] = useState(
+    (initialLocation && initialLocation.lat && initialLocation.lng) 
+      ? {
+          lat: parseFloat(initialLocation.lat),
+          lng: parseFloat(initialLocation.lng),
+          address: initialLocation.address || 'Location'
+        }
+      : { lat: null, lng: null, address: '' }
+  );
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [map, setMap] = useState(null);
+  const [searchAddress, setSearchAddress] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
+  // Update currentLocation when initialLocation changes
+  useEffect(() => {
+    console.log('Admin LocationModal useEffect - initialLocation:', initialLocation);
+    if (initialLocation && initialLocation.lat && initialLocation.lng) {
+      const newLocation = {
+        lat: parseFloat(initialLocation.lat),
+        lng: parseFloat(initialLocation.lng),
+        address: initialLocation.address || 'Location'
+      };
+      console.log('Admin setting currentLocation to:', newLocation);
+      setCurrentLocation(newLocation);
+    }
+  }, [initialLocation]);
+
+  // Component to handle map clicks in selection mode
+  const MapClickHandler = ({ onLocationSelect }) => {
+    useMapEvents({
+      click: (e) => {
+        if (type === 'select') {
+          const { lat, lng } = e.latlng;
+          onLocationSelect(lat, lng);
+        }
+      },
+    });
+    return null;
+  };
+
+  // Component to handle map reference
+  const MapRefHandler = () => {
+    const map = useMap();
+    useEffect(() => {
+      setMap(map);
+    }, [map]);
+    return null;
+  };
+
+  // Component to update map view when location changes
+  const MapUpdater = ({ center, zoom }) => {
+    const map = useMap();
+    useEffect(() => {
+      console.log('Admin MapUpdater - map:', !!map, 'center:', center, 'zoom:', zoom);
+      if (map && center && center[0] && center[1]) {
+        console.log('Admin MapUpdater - Setting view to:', center, zoom);
+        map.setView(center, zoom);
+      } else {
+        console.log('Admin MapUpdater - Skipping setView:', { map: !!map, center, hasValidCenter: !!(center && center[0] && center[1]) });
+      }
+    }, [map, center, zoom]);
+    return null;
+  };
+
+  const handleLocationSelect = async (lat, lng) => {
+    setCurrentLocation({ lat, lng, address: 'Loading address...' });
+    
+    try {
+      // Use Nominatim (OpenStreetMap) geocoding service for address lookup
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`
+      );
+      const data = await response.json();
+      
+      const address = data.display_name || `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      setCurrentLocation({ lat, lng, address });
+    } catch (error) {
+      console.warn('Geocoding error:', error);
+      setCurrentLocation({ lat, lng, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` });
+    }
+  };
+
+  const searchAddressLocation = async () => {
+    if (!searchAddress.trim()) return;
+    
+    setIsSearching(true);
+    try {
+      // Use Nominatim for forward geocoding (address to coordinates)
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchAddress)}&limit=1&addressdetails=1`
+      );
+      const data = await response.json();
+      
+      if (data && data.length > 0) {
+        const result = data[0];
+        const lat = parseFloat(result.lat);
+        const lng = parseFloat(result.lon);
+        const address = result.display_name;
+        
+        // Update location and center map
+        setCurrentLocation({ lat, lng, address });
+        if (map) {
+          map.setView([lat, lng], 15);
+        }
+        
+        setSearchAddress(''); // Clear search input
+      } else {
+        alert('Address not found. Please try a different search term.');
+      }
+    } catch (error) {
+      console.warn('Address search error:', error);
+      alert('Error searching for address. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleSearchKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      searchAddressLocation();
+    }
+  };
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by this browser.');
+      return;
+    }
+
+    setIsLoadingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        
+        // Center map on current location
+        if (map) {
+          map.setView([lat, lng], 15);
+        }
+        
+        handleLocationSelect(lat, lng);
+        setIsLoadingLocation(false);
+      },
+      (error) => {
+        console.warn('Geolocation error:', error);
+        alert('Unable to get your current location. Please select a location on the map.');
+        setIsLoadingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
+  };
+
+  const handleConfirm = () => {
+    if (currentLocation.lat && currentLocation.lng) {
+      onConfirm(currentLocation);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  // Default location (Philippines center)
+  const defaultCenter = [14.5995, 120.9842];
+  const center = (currentLocation.lat && currentLocation.lng) 
+    ? [currentLocation.lat, currentLocation.lng]
+    : defaultCenter;
+
+  return (
+    <div className="modal-overlay" style={{ zIndex: 10000 }} onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ 
+        width: '90vw', 
+        height: '80vh', 
+        maxWidth: '800px',
+        padding: 0,
+        overflow: 'hidden',
+        borderRadius: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        maxHeight: '90vh'
+      }}>
+        <div style={{ 
+          padding: '16px', 
+          borderBottom: '1px solid #e5e7eb',
+          background: '#fff',
+          flexShrink: 0,
+          position: 'relative',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start'
+        }}>
+          <h3 style={{ margin: 0, marginBottom: type === 'select' ? '12px' : '0', whiteSpace: 'nowrap' }}>
+            {type === 'select' ? 'Select Location' : 'View Location'}
+          </h3>
+          
+          {/* Close button aligned with title on the same line */}
+          <button 
+            className="modal-close-x"
+            onClick={onClose} 
+            type="button"
+            aria-label="Close modal"
+            style={{ 
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              margin: '0'
+            }}
+          >
+          </button>
+        </div>
+        
+        <div style={{ 
+          padding: '0 16px 16px 16px',
+          background: '#fff',
+          flexShrink: 0
+        }}>
+          
+          {/* Address search input - only show in select mode */}
+          {type === 'select' && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'stretch',
+              gap: '8px', 
+              width: '100%',
+              height: '46px',
+              marginTop: '16px'
+            }}>
+              <div style={{ 
+                flex: 1, 
+                position: 'relative', 
+                minWidth: 0,
+                height: '46px'
+              }}>
+                <input
+                  type="text"
+                  value={searchAddress || currentLocation.address || ''}
+                  onChange={(e) => setSearchAddress(e.target.value)}
+                  onKeyPress={handleSearchKeyPress}
+                  placeholder="Search for an address (e.g., Manila City Hall, Philippines)"
+                  style={{
+                    width: '100%',
+                    height: '46px',
+                    padding: '0 40px 0 12px',
+                    border: '2px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    outline: 'none',
+                    transition: 'border-color 0.2s ease',
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    alignItems: 'center',
+                    lineHeight: 'normal',
+                    verticalAlign: 'top'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={(e) => e.target.style.borderColor = '#d1d5db'}
+                />
+                <svg 
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#6b7280',
+                    pointerEvents: 'none'
+                  }}
+                  width="16" 
+                  height="16" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <button
+                onClick={searchAddressLocation}
+                disabled={isSearching || !searchAddress.trim()}
+                style={{
+                  padding: '0',
+                  margin: '0',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: (isSearching || !searchAddress.trim()) ? '#d1d5db' : '#3b82f6',
+                  color: '#fff',
+                  fontWeight: '600',
+                  cursor: (isSearching || !searchAddress.trim()) ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  width: '46px',
+                  height: '46px',
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  lineHeight: 'normal',
+                  verticalAlign: 'top',
+                  boxSizing: 'border-box'
+                }}
+              >
+                {isSearching ? '...' : 'Go'}
+              </button>
+            </div>
+          )}
+        </div>
+        
+        <div style={{ 
+          flex: 1, 
+          position: 'relative', 
+          overflow: 'hidden',
+          minHeight: '400px'
+        }}>
+          <MapContainer
+            center={center}
+            zoom={currentLocation.lat ? 15 : 10}
+            style={{ width: '100%', height: '100%', minHeight: '400px' }}
+            scrollWheelZoom={true}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            
+            {/* Map click handler for selection mode */}
+            <MapClickHandler onLocationSelect={handleLocationSelect} />
+            
+            {/* Map reference handler */}
+            <MapRefHandler />
+            
+            {/* Map updater to center on location */}
+            <MapUpdater center={center} zoom={currentLocation.lat ? 15 : 10} />
+            
+            {/* Show marker if location is selected */}
+            {currentLocation.lat && currentLocation.lng && (
+              <Marker position={[currentLocation.lat, currentLocation.lng]}>
+                <Popup>
+                  <div style={{ textAlign: 'center', padding: '4px' }}>
+                    <strong>📍 Pinned Location</strong>
+                    <br />
+                    {currentLocation.address || 'Location'}
+                    <br />
+                    <small style={{ color: '#666' }}>
+                      {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+                    </small>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+          </MapContainer>
+          
+          {isLoadingLocation && (
+            <div style={{
+              position: 'absolute',
+              top: '16px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(0,0,0,0.8)',
+              color: 'white',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              fontSize: '14px',
+              zIndex: 1000
+            }}>
+              Getting your location...
+            </div>
+          )}
+          
+          {type === 'select' && (
+            <div style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              background: 'rgba(255,255,255,0.95)',
+              padding: '8px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              color: '#666',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              zIndex: 1000
+            }}>
+              Click on the map to select a location
+            </div>
+          )}
+
+          {/* Floating buttons for select mode */}
+          {type === 'select' && (
+            <div style={{
+              position: 'absolute',
+              bottom: '16px',
+              right: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              zIndex: 1000
+            }}>
+              {/* Use Current Location button */}
+              <button
+                onClick={getCurrentLocation}
+                disabled={isLoadingLocation}
+                style={{
+                  padding: '10px 16px',
+                  border: 'none',
+                  borderRadius: '8px',
+                  background: isLoadingLocation ? '#d1d5db' : '#fff',
+                  color: isLoadingLocation ? '#6b7280' : '#3b82f6',
+                  fontWeight: '600',
+                  cursor: isLoadingLocation ? 'not-allowed' : 'pointer',
+                  fontSize: '13px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  border: '2px solid #3b82f6',
+                  opacity: isLoadingLocation ? 0.6 : 1
+                }}
+                onMouseEnter={(e) => {
+                  if (!isLoadingLocation) {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.2)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.transform = 'translateY(0)';
+                  e.target.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                }}
+              >
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                </svg>
+                {isLoadingLocation ? 'Getting...' : 'Current Location'}
+              </button>
+
+              {/* Select This Location button - only show when location is selected */}
+              {currentLocation.lat && currentLocation.lng && (
+                <button
+                  onClick={handleConfirm}
+                  style={{
+                    padding: '12px 20px',
+                    border: 'none',
+                    borderRadius: '8px',
+                    background: '#3b82f6',
+                    color: '#fff',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    boxShadow: '0 4px 12px rgba(59, 130, 246, 0.4)',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-2px)';
+                    e.target.style.boxShadow = '0 6px 16px rgba(59, 130, 246, 0.5)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = '0 4px 12px rgba(59, 130, 246, 0.4)';
+                  }}
+                >
+                  <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  </svg>
+                  Select This Location
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 
 const AdminDashboard = () => {
@@ -34,6 +522,10 @@ const AdminDashboard = () => {
   // Ref mirror of viewComplaint to avoid stale closure inside SSE handler
   const viewComplaintRef = useRef(null);
   useEffect(()=>{ viewComplaintRef.current = viewComplaint; }, [viewComplaint]);
+  
+  // Location modal state
+  const [locationModal, setLocationModal] = useState({ open: false, type: 'view' });
+  const [viewLocationData, setViewLocationData] = useState({ lat: null, lng: null, address: '' });
   const threadListRef = useRef(null);
   const [threadLastRead, setThreadLastRead] = useState({});
   // Basic one-shot scroll (kept for internal calls)
@@ -808,6 +1300,12 @@ const AdminDashboard = () => {
       const msg = e?.response?.data?.message || 'Failed to clear notifications';
       Swal.fire({ icon: 'error', title: msg });
     }
+  };
+
+  // Handle view location functionality
+  const handleViewLocation = (locationData) => {
+    setViewLocationData(locationData);
+    setLocationModal({ open: true, type: 'view' });
   };
 
   const handleLoadMore = async () => {
@@ -1984,7 +2482,46 @@ const AdminDashboard = () => {
         </div>
         <div className="complaint-field">
           <label>Location</label>
-          <div className="complaint-value">{viewComplaint.location}</div>
+          {viewComplaint.location ? (
+            <div className="complaint-value">
+              <span
+                onClick={() => handleViewLocation({
+                  lat: viewComplaint.locationCoords?.lat,
+                  lng: viewComplaint.locationCoords?.lng,
+                  address: viewComplaint.location
+                })}
+                style={{
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  margin: '-4px -8px',
+                  borderTop: '1px solid #3b82f6',
+                  borderRight: '1px solid #3b82f6',
+                  borderBottom: '1px solid #3b82f6',
+                  borderLeft: '1px solid #3b82f6'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#eff6ff';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = 'transparent';
+                }}
+                title="Click to view location on map"
+              >
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" style={{ color: '#3b82f6', flexShrink: 0 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 616 0z" />
+                </svg>
+                {viewComplaint.location}
+              </span>
+            </div>
+          ) : (
+            <div className="complaint-value">No location provided</div>
+          )}
         </div>
         <div className="complaint-field">
           <label>People/Group Involved</label>
@@ -2323,6 +2860,17 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Location Modal */}
+      {locationModal.open && (
+        <LocationModal
+          isOpen={locationModal.open}
+          type={locationModal.type}
+          initialLocation={viewLocationData}
+          onConfirm={() => {}}
+          onClose={() => setLocationModal({ open: false, type: 'view' })}
+        />
       )}
 
     </div>
