@@ -166,6 +166,11 @@
   content: "👁‍🗨";
 }
 
+/* Icons container inside password input: ensures badge + toggle align */
+.password-icons { display:flex; align-items:center; gap:8px; height:100%; }
+.password-icons .password-toggle { position: static; transform: translateY(-4px); }
+.password-icons > div { display:inline-flex; align-items:center; justify-content:center; }
+
 /* Sign In Button */
 .signin-button {
   background: #1a365d;

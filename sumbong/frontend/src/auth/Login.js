@@ -129,7 +129,7 @@ const Login = () => {
             </div>
             <div className="form-group">
               <label htmlFor="password">Password</label>
-              <div className="password-input-container">
+              <div className="password-input-container" style={{ position: 'relative', width: '100%' }}>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
@@ -137,13 +137,19 @@ const Login = () => {
                   value={formData.password}
                   onChange={handleChange}
                   required
+                  // reserve space for inline icons (badge + eye)
+                  style={{ width: '100%', paddingRight: 110, boxSizing: 'border-box' }}
                 />
-                <button
-                  type="button"
-                  className={`password-toggle ${showPassword ? 'show' : ''}`}
-                  onClick={() => setShowPassword(!showPassword)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                />
+                <div className="password-icons" style={{ position: 'absolute', top: 0, right: 8, height: '100%', display: 'flex', alignItems: 'center', gap: 8, paddingRight: 6 }}>
+                  {/* badge area left of toggle (no badge rendered here by default) */}
+                  <button
+                    type="button"
+                    className={`password-toggle ${showPassword ? 'show' : ''}`}
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    style={{ flex: '0 0 auto', position: 'static' }}
+                  />
+                </div>
               </div>
             </div>
             <button type="submit" className="signin-button" disabled={loading} style={{ position:'relative', minHeight:48 }}>

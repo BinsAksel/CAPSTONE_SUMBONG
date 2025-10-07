@@ -26,8 +26,12 @@ const SignIn = () => {
     phoneNumber: '',
     address: '',
     password: '',
+    confirmPassword: '',
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+  const passwordTimerRef = useRef(null);
   const [images, setImages] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -134,20 +138,56 @@ const SignIn = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // Password validation helper (returns array of missing rule messages)
+  const computePasswordErrors = (pwd) => {
+    if (!pwd) return [];
+    const errs = [];
+    if (pwd.length < 8) errs.push('At least 8 characters');
+    if (!/[A-Z]/.test(pwd)) errs.push('At least one uppercase letter (A-Z)');
+    if (!/[a-z]/.test(pwd)) errs.push('At least one lowercase letter (a-z)');
+    if (!/\d/.test(pwd)) errs.push('At least one number (0-9)');
+    if (!/[\W_]/.test(pwd)) errs.push('At least one special character (e.g. !@#$%)');
+    return errs;
+  };
+
+  // Debounced validation: run after user stops typing
+  useEffect(() => {
+    if (passwordTimerRef.current) clearTimeout(passwordTimerRef.current);
+    const pwd = formData.password || '';
+    // If empty, clear errors
+    if (!pwd) { setPasswordErrors([]); return; }
+    passwordTimerRef.current = setTimeout(() => {
+      const errs = computePasswordErrors(pwd);
+      setPasswordErrors(errs);
+    }, 700);
+    return () => { if (passwordTimerRef.current) clearTimeout(passwordTimerRef.current); };
+  }, [formData.password]);
+
   const handleImageChange = (e) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       const allowedTypes = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp',
-        'application/pdf',
-        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        'image/jpeg', 'image/png', 'image/bmp', 'image/webp',
+        'application/pdf'
       ];
       const invalid = files.find(file => !allowedTypes.includes(file.type));
       if (invalid) {
         Swal.fire({
           icon: 'error',
           title: 'Invalid File Type',
-          text: 'Only images (JPG, PNG, GIF, BMP, WEBP), PDF, and Word documents are allowed.',
+          text: 'Only JPG, PNG, BMP, WEBP images and PDF files are allowed. GIF and Word documents are not supported.',
+          confirmButtonColor: '#1a365d'
+        });
+        return;
+      }
+      const MAX_MB = 50;
+      const MAX_BYTES = MAX_MB * 1024 * 1024;
+      const oversized = files.filter(f => f.size > MAX_BYTES);
+      if (oversized.length > 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'File too large',
+          html: `The following files exceed ${MAX_MB} MB:<br/>${oversized.map(f => f.name).join('<br/>')}`,
           confirmButtonColor: '#1a365d'
         });
         return;
@@ -180,6 +220,18 @@ const SignIn = () => {
         icon: 'error',
         title: 'Weak Password',
         text: PASSWORD_POLICY.message,
+        confirmButtonColor: '#1a365d'
+      });
+      return;
+    }
+
+    // Confirm password must match
+    if (formData.password !== formData.confirmPassword) {
+      setLoading(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'Passwords do not match',
+        text: 'Please make sure the confirm password matches your password.',
         confirmButtonColor: '#1a365d'
       });
       return;
@@ -241,6 +293,7 @@ const SignIn = () => {
           phoneNumber: '',
           address: '',
           password: '',
+          confirmPassword: '',
         });
         setImages([]);
       }
@@ -334,7 +387,8 @@ const SignIn = () => {
             />
           </div>
           <div className="form-group">
-            <div className="password-input-container">
+            {/* Relative wrapper: icons will be placed inside the input visual area on the right */}
+            <div style={{ position: 'relative', width: '100%' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
                 name="password"
@@ -345,17 +399,93 @@ const SignIn = () => {
                 pattern={passwordHtmlPattern}
                 title={PASSWORD_POLICY.message}
                 autoComplete="new-password"
+                onBlur={() => {
+                  // immediate validation on blur
+                  if (passwordTimerRef.current) { clearTimeout(passwordTimerRef.current); }
+                  setPasswordErrors(computePasswordErrors(formData.password || ''));
+                }}
+                // reserve space on the right for badge + toggle so text doesn't overlap icons
+                style={{ width: '100%', paddingRight: 110, boxSizing: 'border-box' }}
               />
-              <button
-                type="button"
-                className={`password-toggle ${showPassword ? 'show' : ''}`}
-                onClick={() => setShowPassword(p=>!p)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              {/* Icons container sits inside the input area on the right; badge appears before the toggle */}
+              <div className="password-icons" style={{ position: 'absolute', top: 0, right: 8, height: '100%', display: 'flex', alignItems: 'center', gap: 8, paddingRight: 6 }}>
+                {formData.password && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {passwordErrors.length === 0 ? (
+                      <div style={{ background: '#dcfce7', color: '#166534', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Password looks good">✓</div>
+                    ) : (
+                      <div style={{ background: '#fee2e2', color: '#991b1b', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Password requirements not met">✕</div>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className={`password-toggle ${showPassword ? 'show' : ''}`}
+                  onClick={() => setShowPassword(p=>!p)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  // force static positioning here so the button sits in the flex row next to the badge
+                  style={{ flex: '0 0 auto', position: 'static' }}
+                />
+              </div>
+            </div>
+            {/* Confirm password field */}
+            <div style={{ position: 'relative', width: '100%', marginTop: 10 }}>
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                placeholder="Confirm Password"
+                required
+                autoComplete="new-password"
+                style={{ width: '100%', paddingRight: 110, boxSizing: 'border-box' }}
               />
+              <div className="password-icons" style={{ position: 'absolute', top: 0, right: 8, height: '100%', display: 'flex', alignItems: 'center', gap: 8, paddingRight: 6 }}>
+                {formData.confirmPassword && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {formData.password === formData.confirmPassword ? (
+                      <div style={{ background: '#dcfce7', color: '#166534', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Passwords match">✓</div>
+                    ) : (
+                      <div style={{ background: '#fee2e2', color: '#991b1b', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Passwords do not match">✕</div>
+                    )}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className={`password-toggle ${showConfirmPassword ? 'show' : ''}`}
+                  onClick={() => setShowConfirmPassword(p=>!p)}
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  style={{ flex: '0 0 auto', position: 'static' }}
+                />
+              </div>
             </div>
             <small style={{display:'block',marginTop:4,fontSize:12,color:'#555'}}>
               8+ chars, upper & lower case, number, special character.
             </small>
+            {/* Real-time password feedback. If password meets requirements and confirm is empty show 'Password looks good'.
+                If confirm is present, show match/mismatch. Otherwise show requirements list. */}
+            {formData.password && (
+              <div style={{ marginTop:8 }}>
+                {passwordErrors.length !== 0 ? (
+                  <div style={{ color: '#991b1b', background:'#fee2e2', padding:'8px', borderRadius:6, fontSize:13 }}>
+                    <strong style={{ display:'block', marginBottom:6 }}>Password requirements not met:</strong>
+                    <ul style={{ margin:0, paddingLeft:18 }}>
+                      {passwordErrors.map((err,i)=>(<li key={i}>{err}</li>))}
+                    </ul>
+                  </div>
+                ) : (
+                  formData.confirmPassword ? (
+                    formData.password === formData.confirmPassword ? (
+                      <div style={{ color: '#166534', background:'#dcfce7', padding:'6px 8px', borderRadius:6, fontSize:13 }}>Passwords match</div>
+                    ) : (
+                      <div style={{ color: '#991b1b', background:'#fee2e2', padding:'6px 8px', borderRadius:6, fontSize:13 }}>Passwords do not match</div>
+                    )
+                  ) : (
+                    <div style={{ color: '#166534', background:'#dcfce7', padding:'6px 8px', borderRadius:6, fontSize:13 }}>Password looks good</div>
+                  )
+                )}
+              </div>
+            )}
           </div>
           <div className="form-group">
             <label className="file-label">
@@ -364,16 +494,17 @@ const SignIn = () => {
             <p className="file-description">
               Please upload your ID, barangay certificate, or other documents that prove you are a resident of Barangay East Tapinac.
             </p>
+            <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>Max file size per file: 50 MB</div>
             <input
               type="file"
               multiple
-              accept="image/*,.pdf,.doc,.docx"
+              accept="image/jpeg,image/png,image/bmp,image/webp,application/pdf"
               onChange={handleImageChange}
               className="file-input"
               required
             />
             <small className="file-help">
-              Accepted formats: Images (JPG, PNG, GIF), PDF, Word documents. You can add a profile picture later after logging in.
+              Accepted formats: Images (JPG, PNG), PDF, Word documents. You can add a profile picture later after logging in.
             </small>
           </div>
           <button type="submit" disabled={loading} className="signin-submit-btn" style={{ position:'relative', minHeight:48 }}>

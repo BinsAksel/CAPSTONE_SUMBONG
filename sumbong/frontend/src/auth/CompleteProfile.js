@@ -23,7 +23,8 @@ const CompleteProfile = () => {
     address: '',
     email: initialEmail,
     profilePicture: initialProfilePicture,
-    password: ''
+    password: '',
+    confirmPassword: ''
   });
   const [images, setImages] = useState([]);
   const [error, setError] = useState('');
@@ -39,6 +40,9 @@ const CompleteProfile = () => {
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
   const [pendingSubmit, setPendingSubmit] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState([]);
+  const passwordTimerRef = useRef(null);
   const PASSWORD_POLICY = {
     regex: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/,
     message: 'Password must be 8+ chars with upper, lower, number, special.'
@@ -128,6 +132,27 @@ const CompleteProfile = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const computePasswordErrors = (pwd) => {
+    if (!pwd) return [];
+    const errs = [];
+    if (pwd.length < 8) errs.push('At least 8 characters');
+    if (!/[A-Z]/.test(pwd)) errs.push('At least one uppercase letter (A-Z)');
+    if (!/[a-z]/.test(pwd)) errs.push('At least one lowercase letter (a-z)');
+    if (!/\d/.test(pwd)) errs.push('At least one number (0-9)');
+    if (!/[^A-Za-z0-9]/.test(pwd)) errs.push('At least one special character (e.g. !@#$%)');
+    return errs;
+  };
+
+  useEffect(() => {
+    if (passwordTimerRef.current) clearTimeout(passwordTimerRef.current);
+    const pwd = formData.password || '';
+    if (!pwd) { setPasswordErrors([]); return; }
+    passwordTimerRef.current = setTimeout(() => {
+      setPasswordErrors(computePasswordErrors(pwd));
+    }, 700);
+    return () => { if (passwordTimerRef.current) clearTimeout(passwordTimerRef.current); };
+  }, [formData.password]);
+
   const handlePhonePaste = (e) => {
     const text = (e.clipboardData || window.clipboardData).getData('text');
     const digits = text.replace(/\D/g,'');
@@ -185,7 +210,31 @@ const CompleteProfile = () => {
 
   const handleImageChange = (e) => {
     if (e.target.files) {
-      setImages(Array.from(e.target.files));
+      const files = Array.from(e.target.files);
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/bmp', 'image/webp', 'application/pdf'];
+      const invalid = files.find(file => !allowedTypes.includes(file.type));
+      if (invalid) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Invalid File Type',
+          text: 'Only JPG, PNG, BMP, WEBP images and PDF files are allowed. GIF and Word documents are not supported.',
+          confirmButtonColor: '#3b5998'
+        });
+        return;
+      }
+      const MAX_MB = 50;
+      const MAX_BYTES = MAX_MB * 1024 * 1024;
+      const oversized = files.filter(f => f.size > MAX_BYTES);
+      if (oversized.length > 0) {
+        Swal.fire({
+          icon: 'error',
+          title: 'File too large',
+          html: `The following files exceed ${MAX_MB} MB:<br/>${oversized.map(f => f.name).join('<br/>')}`,
+          confirmButtonColor: '#3b5998'
+        });
+        return;
+      }
+      setImages(files);
     }
   };
 
@@ -209,6 +258,17 @@ const CompleteProfile = () => {
           icon: 'error',
           title: 'Weak Password',
           text: PASSWORD_POLICY.message,
+          confirmButtonColor: '#3b5998'
+        });
+        setLoading(false);
+        return;
+      }
+      // Confirm password must match
+      if (formData.password !== formData.confirmPassword) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Passwords do not match',
+          text: 'Please make sure the confirm password matches your password.',
           confirmButtonColor: '#3b5998'
         });
         setLoading(false);
@@ -242,6 +302,7 @@ const CompleteProfile = () => {
           confirmButtonColor: '#3b5998',
           customClass: { popup: 'swal2-rounded' }
         }).then(()=>navigate('/login'));
+        setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
       }
     } catch (err) {
       Swal.fire({
@@ -331,7 +392,8 @@ const CompleteProfile = () => {
         </div>
         <div className="form-group">
           <label htmlFor="password">Password</label>
-          <div className="password-input-container">
+          {/* Relative wrapper so icons sit visually inside the input on the right */}
+          <div style={{ position: 'relative', width: '100%' }}>
             <input
               type={showPassword ? 'text' : 'password'}
               name="password"
@@ -343,17 +405,88 @@ const CompleteProfile = () => {
               pattern={passwordHtmlPattern}
               title={PASSWORD_POLICY.message}
               autoComplete="new-password"
+              onBlur={() => {
+                if (passwordTimerRef.current) clearTimeout(passwordTimerRef.current);
+                setPasswordErrors(computePasswordErrors(formData.password || ''));
+              }}
+              style={{ width: '100%', paddingRight: 110, boxSizing: 'border-box' }}
             />
-            <button
-              type="button"
-              className={`password-toggle ${showPassword ? 'show' : ''}`}
-              onClick={()=>setShowPassword(p=>!p)}
-              aria-label={showPassword ? 'Hide password' : 'Show password'}
-            />
-          </div>
+            <div className="password-icons" style={{ position: 'absolute', top: 0, right: 8, height: '100%', display: 'flex', alignItems: 'center', gap: 8, paddingRight: 6 }}>
+              {formData.password && (
+                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {passwordErrors.length === 0 ? (
+                    <div style={{ background: '#dcfce7', color: '#166534', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Password looks good">✓</div>
+                  ) : (
+                    <div style={{ background: '#fee2e2', color: '#991b1b', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Password requirements not met">✕</div>
+                  )}
+                </div>
+              )}
+              <button
+                type="button"
+                className={`password-toggle ${showPassword ? 'show' : ''}`}
+                onClick={()=>setShowPassword(p=>!p)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                style={{ flex: '0 0 auto', position: 'static' }}
+              />
+            </div>
+              </div>
+              {/* Confirm password field */}
+              <div style={{ position: 'relative', width: '100%', marginTop: 10 }}>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirmPassword"
+                  id="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Confirm Password"
+                  required
+                  autoComplete="new-password"
+                  style={{ width: '100%', paddingRight: 110, boxSizing: 'border-box' }}
+                />
+                <div className="password-icons" style={{ position: 'absolute', top: 0, right: 8, height: '100%', display: 'flex', alignItems: 'center', gap: 8, paddingRight: 6 }}>
+                  {formData.confirmPassword && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {formData.password === formData.confirmPassword ? (
+                        <div style={{ background: '#dcfce7', color: '#166534', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Passwords match">✓</div>
+                      ) : (
+                        <div style={{ background: '#fee2e2', color: '#991b1b', borderRadius: 999, padding: '6px 8px', fontWeight: 700, fontSize: 12 }} title="Passwords do not match">✕</div>
+                      )}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    className={`password-toggle ${showConfirmPassword ? 'show' : ''}`}
+                    onClick={()=>setShowConfirmPassword(p=>!p)}
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                    style={{ flex: '0 0 auto', position: 'static' }}
+                  />
+                </div>
+              </div>
           <small style={{display:'block',marginTop:4,fontSize:12,color:'#555'}}>
             {PASSWORD_POLICY.message}
           </small>
+          {formData.password && (
+            <div style={{ marginTop:8 }}>
+              {passwordErrors.length !== 0 ? (
+                <div style={{ color: '#991b1b', background:'#fee2e2', padding:'8px', borderRadius:6, fontSize:13 }}>
+                  <strong style={{ display:'block', marginBottom:6 }}>Password requirements not met:</strong>
+                  <ul style={{ margin:0, paddingLeft:18 }}>
+                    {passwordErrors.map((err,i)=>(<li key={i}>{err}</li>))}
+                  </ul>
+                </div>
+              ) : (
+                formData.confirmPassword ? (
+                  formData.password === formData.confirmPassword ? (
+                    <div style={{ color: '#166534', background:'#dcfce7', padding:'6px 8px', borderRadius:6, fontSize:13 }}>Passwords match</div>
+                  ) : (
+                    <div style={{ color: '#991b1b', background:'#fee2e2', padding:'6px 8px', borderRadius:6, fontSize:13 }}>Passwords do not match</div>
+                  )
+                ) : (
+                  <div style={{ color: '#166534', background:'#dcfce7', padding:'6px 8px', borderRadius:6, fontSize:13 }}>{PASSWORD_POLICY.message}</div>
+                )
+              )}
+            </div>
+          )}
         </div>
         <div className="form-group">
           <label htmlFor="address">Address</label>
@@ -369,10 +502,11 @@ const CompleteProfile = () => {
         </div>
         <div className="form-group">
           <label>Upload Credentials (ID, etc.)</label>
+          <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>Max file size per file: 50 MB</div>
           <input
             type="file"
             multiple
-            accept="image/*,.pdf,.doc,.docx"
+            accept="image/jpeg,image/png,image/bmp,image/webp,application/pdf"
             onChange={handleImageChange}
             required
           />

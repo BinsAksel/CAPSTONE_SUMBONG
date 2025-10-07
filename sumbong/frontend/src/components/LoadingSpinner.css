@@ -2,6 +2,9 @@
 .spinner-wrapper.block { justify-content:center; flex-direction:column; }
 .spinner-wrapper.inline { display:inline-flex; flex-direction:row; }
 .spinner { position:relative; border:4px solid #d1d9e2; border-top-color:#2563eb; border-radius:50%; animation:spin 0.7s linear infinite; box-sizing:border-box; }
+.spinner-wrapper.inline .spinner { /* visually nudge inline spinners slightly so they align with adjacent text */
+	margin-top: 2px;
+}
 .spinner:after { content:""; position:absolute; inset:0; border-radius:50%; border:4px solid transparent; border-top-color:rgba(37,99,235,0.4); animation:spin 1.4s linear infinite reverse; }
 .spinner-wrapper.light .spinner { border:4px solid rgba(255,255,255,0.35); border-top-color:#fff; }
 .spinner-wrapper.light .spinner:after { border-top-color:rgba(255,255,255,0.55); }
