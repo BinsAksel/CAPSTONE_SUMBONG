@@ -283,7 +283,7 @@ const SignIn = () => {
         Swal.fire({
           icon: 'success',
           title: 'Signed Up!',
-          text: 'You are now signed up! Please wait for the admin to verify your account before logging in.',
+          text: 'Please verify the email that was sent to your Gmail account so the admin can verify your registration. You’ll be able to log in once your email and account have both been verified.',
           confirmButtonColor: '#1a365d'
         });
         setFormData({

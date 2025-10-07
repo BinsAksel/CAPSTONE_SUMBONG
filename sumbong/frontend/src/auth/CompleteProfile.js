@@ -297,8 +297,8 @@ const CompleteProfile = () => {
       if (response.data.user) {
         Swal.fire({
           icon: 'success',
-          title: 'Profile Completed!',
-          text: 'You are now signed up! Please wait for the admin to verify your account before logging in.',
+          title: 'Signed Up!',
+          text: 'Please verify the email that was sent to your Gmail account so the admin can verify your registration. You’ll be able to log in once your email and account have both been verified.',
           confirmButtonColor: '#3b5998',
           customClass: { popup: 'swal2-rounded' }
         }).then(()=>navigate('/login'));
