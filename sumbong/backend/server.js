@@ -131,7 +131,9 @@ app.use((req,res,next)=>{ // custom CSP
   res.setHeader('Content-Security-Policy', "default-src 'self'; connect-src 'self' https://nominatim.openstreetmap.org; img-src 'self' https://res.cloudinary.com https://tile.openstreetmap.org https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org data:; media-src 'self' https://res.cloudinary.com https://tile.openstreetmap.org https://a.tile.openstreetmap.org https://b.tile.openstreetmap.org https://c.tile.openstreetmap.org data:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','no-referrer');
-  res.setHeader('Permissions-Policy','geolocation=(), microphone=(), camera=()');
+  // Allow geolocation for same-origin so the dashboard can use navigator.geolocation
+  // and the browser won't block requests from the app. Keep camera/microphone disabled.
+  res.setHeader('Permissions-Policy','geolocation=(self), microphone=(), camera=()');
   next();
 });
 // --- Rate limiting (configurable & user-aware) ---
