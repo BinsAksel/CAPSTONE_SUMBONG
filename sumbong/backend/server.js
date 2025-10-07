@@ -461,8 +461,8 @@ const profileUpload = multer({ storage: profileStorage });
 // Size limits (bytes)
 const TEN_MB = 10 * 1024 * 1024;
 const TWENTY_MB = 20 * 1024 * 1024;
-// Allow videos up to 200MB per-file
-const TWO_HUNDRED_MB = 200 * 1024 * 1024;
+// Allow videos up to 100MB per-file
+const ONE_HUNDRED_MB = 100 * 1024 * 1024;
 // Total per-submission limit: 500MB
 const FIVE_HUNDRED_MB = 500 * 1024 * 1024;
 // Credential uploads: 50MB per file (memory storage)
@@ -473,7 +473,7 @@ const FIFTY_MB = 50 * 1024 * 1024;
 // limits for images and PDFs.
 const complaintUpload = multer({
   storage: complaintStorage,
-  limits: { fileSize: TWO_HUNDRED_MB },
+  limits: { fileSize: ONE_HUNDRED_MB },
   fileFilter: (req, file, cb) => {
     const allowedImage = ['image/jpeg','image/png','image/gif','image/webp','image/bmp'];
     const allowedVideo = ['video/mp4','video/webm','video/ogg','video/quicktime','video/x-matroska','video/avi'];
@@ -866,12 +866,12 @@ app.get('/api/user/:id', async (req, res) => {
 
 // Submit a new complaint
 app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','contact','location','people','description','type','resolution']), (req, res, next) => {
-  // First let multer accept up to 5 files with the configured per-file max (200MB).
+  // First let multer accept up to 5 files with the configured per-file max (100MB).
   complaintUpload.array('evidence', 5)(req, res, function(err){
     if (err) {
-      // Multer-level limit exceeded (single file > 200MB)
+  // Multer-level limit exceeded (single file > 100MB)
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ message: 'One or more evidence files exceed the maximum allowed size (200MB).' });
+  return res.status(413).json({ message: 'One or more evidence files exceed the maximum allowed size (100MB).' });
       }
       return res.status(400).json({ message: 'Upload failed', error: err.message });
     }
@@ -896,7 +896,7 @@ app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','con
     // Per-type size caps
     const IMAGE_MAX = TEN_MB; // 10MB
     const PDF_MAX = TWENTY_MB; // 20MB
-    const VIDEO_MAX = TWO_HUNDRED_MB; // 200MB
+  const VIDEO_MAX = ONE_HUNDRED_MB; // 100MB
 
     // Compute total size and collect any files to skip
     let totalSize = 0;

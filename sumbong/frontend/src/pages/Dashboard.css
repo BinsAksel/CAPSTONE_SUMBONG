@@ -3347,6 +3347,34 @@ body.modal-open {
   .complaint-details-modal .complaint-header h3 { padding-left: 2px; padding-right: 60px; }
 }
 
+/* >>> Forced override: make Location field wider in View Complaint modal
+   Goal: start aligned with Date & Time and end aligned with Type field
+   We place this rule near the end of the file for precedence and increase specificity. */
+.complaint-details-modal .complaint-content .complaint-info-grid .info-location {
+  grid-column: 2 / 4 !important; /* span across the middle and right columns */
+}
+
+/* Visual verification marker (temporary) */
+.complaint-details-modal .complaint-content .complaint-info-grid .info-location span {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 12px; /* match other info-item spans */
+  background: #f8fafc; /* same background */
+  border-radius: 6px; /* match other fields */
+  border-left: 3px solid #3b82f6; /* keep the blue accent like other fields */
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+@media (max-width: 760px) {
+  .complaint-details-modal .complaint-content .complaint-info-grid .info-location {
+    grid-column: 1 / -1 !important; /* single column on narrow screens */
+  }
+}
+
 /* === Fix: Prevent close (X) button overlapping Edit Profile modal header content === */
 .edit-profile-modal { position: relative; }
 /* Integrate the close button seamlessly into the header (not floating over content) */

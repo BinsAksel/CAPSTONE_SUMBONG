@@ -240,21 +240,6 @@ const LocationModal = ({ isOpen, type, initialLocation, onConfirm, onClose }) =>
           <h3 style={{ margin: 0, marginBottom: type === 'select' ? '12px' : '0', whiteSpace: 'nowrap' }}>
             {type === 'select' ? 'Select Location' : 'View Location'}
           </h3>
-          
-          {/* Close button aligned with title on the same line */}
-          <button 
-            className="modal-close-x"
-            onClick={onClose} 
-            type="button"
-            aria-label="Close modal"
-            style={{ 
-              position: 'absolute',
-              top: '16px',
-              right: '16px',
-              margin: '0'
-            }}
-          >
-          </button>
         </div>
         
         <div style={{ 
@@ -585,6 +570,9 @@ const AdminDashboard = () => {
   const [analyticsDateFrom, setAnalyticsDateFrom] = useState('');
   const [analyticsDateTo, setAnalyticsDateTo] = useState('');
   const [complaintSearch, setComplaintSearch] = useState('');
+  // Open-by-complaint-number modal state
+  const [openByNumberModalOpen, setOpenByNumberModalOpen] = useState(false);
+  const [openByNumberInput, setOpenByNumberInput] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [userSearch, setUserSearch] = useState('');
   const [selectedCredential, setSelectedCredential] = useState(null);
@@ -1314,6 +1302,22 @@ const AdminDashboard = () => {
   };
 
   // Handle view location functionality
+  
+  // Open complaint by complaintNumber
+  const openComplaintByNumber = (number) => {
+    if (!number || !number.trim()) return;
+    const found = (complaints || []).find(c => (c.complaintNumber || '').toLowerCase() === number.trim().toLowerCase());
+    if (found) {
+      setViewComplaint(found);
+      setOpenByNumberModalOpen(false);
+      setOpenByNumberInput('');
+      // ensure thread list scroll etc. handled by existing effects
+      return true;
+    }
+    // Not found: show alert
+    try { Swal.fire({ icon: 'info', title: 'Not found', text: `Complaint ${number} not found.` }); } catch (e) { alert(`Complaint ${number} not found.`); }
+    return false;
+  };
   const handleViewLocation = (locationData) => {
     setViewLocationData(locationData);
     setLocationModal({ open: true, type: 'view' });
@@ -1779,14 +1783,6 @@ const AdminDashboard = () => {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'center' }}>
-              <div>
-                <label style={{ fontWeight: 'bold', marginRight: 8 }}>Filter by status:</label>
-                <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
-                  <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                </select>
-              </div>
               <div className="admin-user-search-wrapper">
                 <span className="admin-user-search-icon">
                   <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1802,6 +1798,14 @@ const AdminDashboard = () => {
                   className="admin-user-search-input"
                   style={{ paddingLeft: 36 }}
                 />
+              </div>
+              <div>
+                <label style={{ fontWeight: 'bold', marginRight: 8 }}>Filter by status:</label>
+                <select value={userFilter} onChange={e => setUserFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
+                  <option value="all">All</option>
+                  <option value="pending">Pending</option>
+                  <option value="approved">Approved</option>
+                </select>
               </div>
             </div>
             <div className="admin-table-viewport">
@@ -1924,6 +1928,34 @@ const AdminDashboard = () => {
             </div>
             <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
               <div>
+                <div className="admin-user-search-wrapper">
+                  <span className="admin-user-search-icon">
+                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="9" cy="9" r="7" stroke="#bfc9d9" strokeWidth="2"/>
+                      <line x1="14.4142" y1="14" x2="18" y2="17.5858" stroke="#bfc9d9" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    value={complaintSearch}
+                    onChange={e => setComplaintSearch(e.target.value)}
+                    placeholder="Search by name, email, type, location..."
+                    className="admin-user-search-input"
+                    style={{ paddingLeft: 36 }}
+                  />
+                </div>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  className="filter-action-btn"
+                  onClick={() => { setOpenByNumberModalOpen(true); setOpenByNumberInput(''); }}
+                  title="Search Complaint #"
+                >
+                  Search Complaint #
+                </button>
+              </div>
+              <div>
                 <label style={{ fontWeight: 'bold', marginRight: 8 }}>Filter by status:</label>
                 <select value={complaintFilter} onChange={e => setComplaintFilter(e.target.value)} style={{ padding: 6, borderRadius: 4, border: '1px solid #ccc' }}>
                   <option value="all">All</option>
@@ -1962,24 +1994,6 @@ const AdminDashboard = () => {
                   <input type="date" value={complaintDateTo} onChange={e=>setComplaintDateTo(e.target.value)} />
                 </div>
               )}
-              <div>
-                <div className="admin-user-search-wrapper">
-                  <span className="admin-user-search-icon">
-                    <svg width="18" height="18" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="9" cy="9" r="7" stroke="#bfc9d9" strokeWidth="2"/>
-                      <line x1="14.4142" y1="14" x2="18" y2="17.5858" stroke="#bfc9d9" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                  </span>
-                  <input
-                    type="text"
-                    value={complaintSearch}
-                    onChange={e => setComplaintSearch(e.target.value)}
-                    placeholder="Search by name, email, type, location..."
-                    className="admin-user-search-input"
-                    style={{ paddingLeft: 36 }}
-                  />
-                </div>
-              </div>
             </div>
             <div className="admin-table-viewport">
             <div className="admin-table-scroll">
@@ -2500,6 +2514,10 @@ const AdminDashboard = () => {
           <div className="complaint-value">{viewComplaint.type}</div>
         </div>
         <div className="complaint-field">
+          <label>People/Group Involved</label>
+          <div className="complaint-value">{viewComplaint.people || "N/A"}</div>
+        </div>
+        <div className="complaint-field complaint-location">
           <label>Location</label>
           {viewComplaint.location ? (
             <div className="complaint-value">
@@ -2541,10 +2559,6 @@ const AdminDashboard = () => {
           ) : (
             <div className="complaint-value">No location provided</div>
           )}
-        </div>
-        <div className="complaint-field">
-          <label>People/Group Involved</label>
-          <div className="complaint-value">{viewComplaint.people || "N/A"}</div>
         </div>
       </div>
 
@@ -2751,7 +2765,7 @@ const AdminDashboard = () => {
                   onClick={() => handleApproveCredentials(selectedUserCredentials._id)}
                   disabled={verificationLoading}
                 >
-                  {verificationLoading ? <InlineButtonSpinner show>Credential Looks Valid</InlineButtonSpinner> : 'Credential Looks Valid'}
+                  {verificationLoading ? <InlineButtonSpinner show>Validate</InlineButtonSpinner> : 'Validate'}
                 </button>
                 <button 
                   className="action-btn disapprove-btn"
@@ -2807,7 +2821,7 @@ const AdminDashboard = () => {
                   onClick={() => handleApproveCredentials(selectedCredential.userId)}
                   disabled={verificationLoading}
                 >
-                  {verificationLoading ? <InlineButtonSpinner show>Credential Looks Valid</InlineButtonSpinner> : 'Credential Looks Valid'}
+                  {verificationLoading ? <InlineButtonSpinner show>Validate</InlineButtonSpinner> : 'Validate'}
                 </button>
                 <button 
                   className="action-btn disapprove-btn"
@@ -2890,6 +2904,47 @@ const AdminDashboard = () => {
           onConfirm={() => {}}
           onClose={() => setLocationModal({ open: false, type: 'view' })}
         />
+      )}
+
+      {/* Open by Complaint Number Modal */}
+      {openByNumberModalOpen && (
+        <div className="modal-overlay" onClick={() => setOpenByNumberModalOpen(false)}>
+          <div className="credentials-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 520 }}>
+            <div className="modal-header">
+              <h3>Open Complaint by Number</h3>
+              <button
+                className="modal-close-x"
+                onClick={() => setOpenByNumberModalOpen(false)}
+                type="button"
+                aria-label="Close modal"
+              >
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="form-group">
+                <label><strong>Complaint Number</strong></label>
+                <input
+                  type="text"
+                  value={openByNumberInput}
+                  onChange={(e) => setOpenByNumberInput(e.target.value)}
+                  placeholder="Enter complaint number (e.g. CMP-2025-0000001)"
+                  style={{ width: '100%', padding: 8, border: '1px solid #ddd', borderRadius: 4 }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                <button className="action-btn cancel-btn" onClick={() => setOpenByNumberModalOpen(false)}>Cancel</button>
+                <button
+                  className="action-btn approve-btn"
+                  onClick={() => {
+                    openComplaintByNumber(openByNumberInput && openByNumberInput.trim());
+                  }}
+                >
+                  Open
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

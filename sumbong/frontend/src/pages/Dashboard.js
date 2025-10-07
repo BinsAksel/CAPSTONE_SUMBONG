@@ -1435,7 +1435,7 @@ const Dashboard = () => {
     } else if (type === 'file') {
       const IMG_MAX = 10 * 1024 * 1024; // 10MB
       const PDF_MAX = 20 * 1024 * 1024; // 20MB
-      const VIDEO_MAX = 200 * 1024 * 1024; // 200MB
+  const VIDEO_MAX = 100 * 1024 * 1024; // 100MB
       const MAX_FILES = 5;
       const TOTAL_MAX = 500 * 1024 * 1024; // 500MB total per submission
 
@@ -1580,7 +1580,7 @@ const Dashboard = () => {
       // Reuse same validation as creation flow
       const IMG_MAX = 10 * 1024 * 1024; // 10MB
       const PDF_MAX = 20 * 1024 * 1024; // 20MB
-      const VIDEO_MAX = 200 * 1024 * 1024; // 200MB
+  const VIDEO_MAX = 100 * 1024 * 1024; // 100MB
       const MAX_FILES = 5;
       const TOTAL_MAX = 500 * 1024 * 1024; // 500MB total per submission
 
@@ -2392,7 +2392,7 @@ const Dashboard = () => {
                                               <label className="complaint-label">Supporting evidence (pictures, videos, files):</label>
                 <input type="file" name="evidence" multiple ref={complaintFileInputRef} onChange={handleComplaintChange} />
                 <small style={{ display:'block', marginTop:4, color:'#555' }}>
-                  Max 5 files. Images up to 10MB, PDFs up to 20MB, Videos up to 200MB. Total per submission up to 500MB.
+                  Max 5 files. Images up to 10MB, PDFs up to 20MB, Videos up to 100MB. Total per submission up to 500MB.
                 </small>
                 {complaint.evidence && complaint.evidence.length > 0 && (
                   <div style={{ marginTop:6, fontSize:12, color:'#2563eb' }}>
@@ -2457,6 +2457,10 @@ const Dashboard = () => {
                   <span>{viewComplaint.type}</span>
                 </div>
                 <div className="info-item">
+                  <label>People/Group Involved</label>
+                  <span>{viewComplaint.people || 'N/A'}</span>
+                </div>
+                <div className="info-item info-location">
                   <label>Location</label>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {viewComplaint.location ? (
@@ -2496,10 +2500,6 @@ const Dashboard = () => {
                     )}
                     {/* The clickable location text opens the Location modal; the extra 'View' button removed for cleaner layout */}
                   </div>
-                </div>
-                <div className="info-item">
-                  <label>People/Group Involved</label>
-                  <span>{viewComplaint.people || 'N/A'}</span>
                 </div>
               </div>
               
@@ -2788,7 +2788,7 @@ const Dashboard = () => {
                     Replace existing evidence (old files will be deleted)
                   </label>
                   <div style={{ marginTop: 6, color: '#555', fontSize: 12 }}>
-                    Max 5 files. Images up to 10MB, PDFs up to 20MB, Videos up to 200MB. Total per submission up to 500MB.
+                    Max 5 files. Images up to 10MB, PDFs up to 20MB, Videos up to 100MB. Total per submission up to 500MB.
                   </div>
                 </div>
               </div>

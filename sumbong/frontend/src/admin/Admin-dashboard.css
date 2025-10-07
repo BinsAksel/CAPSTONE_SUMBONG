@@ -65,52 +65,46 @@
   font-weight: 600;
   transition: none;
 }
-.credential-issues-actions .request-resubmission-btn { background:#f59e0b; color:#fff; }
-.credential-issues-actions .cancel-btn { background:#6b7280; color:#fff; }
-/* Credential Issues Modal: responsive action buttons (2 in a row on desktop) */
+/* Credential Issues Modal: action buttons side by side, equal size */
 .credential-issues-actions {
-  display: grid;
-  grid-template-columns: 1fr; /* stack by default */
-  gap: 16px;
+  display: flex;
+  flex-direction: row;
+  gap: 18px;
+  justify-content: center;
   align-items: stretch;
   margin-top: 24px;
 }
 .credential-issues-actions button {
-  width: 100%;
-  min-width: 0; /* allow shrink to avoid overflow */
-  max-width: none;
-  min-height: 52px;
+  flex: 1 1 0;
+  min-width: 160px;
+  max-width: 240px;
+  height: 54px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.02rem;
+  font-size: 1.08rem;
   font-weight: 600;
   border-radius: 8px;
   box-sizing: border-box;
   margin: 0;
-  white-space: normal; /* allow label wrap if needed */
-  line-height: 1.2;
-  text-align: center;
-}
-/* Ensure modal buttons ignore global .action-btn width/margins */
-.credential-issues-actions .action-btn { width: 100%; margin-right: 0; }
-.credential-actions .action-btn { width: 100%; margin-right: 0; }
-/* On wider screens, show the three buttons in parallel */
-@media (min-width: 720px) {
-  .credential-issues-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .credential-issues-actions button { min-height: 54px; font-size: 1.06rem; }
 }
 /* Responsive tweaks for Credential Issues modal buttons */
 @media (max-width: 640px) {
-  .credential-issues-actions { grid-template-columns: 1fr; gap: 12px; }
-  .credential-issues-actions button { min-height: 50px; font-size: 1rem; }
+  .credential-issues-actions { flex-direction: column; gap: 12px; }
+  .credential-issues-actions button { 
+    width: 100%;
+    min-width: 0; 
+    max-width: none; 
+    height: 50px; 
+    font-size: 1rem; 
+  }
 }
 @media (max-width: 420px) {
   .credential-issues-actions button { height: 46px; font-size: 0.95rem; }
 }
 @media (max-width: 360px) {
   .credential-issues-actions { gap: 10px; }
-  .credential-issues-actions button { min-height: 44px; font-size: 0.9rem; padding: 0 12px; }
+  .credential-issues-actions button { height: 44px; font-size: 0.9rem; padding: 0 12px; }
 }
 /* Credential modal: action buttons side by side */
 .credential-actions {
@@ -473,6 +467,24 @@
   background: #fff;
   box-shadow: 0 2px 8px rgba(25,118,210,0.08);
 }
+/* Filter action button used in filter rows (Search Complaint #) */
+.filter-action-btn {
+  padding: 7px 14px;
+  border-radius: 18px;
+  border: 1.5px solid #bfc9d9;
+  background:  rgb(59, 130, 246);
+  font-size: 15px;
+  height: 35px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #ffffff;
+  font-weight: 500;
+  box-shadow: 0 1px 4px rgba(34,43,69,0.04);
+  margin-top: 2px;
+}
+.filter-action-btn:focus { outline: none; box-shadow: 0 2px 8px rgba(25,118,210,0.08); border-color: #1976d2; }
 /* User search input for admin - short and rounded */
 .admin-user-search-input {
   width: 220px;
@@ -764,6 +776,39 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin: 16px 0;
+}
+
+/* Make the Location field visually wider so it aligns with the end of the People/Group field.
+   Keep its position (right below People/Group) but span full grid width for better balance. */
+.complaint-field.complaint-location {
+  grid-column: 1 / -1; /* span both columns */
+}
+.complaint-field.complaint-location .complaint-value {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Normalize inner clickable location element so it visually matches other complaint-value fields */
+.complaint-field.complaint-location .complaint-value > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px; /* match .complaint-value padding */
+  background: #f9fafb; /* match .complaint-value background */
+  border-radius: 6px; /* match other fields */
+  border-left: 3px solid #3b82f6; /* keep left accent */
+  color: #111827;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* Remove any inline negative margins or explicit borders the markup applied */
+.complaint-field.complaint-location .complaint-value > span[style] {
+  margin: 0 !important;
+  border: none !important;
+  padding: 8px 12px !important;
 }
 
 .complaint-field label {
@@ -1615,7 +1660,7 @@ html.no-scroll, body.no-scroll {
 .credential-modal {
   background: white;
   border-radius: 12px;
-  max-width: 760px; /* slightly narrower so grid computes consistent columns */
+  max-width: 800px;
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
