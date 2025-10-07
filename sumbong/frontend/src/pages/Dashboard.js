@@ -1433,18 +1433,71 @@ const Dashboard = () => {
     if (type === 'checkbox') {
       setComplaint({ ...complaint, [name]: checked });
     } else if (type === 'file') {
-      const MAX_BYTES = 10 * 1024 * 1024; // 10MB
+      const IMG_MAX = 10 * 1024 * 1024; // 10MB
+      const PDF_MAX = 20 * 1024 * 1024; // 20MB
+      const VIDEO_MAX = 200 * 1024 * 1024; // 200MB
+      const MAX_FILES = 5;
+      const TOTAL_MAX = 500 * 1024 * 1024; // 500MB total per submission
+
       const list = files ? Array.from(files) : [];
-      const tooLarge = list.filter(f => f.size > MAX_BYTES);
-      if (tooLarge.length > 0) {
-        Swal.fire({
-          icon: 'error',
-          title: 'File Too Large',
-          html: `The following file(s) exceed the 10MB limit:<br/><ul style="text-align:left;">${tooLarge.map(f=>`<li>${f.name} (${(f.size/1024/1024).toFixed(2)}MB)</li>`).join('')}</ul>`,
-        });
+      const rejected = [];
+      const accepted = [];
+
+      // Validate per-file by mimetype and per-type size
+      for (const f of list) {
+        const mt = (f.type || '').toLowerCase();
+        if (mt.startsWith('image/')) {
+          if (f.size <= IMG_MAX) accepted.push(f);
+          else rejected.push({ file: f, reason: `image exceeds ${IMG_MAX / (1024*1024)}MB` });
+        } else if (mt === 'application/pdf') {
+          if (f.size <= PDF_MAX) accepted.push(f);
+          else rejected.push({ file: f, reason: `pdf exceeds ${PDF_MAX / (1024*1024)}MB` });
+        } else if (mt.startsWith('video/')) {
+          if (f.size <= VIDEO_MAX) accepted.push(f);
+          else rejected.push({ file: f, reason: `video exceeds ${VIDEO_MAX / (1024*1024)}MB` });
+        } else {
+          // unsupported type
+          rejected.push({ file: f, reason: 'unsupported file type' });
+        }
       }
-      const accepted = list.filter(f => f.size <= MAX_BYTES).slice(0,5); // still respect max 5 on client side
-      setComplaint({ ...complaint, evidence: accepted });
+
+      // Enforce max files client-side (keep earliest accepted files)
+      let finalAccepted = accepted.slice(0, MAX_FILES);
+
+      // Ensure total size not exceeding TOTAL_MAX; if it does, drop trailing files
+      let total = finalAccepted.reduce((s, f) => s + (f.size || 0), 0);
+      if (total > TOTAL_MAX) {
+        // sort by original order already preserved; drop from the end until under limit
+        while (finalAccepted.length > 0 && total > TOTAL_MAX) {
+          const removed = finalAccepted.pop();
+          total -= (removed.size || 0);
+          rejected.push({ file: removed, reason: `exceeds total ${TOTAL_MAX / (1024*1024)}MB limit` });
+        }
+      }
+
+      // If we dropped some accepted files due to MAX_FILES, mark them rejected for UX
+      if (accepted.length > finalAccepted.length) {
+        const extras = accepted.slice(finalAccepted.length);
+        extras.forEach(f => rejected.push({ file: f, reason: `exceeds per-submission file count (${MAX_FILES})` }));
+      }
+
+      // Build informative SweetAlert if any rejections occurred
+      if (rejected.length > 0) {
+        const grouped = rejected.reduce((acc, r) => {
+          const key = r.reason;
+          (acc[key] = acc[key] || []).push(r.file);
+          return acc;
+        }, {});
+        let html = '';
+        for (const reason in grouped) {
+          html += `<strong>${reason}</strong><br/><ul style="text-align:left;margin-left:18px;">`;
+          html += grouped[reason].map(f => `<li>${f.name} (${(f.size/1024/1024).toFixed(2)} MB)</li>`).join('');
+          html += '</ul>';
+        }
+        Swal.fire({ icon: 'warning', title: 'Some files were not accepted', html, width: 600 });
+      }
+
+      setComplaint({ ...complaint, evidence: finalAccepted });
     } else {
       setComplaint({ ...complaint, [name]: value });
     }
@@ -1524,7 +1577,59 @@ const Dashboard = () => {
     if (type === 'checkbox') {
       setEditComplaintData({ ...editComplaintData, [name]: checked });
     } else if (type === 'file') {
-      setEditComplaintData({ ...editComplaintData, evidence: files ? Array.from(files) : [] });
+      // Reuse same validation as creation flow
+      const IMG_MAX = 10 * 1024 * 1024; // 10MB
+      const PDF_MAX = 20 * 1024 * 1024; // 20MB
+      const VIDEO_MAX = 200 * 1024 * 1024; // 200MB
+      const MAX_FILES = 5;
+      const TOTAL_MAX = 500 * 1024 * 1024; // 500MB total per submission
+
+      const list = files ? Array.from(files) : [];
+      const rejected = [];
+      const accepted = [];
+      for (const f of list) {
+        const mt = (f.type || '').toLowerCase();
+        if (mt.startsWith('image/')) {
+          if (f.size <= IMG_MAX) accepted.push(f);
+          else rejected.push({ file: f, reason: `image exceeds ${IMG_MAX / (1024*1024)}MB` });
+        } else if (mt === 'application/pdf') {
+          if (f.size <= PDF_MAX) accepted.push(f);
+          else rejected.push({ file: f, reason: `pdf exceeds ${PDF_MAX / (1024*1024)}MB` });
+        } else if (mt.startsWith('video/')) {
+          if (f.size <= VIDEO_MAX) accepted.push(f);
+          else rejected.push({ file: f, reason: `video exceeds ${VIDEO_MAX / (1024*1024)}MB` });
+        } else {
+          rejected.push({ file: f, reason: 'unsupported file type' });
+        }
+      }
+      let finalAccepted = accepted.slice(0, MAX_FILES);
+      let total = finalAccepted.reduce((s, f) => s + (f.size || 0), 0);
+      if (total > TOTAL_MAX) {
+        while (finalAccepted.length > 0 && total > TOTAL_MAX) {
+          const removed = finalAccepted.pop();
+          total -= (removed.size || 0);
+          rejected.push({ file: removed, reason: `exceeds total ${TOTAL_MAX / (1024*1024)}MB limit` });
+        }
+      }
+      if (accepted.length > finalAccepted.length) {
+        const extras = accepted.slice(finalAccepted.length);
+        extras.forEach(f => rejected.push({ file: f, reason: `exceeds per-submission file count (${MAX_FILES})` }));
+      }
+      if (rejected.length > 0) {
+        const grouped = rejected.reduce((acc, r) => {
+          const key = r.reason;
+          (acc[key] = acc[key] || []).push(r.file);
+          return acc;
+        }, {});
+        let html = '';
+        for (const reason in grouped) {
+          html += `<strong>${reason}</strong><br/><ul style="text-align:left;margin-left:18px;">`;
+          html += grouped[reason].map(f => `<li>${f.name} (${(f.size/1024/1024).toFixed(2)} MB)</li>`).join('');
+          html += '</ul>';
+        }
+        Swal.fire({ icon: 'warning', title: 'Some files were not accepted', html, width: 600 });
+      }
+      setEditComplaintData({ ...editComplaintData, evidence: finalAccepted });
     } else {
       setEditComplaintData({ ...editComplaintData, [name]: value });
     }
@@ -1904,7 +2009,7 @@ const Dashboard = () => {
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Ref</th>
+                  <th>Complaint #</th>
                   <th>Type</th>
                   <th>Location</th>
                   <th>Status</th>
@@ -2287,7 +2392,7 @@ const Dashboard = () => {
                                               <label className="complaint-label">Supporting evidence (pictures, videos, files):</label>
                 <input type="file" name="evidence" multiple ref={complaintFileInputRef} onChange={handleComplaintChange} />
                 <small style={{ display:'block', marginTop:4, color:'#555' }}>
-                  Max 5 files. Each file up to 10MB. Oversized files will be skipped.
+                  Max 5 files. Images up to 10MB, PDFs up to 20MB, Videos up to 200MB. Total per submission up to 500MB.
                 </small>
                 {complaint.evidence && complaint.evidence.length > 0 && (
                   <div style={{ marginTop:6, fontSize:12, color:'#2563eb' }}>
@@ -2327,9 +2432,7 @@ const Dashboard = () => {
             </button>
             <div className="complaint-header">
               <h3>Complaint Details</h3>
-              <div style={{ marginLeft: 12, fontSize: 13, color: '#374151', fontFamily: 'monospace' }}>
-                {viewComplaint.complaintNumber && (<span>Ref: {viewComplaint.complaintNumber}</span>)}
-              </div>
+              {/* Reference moved into complaint details section for cleaner layout */}
               <div className="complaint-status">
                 <span className={`status-badge status-${viewComplaint.status}`}>
                   {viewComplaint.status}
@@ -2341,6 +2444,10 @@ const Dashboard = () => {
             <div className="complaint-scroll-body">
               <div className="complaint-content">
               <div className="complaint-info-grid">
+                <div className="info-item">
+                  <label>Complaint #</label>
+                  <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace' }}>{viewComplaint.complaintNumber || '—'}</span>
+                </div>
                 <div className="info-item">
                   <label>Date & Time</label>
                   <span>{viewComplaint.date} {viewComplaint.time}</span>
@@ -2680,6 +2787,9 @@ const Dashboard = () => {
                     />
                     Replace existing evidence (old files will be deleted)
                   </label>
+                  <div style={{ marginTop: 6, color: '#555', fontSize: 12 }}>
+                    Max 5 files. Images up to 10MB, PDFs up to 20MB, Videos up to 200MB. Total per submission up to 500MB.
+                  </div>
                 </div>
               </div>
               <div className="complaint-input-container">

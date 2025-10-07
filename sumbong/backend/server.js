@@ -458,17 +458,27 @@ function extractFullPublicId(url) {
   return match ? match[1] : null;
 }
 const profileUpload = multer({ storage: profileStorage });
-// 10MB per evidence file limit
+// Size limits (bytes)
 const TEN_MB = 10 * 1024 * 1024;
-// Credential uploads: 50MB per file
+const TWENTY_MB = 20 * 1024 * 1024;
+// Allow videos up to 200MB per-file
+const TWO_HUNDRED_MB = 200 * 1024 * 1024;
+// Total per-submission limit: 500MB
+const FIVE_HUNDRED_MB = 500 * 1024 * 1024;
+// Credential uploads: 50MB per file (memory storage)
 const FIFTY_MB = 50 * 1024 * 1024;
+
+// Multer: allow up to the largest per-file limit (video). We'll validate per-file type limits
+// after the upload completes so we can accept large videos while still enforcing stricter
+// limits for images and PDFs.
 const complaintUpload = multer({
   storage: complaintStorage,
-  limits: { fileSize: TEN_MB },
+  limits: { fileSize: TWO_HUNDRED_MB },
   fileFilter: (req, file, cb) => {
     const allowedImage = ['image/jpeg','image/png','image/gif','image/webp','image/bmp'];
-    const allowedVideo = ['video/mp4','video/webm','video/ogg','video/quicktime'];
-    if (allowedImage.includes(file.mimetype) || allowedVideo.includes(file.mimetype)) return cb(null,true);
+    const allowedVideo = ['video/mp4','video/webm','video/ogg','video/quicktime','video/x-matroska','video/avi'];
+    const allowedPdf = ['application/pdf'];
+    if (allowedImage.includes(file.mimetype) || allowedVideo.includes(file.mimetype) || allowedPdf.includes(file.mimetype)) return cb(null, true);
     return cb(new Error('Unsupported evidence file type'));
   }
 });
@@ -856,10 +866,12 @@ app.get('/api/user/:id', async (req, res) => {
 
 // Submit a new complaint
 app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','contact','location','people','description','type','resolution']), (req, res, next) => {
+  // First let multer accept up to 5 files with the configured per-file max (200MB).
   complaintUpload.array('evidence', 5)(req, res, function(err){
     if (err) {
+      // Multer-level limit exceeded (single file > 200MB)
       if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(413).json({ message: 'One or more evidence files exceed the 10MB limit.' });
+        return res.status(413).json({ message: 'One or more evidence files exceed the maximum allowed size (200MB).' });
       }
       return res.status(400).json({ message: 'Upload failed', error: err.message });
     }
@@ -869,7 +881,59 @@ app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','con
   try {
     console.log('POST /api/complaints req.user:', req.user);
     console.log('Complaint user id:', req.user.id);
-    const evidenceFiles = req.files ? req.files.map(file => file.path || file.secure_url || file.url).filter(Boolean) : [];
+    // Validate uploaded files against per-type and total-size limits.
+    const files = req.files || [];
+    const MAX_FILES = 5;
+    if (files.length > MAX_FILES) {
+      // Best-effort: ignore files beyond the first 5 and delete their uploaded assets
+      const extra = files.slice(MAX_FILES);
+      for (const f of extra) {
+        try { const pid = extractFullPublicId(f.path || f.secure_url || f.url); if (pid) await deleteCloudinaryPublicIds([pid]); } catch(e){}
+      }
+      files.length = MAX_FILES;
+    }
+
+    // Per-type size caps
+    const IMAGE_MAX = TEN_MB; // 10MB
+    const PDF_MAX = TWENTY_MB; // 20MB
+    const VIDEO_MAX = TWO_HUNDRED_MB; // 200MB
+
+    // Compute total size and collect any files to skip
+    let totalSize = 0;
+    const skipped = [];
+    const accepted = [];
+    for (const f of files) {
+      const mime = f.mimetype || '';
+      const size = f.size || 0;
+      let allowed = true;
+      if (mime.startsWith('image/')) {
+        if (size > IMAGE_MAX) allowed = false;
+      } else if (mime === 'application/pdf') {
+        if (size > PDF_MAX) allowed = false;
+      } else if (mime.startsWith('video/')) {
+        if (size > VIDEO_MAX) allowed = false;
+      } else {
+        allowed = false;
+      }
+      if (!allowed) {
+        skipped.push({ file: f.originalname, reason: 'file too large or unsupported type' });
+        // Attempt to delete uploaded asset if Cloudinary already stored it
+        try { const pid = extractFullPublicId(f.path || f.secure_url || f.url); if (pid) await deleteCloudinaryPublicIds([pid]); } catch(e){ console.warn('Failed cleanup for skipped file', f.originalname, e.message); }
+        continue;
+      }
+      totalSize += size;
+      accepted.push(f);
+    }
+
+    if (totalSize > FIVE_HUNDRED_MB) {
+      // Total too large: cleanup all accepted uploads
+      for (const f of accepted) {
+        try { const pid = extractFullPublicId(f.path || f.secure_url || f.url); if (pid) await deleteCloudinaryPublicIds([pid]); } catch(e){ }
+      }
+      return res.status(413).json({ message: 'Total evidence upload size exceeds the 500MB per-submission limit.' });
+    }
+
+    const evidenceFiles = accepted.map(file => file.path || file.secure_url || file.url).filter(Boolean);
     const allowedFields = ['fullName', 'contact', 'date', 'time', 'location', 'people', 'description', 'type', 'resolution', 'anonymous', 'confidential'];
     const complaintData = { user: req.user.id, evidence: evidenceFiles, status: 'pending' };
     allowedFields.forEach(field => {
@@ -970,11 +1034,51 @@ app.patch('/api/complaints/:id', sanitizeBodyFields(['fullName','contact','locat
       : [];
 
     // New uploads (secure Cloudinary URLs)
-    const newEvidenceRaw = req.files ? req.files.map(f => f.path || f.secure_url || f.url).filter(Boolean) : [];
-    const newEvidenceObjs = newEvidenceRaw.map(url => ({
-      url,
-  publicId: extractFullPublicId(url)
-    }));
+    const files = req.files || [];
+    const MAX_FILES = 5;
+    if (files.length > MAX_FILES) {
+      // Delete any extras beyond the first 5
+      const extra = files.slice(MAX_FILES);
+      for (const f of extra) {
+        try { const pid = extractFullPublicId(f.path || f.secure_url || f.url); if (pid) await deleteCloudinaryPublicIds([pid]); } catch(e){}
+      }
+      files.length = MAX_FILES;
+    }
+
+    // Validate per-file type and size limits (same as submission rules)
+    const acceptedFiles = [];
+    for (const f of files) {
+      const mime = f.mimetype || '';
+      const size = f.size || 0;
+      let allowed = true;
+      if (mime.startsWith('image/')) {
+        if (size > TEN_MB) allowed = false;
+      } else if (mime === 'application/pdf') {
+        if (size > TWENTY_MB) allowed = false;
+      } else if (mime.startsWith('video/')) {
+        if (size > TWO_HUNDRED_MB) allowed = false;
+      } else {
+        allowed = false;
+      }
+      if (!allowed) {
+        try { const pid = extractFullPublicId(f.path || f.secure_url || f.url); if (pid) await deleteCloudinaryPublicIds([pid]); } catch(e){ console.warn('Failed cleanup for oversized/unsupported file', f.originalname); }
+        continue;
+      }
+      acceptedFiles.push(f);
+    }
+
+    // Enforce total size cap on the new uploads
+    const totalNewSize = acceptedFiles.reduce((s, f) => s + (f.size || 0), 0);
+    if (totalNewSize > FIVE_HUNDRED_MB) {
+      // Cleanup accepted files if exceeding total cap
+      for (const f of acceptedFiles) {
+        try { const pid = extractFullPublicId(f.path || f.secure_url || f.url); if (pid) await deleteCloudinaryPublicIds([pid]); } catch(e){}
+      }
+      return res.status(413).json({ message: 'Total new evidence upload size exceeds the 500MB per-submission limit.' });
+    }
+
+    const newEvidenceRaw = acceptedFiles.map(f => f.path || f.secure_url || f.url).filter(Boolean);
+    const newEvidenceObjs = newEvidenceRaw.map(url => ({ url, publicId: extractFullPublicId(url) }));
 
     const update = {};
     const replace = ['true', '1', true].includes(req.body.replaceEvidence);

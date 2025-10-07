@@ -1986,7 +1986,7 @@ const AdminDashboard = () => {
             <table className="admin-table admin-complaints">
               <thead>
                 <tr>
-                  <th>Ref</th>
+                  <th>Complaint #</th>
                   <th>User</th>
                   <th>Email</th>
                   <th>Type</th>
@@ -2487,7 +2487,10 @@ const AdminDashboard = () => {
       </div>
 
       <div className="complaint-details-grid">
-        <div style={{ position: 'absolute', top: 12, right: 120, fontFamily: 'monospace', color: '#374151' }}>{viewComplaint?.complaintNumber ? `Ref: ${viewComplaint.complaintNumber}` : ''}</div>
+        <div className="complaint-field">
+          <label>Complaint #</label>
+          <div className="complaint-value" style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace' }}>{viewComplaint?.complaintNumber || '—'}</div>
+        </div>
         <div className="complaint-field">
           <label>Date & Time</label>
           <div className="complaint-value">{viewComplaint.date} {viewComplaint.time}</div>
