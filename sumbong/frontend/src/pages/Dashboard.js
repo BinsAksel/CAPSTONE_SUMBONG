@@ -3167,7 +3167,20 @@ const LocationModal = ({ isOpen, type, initialLocation, onConfirm, onClose }) =>
       },
       (error) => {
         console.warn('Geolocation error:', error);
-        alert('Unable to get your current location. Please select a location on the map.');
+        // Provide more actionable feedback for desktop users (devtools/device emulation often blocks geolocation)
+        const code = error && error.code;
+        const msg = error && error.message ? error.message : '';
+        console.warn('Geolocation details - code:', code, 'message:', msg);
+        let friendly = 'Unable to get your current location. Please select a location on the map.';
+        if (code === 1) {
+          friendly = 'Location permission denied. Please allow location access in your browser and try again.';
+        } else if (code === 2) {
+          friendly = 'Location information is unavailable. On desktop this often happens if DevTools device emulation is enabled or if your browser/OS location services are disabled.';
+        } else if (code === 3) {
+          friendly = 'The request to get your location timed out. Please try again.';
+        }
+        friendly += '\n\nQuick checks:\n- Ensure the site has Location permission (browser address bar -> Site settings).\n- If you are using Chrome/Edge device emulation (Responsive toolbar), open DevTools > More tools > Sensors and set Geolocation to "No override" or provide coordinates.\n- Verify your OS/location services are enabled and your browser is allowed to use them.\n- Disable any privacy extensions that may block geolocation (e.g., Brave shields, privacy add-ons).';
+        alert(friendly);
         setIsLoadingLocation(false);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
