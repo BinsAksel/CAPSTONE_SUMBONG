@@ -305,13 +305,25 @@ const CompleteProfile = () => {
         setFormData(prev => ({ ...prev, password: '', confirmPassword: '' }));
       }
     } catch (err) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Submission Failed',
-        text: 'Failed to complete profile. Please try again.',
-        confirmButtonColor: '#c62828',
-        customClass: { popup: 'swal2-rounded' }
-      });
+      const msg = err.response?.data?.message || err.message || '';
+      const isSizeError = err.response?.status === 413 || /exceed/i.test(String(msg));
+      if (isSizeError) {
+        Swal.fire({
+          icon: 'error',
+          title: 'File too large',
+          html: `One or more uploaded files exceed the 50 MB per-file limit. Please remove large files and try again.`,
+          confirmButtonColor: '#c62828',
+          customClass: { popup: 'swal2-rounded' }
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Submission Failed',
+          text: 'Failed to complete profile. Please try again.',
+          confirmButtonColor: '#c62828',
+          customClass: { popup: 'swal2-rounded' }
+        });
+      }
     } finally {
       setLoading(false);
       setPendingSubmit(false);
@@ -501,7 +513,8 @@ const CompleteProfile = () => {
           />
         </div>
         <div className="form-group">
-          <label>Upload Credentials (ID, etc.)</label>
+          <label className="file-label">📋 Upload Credentials for Verification</label>
+          <p className="file-description">Please upload your ID, barangay certificate, or other documents that prove you are a resident of Barangay East Tapinac.</p>
           <div style={{ fontSize: 13, color: '#555', marginBottom: 6 }}>Max file size per file: 50 MB</div>
           <input
             type="file"
@@ -510,6 +523,7 @@ const CompleteProfile = () => {
             onChange={handleImageChange}
             required
           />
+          <small className="file-help">Accepted formats: Images (JPG, PNG), PDF, and Word documents. You can add a profile picture later after logging in.</small>
         </div>
         <p className="policy-disclaimer">
           By completing your profile, you agree to our{' '}

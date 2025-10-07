@@ -459,6 +459,8 @@ function extractFullPublicId(url) {
 const profileUpload = multer({ storage: profileStorage });
 // 10MB per evidence file limit
 const TEN_MB = 10 * 1024 * 1024;
+// Credential uploads: 50MB per file
+const FIFTY_MB = 50 * 1024 * 1024;
 const complaintUpload = multer({
   storage: complaintStorage,
   limits: { fileSize: TEN_MB },
@@ -471,7 +473,16 @@ const complaintUpload = multer({
 });
 
 // In-memory storage for credentials (converted to base64 for Cloudinary upload)
-const credentialUploadMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: TEN_MB } });
+// Accept only common image types and PDFs; enforce 50MB per-file limit
+const credentialUploadMemory = multer({ 
+  storage: multer.memoryStorage(), 
+  limits: { fileSize: FIFTY_MB },
+  fileFilter: (req, file, cb) => {
+    const allowed = ['image/jpeg','image/png','image/webp','image/bmp','application/pdf'];
+    if (allowed.includes(file.mimetype)) return cb(null, true);
+    return cb(new Error('Unsupported credential file type'));
+  }
+ });
 
 // Generic helper to extract full Cloudinary publicId from secure URL
 function extractCloudinaryPublicId(fullUrl) {
@@ -615,7 +626,11 @@ app.get('/api/admin/users', authenticateJWT, requireAdmin, async (req, res) => {
   }
   
   try {
-  const users = await User.find().sort({ createdAt: -1 });
+    // Allow an escape valve for testing/debugging: ?includeUnverified=1 will return all users (useful in test mode)
+    const includeUnverified = ['1','true','yes'].includes(String(req.query.includeUnverified||'').toLowerCase());
+    // Only return non-admin users who have verified their email, unless explicitly requested via query flag
+    const baseFilter = includeUnverified ? {} : { emailVerified: true, isAdmin: { $ne: true } };
+    const users = await User.find(baseFilter).sort({ createdAt: -1 });
     // Normalize credential entries (now stored as objects) + backward compatibility for legacy string entries
     const usersWithImagePaths = users.map(user => {
       const rawCreds = Array.isArray(user.credentials) ? user.credentials : [];
@@ -1547,14 +1562,16 @@ app.post('/api/user/credentials', authenticateJWT, credentialUploadMemory.array(
     const uploaded = [];
     for (const f of req.files) {
       const b64 = `data:${f.mimetype};base64,${f.buffer.toString('base64')}`;
+      // Use resource_type 'raw' for PDFs so Cloudinary stores them correctly; images use 'image'
+      const isPdf = f.mimetype === 'application/pdf';
       const up = await cloudinary.uploader.upload(b64, {
         folder,
-        resource_type: 'image',
+        resource_type: isPdf ? 'raw' : 'image',
         use_filename: true,
         unique_filename: true,
         overwrite: false
       });
-      uploaded.push({ url: up.secure_url, publicId: up.public_id, uploadedAt: new Date() });
+      uploaded.push({ url: up.secure_url, publicId: up.public_id, uploadedAt: new Date(), mimetype: f.mimetype });
     }
     user.credentials = user.credentials.concat(uploaded);
     await user.save();

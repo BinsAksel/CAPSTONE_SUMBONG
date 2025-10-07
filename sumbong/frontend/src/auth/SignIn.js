@@ -299,12 +299,23 @@ const SignIn = () => {
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.response?.data || err.message || 'Registration failed. Please try again.';
-      Swal.fire({
-        icon: 'error',
-        title: 'Registration Failed',
-        text: typeof errorMessage === 'string' ? errorMessage : 'Registration failed. Please try again.',
-        confirmButtonColor: '#1a365d'
-      });
+      // If server reports payload too large or mentions 'exceed', surface a clear SweetAlert for file size
+      const isSizeError = err.response?.status === 413 || /exceed/i.test(String(errorMessage));
+      if (isSizeError) {
+        Swal.fire({
+          icon: 'error',
+          title: 'File too large',
+          html: `One or more uploaded files exceed the 50 MB per-file limit. Please remove large files and try again.`,
+          confirmButtonColor: '#1a365d'
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Registration Failed',
+          text: typeof errorMessage === 'string' ? errorMessage : 'Registration failed. Please try again.',
+          confirmButtonColor: '#1a365d'
+        });
+      }
     } finally {
       setLoading(false);
       setPendingSubmit(false);

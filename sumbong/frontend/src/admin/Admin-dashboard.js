@@ -1820,7 +1820,9 @@ const AdminDashboard = () => {
         </thead>
         <tbody>
                 {users.filter(user => {
+                  // Hide admin accounts and users who haven't verified their email yet
                   if (user.isAdmin) return false; // hide admin accounts from list
+                  if (!user.emailVerified) return false; // hide users until they verify their email
                   // Status filter
                   const statusMatch = userFilter === 'all' ? true :
                     userFilter === 'pending' ? !user.approved :
