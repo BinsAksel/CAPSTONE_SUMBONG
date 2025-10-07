@@ -857,6 +857,17 @@ app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','con
     allowedFields.forEach(field => {
       if (req.body[field] !== undefined) complaintData[field] = req.body[field];
     });
+    // Accept locationCoords if provided (frontend sends JSON string)
+    if (req.body.locationCoords) {
+      try {
+        const coords = typeof req.body.locationCoords === 'string' ? JSON.parse(req.body.locationCoords) : req.body.locationCoords;
+        const lat = coords && (coords.lat ?? coords.latitude);
+        const lng = coords && (coords.lng ?? coords.longitude);
+        if (lat != null && lng != null) {
+          complaintData.locationCoords = { lat: parseFloat(lat), lng: parseFloat(lng) };
+        }
+      } catch (e) { /* ignore parse errors */ }
+    }
     // Defensive fallback: ensure fullName & contact populated from user record if missing
     if (!complaintData.fullName || !complaintData.contact) {
       const u = await User.findById(req.user.id).select('firstName lastName email');
@@ -966,6 +977,15 @@ app.patch('/api/complaints/:id', sanitizeBodyFields(['fullName','contact','locat
     // Copy over primitive updatable fields
     const allowed = ['fullName','contact','date','time','location','people','description','type','resolution','anonymous','confidential'];
     allowed.forEach(f => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
+    // Allow updating locationCoords if provided
+    if (req.body.locationCoords) {
+      try {
+        const coords = typeof req.body.locationCoords === 'string' ? JSON.parse(req.body.locationCoords) : req.body.locationCoords;
+        const lat = coords && (coords.lat ?? coords.latitude);
+        const lng = coords && (coords.lng ?? coords.longitude);
+        if (lat != null && lng != null) update.locationCoords = { lat: parseFloat(lat), lng: parseFloat(lng) };
+      } catch (e) { /* ignore parse errors */ }
+    }
 
     // Legacy single feedback update support (kept for backward compatibility)
     if (typeof req.body.feedback !== 'undefined') {

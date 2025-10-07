@@ -52,15 +52,26 @@ const LocationModal = ({ isOpen, type, initialLocation, onConfirm, onClose }) =>
 
   // Update currentLocation when initialLocation changes
   useEffect(() => {
-    console.log('Admin LocationModal useEffect - initialLocation:', initialLocation);
-    if (initialLocation && initialLocation.lat && initialLocation.lng) {
-      const newLocation = {
-        lat: parseFloat(initialLocation.lat),
-        lng: parseFloat(initialLocation.lng),
-        address: initialLocation.address || 'Location'
-      };
-      console.log('Admin setting currentLocation to:', newLocation);
-      setCurrentLocation(newLocation);
+    // Normalize different shapes for initialLocation (object, JSON string, string coords)
+    if (!initialLocation) return;
+    let loc = initialLocation;
+    try {
+      if (typeof loc === 'string') {
+        // sometimes location may be stored as a JSON string
+        loc = JSON.parse(loc);
+      }
+    } catch (e) {
+      // ignore parse error
+    }
+
+    const latRaw = loc && (loc.lat ?? loc.latitude ?? (loc.coords && loc.coords.lat));
+    const lngRaw = loc && (loc.lng ?? loc.longitude ?? (loc.coords && loc.coords.lng));
+
+    const lat = latRaw != null ? parseFloat(latRaw) : null;
+    const lng = lngRaw != null ? parseFloat(lngRaw) : null;
+
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setCurrentLocation({ lat, lng, address: loc.address || loc.display_name || loc.name || '' });
     }
   }, [initialLocation]);
 

@@ -10,6 +10,11 @@ const complaintSchema = new mongoose.Schema({
   location: String,
   people: String,
   description: String,
+  // Optional coordinates for mapped location
+  locationCoords: {
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null }
+  },
   // Store evidence as objects so we can manage Cloudinary deletions. Backward compatibility: old records may still be strings.
   evidence: [{
     type: mongoose.Schema.Types.Mixed, // either string (legacy) or { url, publicId }

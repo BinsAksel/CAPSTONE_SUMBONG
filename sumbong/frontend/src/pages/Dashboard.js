@@ -3029,14 +3029,38 @@ const Dashboard = () => {
 
 // Location Modal Component
 const LocationModal = ({ isOpen, type, initialLocation, onConfirm, onClose }) => {
-  const [currentLocation, setCurrentLocation] = useState(
-    (initialLocation && initialLocation.lat && initialLocation.lng) 
-      ? {
-          lat: parseFloat(initialLocation.lat),
-          lng: parseFloat(initialLocation.lng),
-          address: initialLocation.address || 'Location'
+  // Defensive normalization: support initialLocation as object or JSON string,
+  // and accept lat/lng or latitude/longitude keys. Ensure numeric values.
+  const normalizeLocation = (loc) => {
+    if (!loc) return null;
+    let parsed = loc;
+    if (typeof loc === 'string') {
+      try {
+        parsed = JSON.parse(loc);
+      } catch (e) {
+        // not JSON, fall back to trying comma-separated numbers
+        const parts = loc.split(',').map(s => s.trim());
+        if (parts.length >= 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+          return { lat: parseFloat(parts[0]), lng: parseFloat(parts[1]), address: '' };
         }
-      : { lat: null, lng: null, address: '' }
+        return null;
+      }
+    }
+
+    const lat = parsed?.lat ?? parsed?.latitude ?? parsed?.coords?.lat ?? parsed?.coords?.latitude;
+    const lng = parsed?.lng ?? parsed?.longitude ?? parsed?.coords?.lng ?? parsed?.coords?.longitude;
+    if (lat == null || lng == null) return null;
+    const nLat = parseFloat(lat);
+    const nLng = parseFloat(lng);
+    if (Number.isFinite(nLat) && Number.isFinite(nLng)) {
+      return { lat: nLat, lng: nLng, address: parsed.address || parsed.display_name || '' };
+    }
+    return null;
+  };
+
+  const initialNormalized = normalizeLocation(initialLocation);
+  const [currentLocation, setCurrentLocation] = useState(
+    initialNormalized ? { lat: initialNormalized.lat, lng: initialNormalized.lng, address: initialNormalized.address || 'Location' } : { lat: null, lng: null, address: '' }
   );
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [map, setMap] = useState(null);
@@ -3045,15 +3069,12 @@ const LocationModal = ({ isOpen, type, initialLocation, onConfirm, onClose }) =>
 
   // Update currentLocation when initialLocation changes
   useEffect(() => {
-    console.log('User LocationModal useEffect - initialLocation:', initialLocation);
-    if (initialLocation && initialLocation.lat && initialLocation.lng) {
-      const newLocation = {
-        lat: parseFloat(initialLocation.lat),
-        lng: parseFloat(initialLocation.lng),
-        address: initialLocation.address || 'Location'
-      };
-      console.log('User setting currentLocation to:', newLocation);
-      setCurrentLocation(newLocation);
+    // Normalize incoming initialLocation and update currentLocation if valid
+    const normalized = normalizeLocation(initialLocation);
+    // debug
+    console.log('User LocationModal useEffect - initialLocation (raw):', initialLocation, 'normalized:', normalized);
+    if (normalized) {
+      setCurrentLocation({ lat: normalized.lat, lng: normalized.lng, address: normalized.address || 'Location' });
     }
   }, [initialLocation]);
 
