@@ -1986,6 +1986,7 @@ const AdminDashboard = () => {
             <table className="admin-table admin-complaints">
               <thead>
                 <tr>
+                  <th>Ref</th>
                   <th>User</th>
                   <th>Email</th>
                   <th>Type</th>
@@ -2007,6 +2008,7 @@ const AdminDashboard = () => {
                   return statusMatch && typeMatch && searchMatch && dateMatch;
                 }).map(c => (
                   <tr key={c._id}>
+                    <td style={{ fontFamily: 'monospace', color: '#374151', fontSize: 12 }}>{c.complaintNumber || ''}</td>
                     <td>{c.fullName || 'Anonymous'}</td>
                     <td>{c.contact || 'N/A'}</td>
                     <td style={{ position: 'relative' }}>
@@ -2485,6 +2487,7 @@ const AdminDashboard = () => {
       </div>
 
       <div className="complaint-details-grid">
+        <div style={{ position: 'absolute', top: 12, right: 120, fontFamily: 'monospace', color: '#374151' }}>{viewComplaint?.complaintNumber ? `Ref: ${viewComplaint.complaintNumber}` : ''}</div>
         <div className="complaint-field">
           <label>Date & Time</label>
           <div className="complaint-value">{viewComplaint.date} {viewComplaint.time}</div>

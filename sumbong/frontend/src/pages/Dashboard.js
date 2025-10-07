@@ -1489,7 +1489,13 @@ const Dashboard = () => {
         };
         saveNotificationToStorage(notifPayload);
       } catch (e) { /* non-blocking */ }
-      Swal.fire('Submitted!', 'Your complaint has been submitted.', 'success');
+      const createdObj = res && res.data && (res.data.complaint || res.data.createdComplaint || res.data.data);
+      const ref = createdObj && createdObj.complaintNumber ? createdObj.complaintNumber : null;
+      Swal.fire({
+        icon: 'success',
+        title: 'Submitted!',
+        html: ref ? `Your complaint has been submitted.<br/><small style="font-family:monospace;color:#374151">Ref: ${ref}</small>` : 'Your complaint has been submitted.',
+      });
       setShowComplaint(false);
       fetchComplaints(user._id);
       // Reset form
@@ -1898,6 +1904,7 @@ const Dashboard = () => {
               <thead>
                 <tr>
                   <th>Date</th>
+                  <th>Ref</th>
                   <th>Type</th>
                   <th>Location</th>
                   <th>Status</th>
@@ -1942,6 +1949,7 @@ const Dashboard = () => {
                           </span>
                         )}
                       </td>
+                      <td style={{ fontFamily: 'monospace', color: '#374151', fontSize: 12 }}>{c.complaintNumber || ''}</td>
                       <td>{c.type}</td>
                       <td>{c.location}</td>
                       <td>
@@ -2319,6 +2327,9 @@ const Dashboard = () => {
             </button>
             <div className="complaint-header">
               <h3>Complaint Details</h3>
+              <div style={{ marginLeft: 12, fontSize: 13, color: '#374151', fontFamily: 'monospace' }}>
+                {viewComplaint.complaintNumber && (<span>Ref: {viewComplaint.complaintNumber}</span>)}
+              </div>
               <div className="complaint-status">
                 <span className={`status-badge status-${viewComplaint.status}`}>
                   {viewComplaint.status}

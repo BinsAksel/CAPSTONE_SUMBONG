@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 
 const complaintSchema = new mongoose.Schema({
+  // Human-friendly sequential complaint number for tracking (e.g., CMP-2025-0000123)
+  complaintNumber: { type: String, unique: true, index: true, required: false },
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   fullName: String,
   contact: String,

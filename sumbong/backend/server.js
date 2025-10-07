@@ -42,6 +42,7 @@ const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('./config/cloudinary');
 const Complaint = require('./models/Complaint');
+const Counter = require('./models/Counter');
 const jwt = require('jsonwebtoken');
 const Notification = require('./models/Notification');
 const bus = require('./events/bus');
@@ -893,7 +894,25 @@ app.post('/api/complaints', authenticateJWT, sanitizeBodyFields(['fullName','con
         if (!complaintData.contact) complaintData.contact = u.email;
       }
     }
-  const complaint = await Complaint.create(complaintData);
+    // Generate a sequential complaint number using an atomic counter document
+    // Format: CMP-<YYYY>-<zeroPaddedSeq> (e.g. CMP-2025-0000123)
+    try {
+      const year = new Date().getFullYear();
+      const counter = await Counter.findOneAndUpdate(
+        { _id: 'complaint' },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      const seq = counter.seq || 1;
+      const padded = String(seq).padStart(7, '0');
+      complaintData.complaintNumber = `CMP-${year}-${padded}`;
+    } catch (e) {
+      // Fallback to timestamp-based id if counter fails
+      complaintData.complaintNumber = `CMP-${Date.now()}`;
+      console.warn('Counter increment failed, using fallback complaintNumber:', complaintData.complaintNumber, e.message);
+    }
+
+    const complaint = await Complaint.create(complaintData);
   try { bus.emit('new_complaint', { complaintId: complaint._id.toString() }); } catch (e) { console.warn('Emit new_complaint failed:', e.message); }
   res.json({ complaint });
   } catch (err) {
