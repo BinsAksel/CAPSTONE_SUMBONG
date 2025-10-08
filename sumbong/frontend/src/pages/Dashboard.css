@@ -3347,7 +3347,7 @@ body.modal-open {
   .complaint-details-modal .complaint-header h3 { padding-left: 2px; padding-right: 60px; }
 }
 
-/* >>> Forced override: make Location field wider in View Complaint modal
+/* >> Forced override: make Location field wider in View Complaint modal
    Goal: start aligned with Date & Time and end aligned with Type field
    We place this rule near the end of the file for precedence and increase specificity. */
 .complaint-details-modal .complaint-content .complaint-info-grid .info-location {
