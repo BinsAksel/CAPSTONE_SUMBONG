@@ -84,5 +84,5 @@ If users report blocked content:
 2. Add minimal domain to the correct directive OR self-host the asset.
 3. Redeploy (principle of least privilege maintained).
 
----
+
 Keep this checklist versioned with each security iteration.
