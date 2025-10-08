@@ -87,7 +87,7 @@ const googleSignup = async (req, res) => {
       try {
         const rawToken = user.createEmailVerificationToken(parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10));
         await user.save({ validateBeforeSave:false });
-  const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/, '');
+  const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://sumbong.vercel.app').replace(/\/$/, '');
         const verifyUrl = `${FRONTEND}/verify-email?token=${rawToken}`;
         const { subject, html } = emailVerificationTemplate({ firstName: user.firstName, verifyUrl, minutes: parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10) });
         await sendPasswordSecurityEmail(user.email, subject, html);
@@ -268,7 +268,7 @@ const signup = async (req, res) => {
         try {
           const rawToken = user.createEmailVerificationToken(parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10));
           await user.save({ validateBeforeSave:false });
-          const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/, '');
+          const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://sumbong.vercel.app').replace(/\/$/, '');
           const verifyUrl = `${FRONTEND}/verify-email?token=${rawToken}`;
           const { subject, html } = emailVerificationTemplate({ firstName: user.firstName, verifyUrl, minutes: parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10) });
           await sendPasswordSecurityEmail(user.email, subject, html);
@@ -409,7 +409,7 @@ const forgotPassword = async (req,res) => {
     if (!user) return res.json(genericMsg);
     const token = user.createPasswordResetToken(parseInt(process.env.RESET_TOKEN_EXPIRY_MINUTES||'15',10));
     await user.save({ validateBeforeSave: false });
-    const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/,'')
+    const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://sumbong.vercel.app').replace(/\/$/,'')
     const resetUrl = `${FRONTEND}/reset-password?token=${token}`;
     const { subject, html } = passwordResetTemplate({ firstName: user.firstName, resetUrl, minutes: parseInt(process.env.RESET_TOKEN_EXPIRY_MINUTES||'15',10) });
     await sendPasswordSecurityEmail(user.email, subject, html);
@@ -553,7 +553,7 @@ const resendVerification = async (req,res) => {
     const rawToken = user.createEmailVerificationToken(parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10));
     await user.save({ validateBeforeSave:false });
     try {
-  const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app').replace(/\/$/, '');
+  const FRONTEND = (process.env.FRONTEND_ORIGIN || 'https://sumbong.vercel.app').replace(/\/$/, '');
       const verifyUrl = `${FRONTEND}/verify-email?token=${rawToken}`;
       const { subject, html } = emailVerificationTemplate({ firstName: user.firstName, verifyUrl, minutes: parseInt(process.env.EMAIL_VERIFY_TOKEN_EXP_MINUTES||'30',10) });
       await sendPasswordSecurityEmail(user.email, subject, html);

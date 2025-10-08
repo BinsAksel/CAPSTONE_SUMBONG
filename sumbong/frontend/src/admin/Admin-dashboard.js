@@ -570,25 +570,11 @@ const AdminDashboard = () => {
   const [analyticsDateFrom, setAnalyticsDateFrom] = useState('');
   const [analyticsDateTo, setAnalyticsDateTo] = useState('');
   const [complaintSearch, setComplaintSearch] = useState('');
-  const [debouncedComplaintSearch, setDebouncedComplaintSearch] = useState(complaintSearch);
   // Open-by-complaint-number modal state
   const [openByNumberModalOpen, setOpenByNumberModalOpen] = useState(false);
   const [openByNumberInput, setOpenByNumberInput] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [userSearch, setUserSearch] = useState('');
-  const [debouncedUserSearch, setDebouncedUserSearch] = useState(userSearch);
-
-  // Debounce complaint search to reduce filtering frequency while typing
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedComplaintSearch(complaintSearch), 300);
-    return () => clearTimeout(t);
-  }, [complaintSearch]);
-
-  // Debounce user search similarly
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedUserSearch(userSearch), 300);
-    return () => clearTimeout(t);
-  }, [userSearch]);
   const [selectedCredential, setSelectedCredential] = useState(null);
   const [credentialModalOpen, setCredentialModalOpen] = useState(false);
   const [issueDetailsModalOpen, setIssueDetailsModalOpen] = useState(false);
@@ -1846,7 +1832,7 @@ const AdminDashboard = () => {
                     userFilter === 'pending' ? !user.approved :
                     userFilter === 'approved' ? user.approved : true;
                   // Search filter
-                  const search = (debouncedUserSearch || '').trim().toLowerCase();
+                  const search = userSearch.trim().toLowerCase();
                   const name = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
                   const email = (user.email || '').toLowerCase();
                   const searchMatch = !search || name.includes(search) || email.includes(search);
@@ -2027,7 +2013,7 @@ const AdminDashboard = () => {
                 {complaints.filter(c => {
                   const statusMatch = complaintFilter === 'all' ? true : (c.status || '').toLowerCase() === complaintFilter.toLowerCase();
                   const typeMatch = complaintTypeFilter === 'all' ? true : (c.type || '') === complaintTypeFilter;
-                  const search = (debouncedComplaintSearch || '').trim().toLowerCase();
+                  const search = complaintSearch.trim().toLowerCase();
                   const hay = [c.fullName, c.contact, c.type, c.location, c.description].map(x => (x || '').toLowerCase()).join(' ');
                   const searchMatch = !search || hay.includes(search);
                   // Combine date and time into ISO-like string for filtering, fallback to createdAt if present

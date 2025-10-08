@@ -46,7 +46,7 @@ Choose ONE primary method:
 - [ ] Wait for DNS propagation (often < 5 min, can be longer) → Verify.
 
 ### 5.2 URL Prefix (Vercel default domain)
-- [ ] Enter full URL (https://capstone-sumbong.vercel.app/).
+- [ ] Enter full URL (https://sumbong.vercel.app/).
 - Pick ONE verification method:
   1. HTML file: download `googleXXXX.html`, place in `frontend/public/`, commit, deploy, visit the file URL, then Verify.
   2. Meta tag: add `<meta name="google-site-verification" content="TOKEN" />` inside `<head>` in `public/index.html` → deploy → Verify.

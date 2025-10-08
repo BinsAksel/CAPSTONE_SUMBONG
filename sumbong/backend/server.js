@@ -65,8 +65,8 @@ const corsEnv = process.env.CORS_ORIGINS;
 // https://capstone-sumbong-git-main-<hash>.vercel.app or other branch deployments.
 // NOTE: If you want to tighten later, set CORS_ORIGINS env var explicitly (comma separated) without the wildcard.
 const defaultOrigins = [
-  'https://capstone-sumbong.vercel.app',
-  'https://capstone-sumbong-*.vercel.app',
+  'https://sumbong.vercel.app',
+  'https://sumbong-*.vercel.app',
   'http://localhost:3000'
 ];
 function buildOriginMatchers(list) {
@@ -285,7 +285,7 @@ app.get('/api/user/me', authenticateJWT, async (req, res) => {
 // Passport config
 // Resolve dynamic callback URL (prefers env override)
 const GOOGLE_CALLBACK = process.env.GOOGLE_CALLBACK_URL || `${process.env.BACKEND_BASE_URL || 'https://capstone-sumbong.onrender.com'}/api/auth/google/callback`;
-const FRONTEND_BASE = (process.env.FRONTEND_ORIGIN || 'https://capstone-sumbong.vercel.app/').replace(/\/$/, '');
+const FRONTEND_BASE = (process.env.FRONTEND_ORIGIN || 'https://sumbong.vercel.app/').replace(/\/$/, '');
 
 passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
